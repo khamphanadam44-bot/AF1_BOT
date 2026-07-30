@@ -1,0 +1,30 @@
+{
+  "name": "af1-testcase",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "tsx node_modules/mocha/bin/mocha \"tests/**/*.spec.ts\"",
+    "test:script1": "tsx Scripts/run-selected-test.ts \"tests/script1-login-export.spec.ts\"",
+    "test:script2": "tsx Scripts/run-selected-test.ts \"tests/script2-validate-report-and-testdata.spec.ts\"",
+    "test:script3": "tsx Scripts/run-selected-test.ts \"tests/script3-compare-report.spec.ts\"",
+    "test:script4": "tsx Scripts/run-selected-test.ts \"tests/script4-summary-results.spec.ts\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "1.57.0",
+    "@types/jest": "^30.0.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^26.0.1",
+    "mocha": "^11.7.6",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "xlsx": "^0.18.5"
+  }
+}
