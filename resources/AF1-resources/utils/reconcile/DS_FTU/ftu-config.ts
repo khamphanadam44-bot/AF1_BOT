@@ -36,6 +36,7 @@ export const FTU_COUNTRY_ID_BY_CURRENCY: Readonly<Record<string, string>> = {
   JPY: "JP",
   GBP: "GB",
   SGD: "SG",
+  AUD : "AU",
   // mapping ตาม Requirement 3.7.3.2
 };
 
