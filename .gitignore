@@ -14,7 +14,7 @@ node_modules/
 
 # Generated reports and confidential test data
 Test_result/
-test_data/
+
 
 # Local files
 desktop.ini

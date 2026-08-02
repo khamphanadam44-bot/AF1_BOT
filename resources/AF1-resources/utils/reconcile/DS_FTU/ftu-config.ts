@@ -21,7 +21,7 @@ export const FTU_REPORT_HEADER_ROW = 1;
 export const FTU_TEST_DATA_HEADER_ROW =
   getReportRuntimeConfig(FTU_REPORT_CODE).testDataHeaderRowNumber;
 
-export const FTU_BASE_CURRENCY = "THB";
+export const FTU_THB_CURRENCY_CODE = "THB";
 export const FTU_USD_THRESHOLD = 50_000;
 export const FTU_AMOUNT_TOLERANCE = 0.01;
 
