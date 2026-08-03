@@ -2,10 +2,10 @@
  * Config สำหรับตรวจ Header และข้อมูลใน Test Data แยกตาม Report
  */
 
-/** DS_PTX รองรับ Fee Group จำนวน 2 ชุด */
+/** DS_PTX รองรับ Fee Group จำนวน n ชุด */
 export const FEE_TYPE_COUNT = 2;
 
-/** DS_LTX รองรับ Fee Group จำนวน 5 ชุด */
+/** DS_LTX รองรับ Fee Group จำนวน n ชุด */
 export const LTX_FEE_TYPE_COUNT = 5;
 
 /**
