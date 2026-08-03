@@ -1,61 +1,22 @@
-// ======================================================
-// Config สำหรับ Test Data
-//
-// ใช้เก็บ Header Requirement ของ Test Data
-// โดยแยก Configuration ตาม Report
-//
-// แม้ DS_PTX และ DS_FTX จะใช้ไฟล์ Test Dataเดียวกัน
-// แต่แต่ละ Report ใช้ Header ในการตรวจสอบไม่เหมือนกัน
-// ======================================================
-
 /**
- * จำนวนชุด Fee ที่ DS_PTX รองรับ
- *
- * ตอนนี้กำหนดไว้ทั้งหมด 2 ชุด:
- * - Fee ชุดที่ 1
- * - Fee ชุดที่ 2
+ * Config สำหรับตรวจ Header และข้อมูลใน Test Data แยกตาม Report
  */
+
+/** DS_PTX รองรับ Fee Group จำนวน 2 ชุด */
 export const FEE_TYPE_COUNT = 2;
 
-/**
- * จำนวนชุด Fee ที่ DS_LTX รองรับ
- *
- * Test Data จริงของ DS_LTX มี Fee Type 1-5
- * จึงต้องแยกจำนวนออกจาก DS_PTX ที่รองรับ 2 ชุด
- */
+/** DS_LTX รองรับ Fee Group จำนวน 5 ชุด */
 export const LTX_FEE_TYPE_COUNT = 5;
 
 /**
- * สร้างรายการ Header ของ Fee
- * ตามจำนวนชุด Fee ที่กำหนด
- *
- * ตัวอย่างเมื่อ count = 2:
- *
- * Fee ชุดที่ 1
- * - Fee Type 1
- * - Fee Charge Account No. Type 1
- * - Fee Amount Type 1
- *
- * Fee ชุดที่ 2
- * - Fee Type 2
- * - Fee Charge Account No. Type 2
- * - Fee Amount Type 2
- */
-
-/**
  * คืนชื่อ Header ของ Fee Amount
- *
- * Requirement:
- * - Fee ชุดที่ 1 ใช้ "Fee Amount Type 1"
- * - Fee ชุดที่ 2 เป็นต้นไปใช้ "Fee Amount 2",
- *   "Fee Amount 3", ...
+ * - Fee 1 ใช้ "Fee Amount Type 1"
+ * - Fee 2 เป็นต้นไปใช้ "Fee Amount 2", "Fee Amount 3", ...
  */
 export const getFeeAmountHeader = (
   feeNumber: number,
 ): string => {
-  if (
-    feeNumber < 1
-  ) {
+  if (feeNumber < 1) {
     throw new Error(
       `Invalid Fee number: ${feeNumber}`,
     );
@@ -66,10 +27,24 @@ export const getFeeAmountHeader = (
     : `Fee Amount ${feeNumber}`;
 };
 
-
-function createFeeHeaders(
+/**
+ * สร้าง Header ของ Fee Group ตามกฎของ Report
+ *
+ * DS_LTX:
+ * - Fee Type
+ * - Fee Charge Account No.
+ * - Fee Amount
+ *
+ * DS_PTX:
+ * - Fee Type
+ * - Fee Charge Type
+ * - Fee Charge Account No.
+ * - Fee Amount
+ */
+const createFeeHeaders = (
   count: number,
-): string[] {
+  includeFeeChargeType = false,
+): string[] => {
   return Array.from(
     { length: count },
     (_, index) => {
@@ -78,42 +53,37 @@ function createFeeHeaders(
 
       return [
         `Fee Type ${feeNumber}`,
+
+        ...(
+          includeFeeChargeType
+            ? [
+                `Fee Charge Type ${feeNumber}`,
+              ]
+            : []
+        ),
+
         `Fee Charge Account No. Type ${feeNumber}`,
+
         getFeeAmountHeader(
           feeNumber,
         ),
       ];
     },
   ).flat();
-}
+};
 
-/**
- * Config สำหรับ Test Data
- *
- * แยก Header ที่ต้องตรวจสอบ
- * ตามชื่อ Report
- */
 export const TESTDATA_CONFIG = {
   // ====================================================
   // DS_LTX
   // ====================================================
   DS_LTX: {
-    /**
-     * Header ของไฟล์ Test Data อยู่ที่แถว 5
-     */
     headerRowNumber: 5,
 
     requiredHeaders: {
-      /**
-       * ใช้จับคู่ Test Data กับ DS_LTX
-       */
       matchingKey: [
         "Transaction ID/ Reconcile ID",
       ],
 
-      /**
-       * ข้อมูลหลักที่ DS_LTX ใช้สร้าง Expected Case
-       */
       core: [
         "Test No.",
         "Txn Date",
@@ -130,9 +100,6 @@ export const TESTDATA_CONFIG = {
         "To Account Type (Beneficiary)",
       ],
 
-      /**
-       * ข้อมูลลูกค้าที่ใช้ใน Conditional Field ของ DS_LTX
-       */
       customer: [
         "To CIF Name (Beneficiary)",
         "To Region (Bene Country)",
@@ -146,7 +113,9 @@ export const TESTDATA_CONFIG = {
       reference: [],
 
       /**
-       * DS_LTX ใช้โครงสร้าง Fee เดียวกับ Test Data กลาง
+       * LTX ใช้ Logic เดิม:
+       * - ตรวจ Fee หลัก 3 ช่อง
+       * - Fee Group ว่างทั้งชุดให้ข้าม
        */
       feeGroup: [
         ...createFeeHeaders(
@@ -160,31 +129,13 @@ export const TESTDATA_CONFIG = {
   // DS_PTX
   // ====================================================
   DS_PTX: {
-    /**
-     * Header ของไฟล์ Test Data
-     * อยู่ที่แถว 5
-     */
     headerRowNumber: 5,
 
     requiredHeaders: {
-      /**
-       * Header สำหรับใช้จับคู่ข้อมูล
-       * ระหว่าง Test Data กับ Report
-       */
       matchingKey: [
         "Transaction ID/ Reconcile ID",
       ],
 
-      /**
-       * Header ข้อมูลหลักของ DS_PTX
-       *
-       * Header กลุ่มนี้จะถูกตรวจแบบ Normal Field:
-       * - มีข้อมูล = ผ่าน
-       * - ไม่มีข้อมูล = ไม่ผ่าน
-       *
-       * Fee Header จะไม่อยู่ในกลุ่มนี้
-       * เพราะ Fee ต้องตรวจร่วมกันเป็นชุด
-       */
       core: [
         "Txn Date",
         "From Account (A/C Client/Sender)",
@@ -200,9 +151,6 @@ export const TESTDATA_CONFIG = {
         "To Account Type (Beneficiary)",
       ],
 
-      /**
-       * Header ข้อมูลลูกค้าของ DS_PTX
-       */
       customer: [
         "To CIF Name (Beneficiary)",
         "To Region (Bene Country)",
@@ -211,36 +159,21 @@ export const TESTDATA_CONFIG = {
         "From CIF Name (Client/Sender)",
       ],
 
-      /**
-       * ข้อมูลที่ตรวจตามเงื่อนไข (Conditional Field)
-       *
-       * ตอนนี้ยังไม่มี Header
-       * ที่กำหนดในกลุ่มนี้
-       */
       conditional: [],
 
-      /**
-       * ข้อมูลสำหรับอ้างอิง (Reference Field)
-       *
-       * เตรียมไว้รองรับ Header เพิ่มเติม
-       * ในอนาคต
-       */
       reference: [],
 
       /**
-       * Fee Group ของ DS_PTX
-       *
-       * แยกออกจาก core เพื่อไม่ให้ Fee
-       * ถูกตรวจซ้ำแบบ Normal Field
-       *
-       * หลักการตรวจ:
-       * - ว่างทั้งชุด = ผ่าน
-       * - มีข้อมูลครบทั้งชุด = ผ่าน
-       * - มีข้อมูลเพียงบางช่อง = ไม่ผ่าน
+       * PTX ตรวจ Fee หลัก 4 ช่อง:
+       * - Fee Type
+       * - Fee Charge Type
+       * - Fee Charge Account No.
+       * - Fee Amount
        */
       feeGroup: [
         ...createFeeHeaders(
           FEE_TYPE_COUNT,
+          true,
         ),
       ],
     },
@@ -250,24 +183,13 @@ export const TESTDATA_CONFIG = {
   // DS_FTX
   // ====================================================
   DS_FTX: {
-    /**
-     * DS_FTX ใช้ไฟล์ Test Data เดียวกับ DS_PTX
-     * และ Header อยู่ที่แถว 5 เหมือนกัน
-     */
     headerRowNumber: 5,
 
     requiredHeaders: {
-      /**
-       * Header สำหรับใช้จับคู่ข้อมูล
-       * ระหว่าง Test Data กับ Report
-       */
       matchingKey: [
         "Transaction ID/ Reconcile ID",
       ],
 
-      /**
-       * Header ข้อมูลหลักของ DS_FTX
-       */
       core: [
         "From Currency (CCY)",
         "To Currency (CCY)",
@@ -279,31 +201,12 @@ export const TESTDATA_CONFIG = {
         "From Customer Type Description",
       ],
 
-      /**
-       * ตอนนี้ DS_FTX
-       * ยังไม่มี Customer Field
-       */
       customer: [],
 
-      /**
-       * ตอนนี้ DS_FTX
-       * ยังไม่มี Conditional Field
-       */
       conditional: [],
 
-      /**
-       * ตอนนี้ DS_FTX
-       * ยังไม่มี Reference Field
-       */
       reference: [],
 
-      /**
-       * DS_FTX ไม่มี Fee Group
-       *
-       * แต่ต้องประกาศ Property นี้ไว้
-       * เพื่อให้โครงสร้าง Config ของทุก Report
-       * เหมือนกัน และไม่เกิด TypeScript Error
-       */
       feeGroup: [],
     },
   },
@@ -340,12 +243,5 @@ export const TESTDATA_CONFIG = {
   },
 } as const;
 
-/**
- * ชื่อ Report ที่รองรับ
- * ใน Test Data Config
- *
- * ผลลัพธ์ของ Type นี้คือ:
- * "DS_LTX" | "DS_PTX" | "DS_FTX" | "DS_FTU"
- */
 export type TestDataReportCode =
   keyof typeof TESTDATA_CONFIG;
