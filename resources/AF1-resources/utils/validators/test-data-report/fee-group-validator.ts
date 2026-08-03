@@ -64,9 +64,18 @@ type FeeValidationRule = {
 };
 
 /** คืนกฎ Fee ตาม Report โดยไม่ให้ PTX กระทบ LTX */
+/** คืนกฎการตรวจ Fee Group แยกตาม Report */
 const getFeeValidationRule = (
   reportCode: TestDataReportCode,
 ): FeeValidationRule => {
+  /**
+   * PTX:
+   * - ตรวจ Fee Type
+   * - ตรวจ Fee Charge Type
+   * - ตรวจ Fee Charge Account No.
+   * - ตรวจ Fee Amount
+   * - ถ้าว่างทั้งกลุ่มให้ใส่สีแดง
+   */
   if (reportCode === "DS_PTX") {
     return {
       includeFeeChargeType: true,
@@ -74,6 +83,24 @@ const getFeeValidationRule = (
     };
   }
 
+  /**
+   * LTX:
+   * - ตรวจ Fee Type
+   * - ไม่รวม Fee Charge Type ในกฎหลัก
+   * - ตรวจ Fee Charge Account No.
+   * - ตรวจ Fee Amount
+   * - ถ้าว่างทั้งกลุ่มให้ใส่สีแดง
+   */
+  if (reportCode === "DS_LTX") {
+    return {
+      includeFeeChargeType: false,
+      emptyGroupIsRequired: true,
+    };
+  }
+
+  /**
+   * Report อื่นไม่มีการบังคับ Fee Group
+   */
   return {
     includeFeeChargeType: false,
     emptyGroupIsRequired: false,
