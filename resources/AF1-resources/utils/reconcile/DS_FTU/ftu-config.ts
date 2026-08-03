@@ -42,7 +42,7 @@ export const FTU_REPORT_FIELDS = {
   foreignCurrencyAmount: "Foreign Currency Amount",
 };
 
-export const FTU_TEST_FIELDS = {
+export const FTU_TEST_DATA_FIELDS = {
   testNo: "Test No.",
   transactionId: "Transaction ID/ Reconcile ID",
   transactionDate: "Txn Date",
@@ -56,7 +56,8 @@ export const FTU_TEST_FIELDS = {
 export const FTU_REMARKS = {
   buyForeignCurrency: "Buy Foreign Currency — ต้องพบใน DS_FTU",
   sellForeignCurrency: "Sell Foreign Currency — ต้องพบใน DS_FTU",
-
+   /** แสดงเมื่อมีอย่างน้อยหนึ่ง Field ที่ต้อง Review */
+  pleaseReview: "Please review",
   noThbLegExpectedAbsence: "ธุรกรรมไม่มีขา THB — ไม่ควรพบใน DS_FTU",
   noThbLegUnexpectedPresence: "ธุรกรรมไม่มีขา THB แต่พบใน DS_FTU โดยไม่ควรพบ",
 
