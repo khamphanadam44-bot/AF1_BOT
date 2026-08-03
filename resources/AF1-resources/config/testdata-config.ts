@@ -78,6 +78,7 @@ function createFeeHeaders(
 
       return [
         `Fee Type ${feeNumber}`,
+        `Fee Charge Type ${feeNumber}`,
         `Fee Charge Account No. Type ${feeNumber}`,
         getFeeAmountHeader(
           feeNumber,
