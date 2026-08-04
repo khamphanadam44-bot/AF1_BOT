@@ -6,7 +6,7 @@
  * ใช้ Fee Group แบบ Array เพื่อไม่ Fix จำนวน Fee Type ไว้ที่ 2
  * Report ที่มี Fee Type 1-N สามารถใช้ Model เดียวกันได้
  * ------------------------------------------------------------------
- */
+ 
 
 export type SummaryTestResult = "Pass" | "Fail";
 
@@ -19,7 +19,7 @@ export interface ReconcileSummaryCounts {
 /**
  * สีของ Cell Test Result ที่อ่านมาจาก Reconcile Result
  * เก็บเฉพาะสีที่ต้องนำไปใช้ใน Summary ไม่ Copy Style อื่นจาก Source
- */
+ 
 export interface SummaryTestResultColorStyle {
   fillArgb?: string;
   fontColorArgb?: string;
@@ -80,4 +80,4 @@ export interface SummaryGenerationResult {
   metadata: SummaryRunMetadata;
   detailRowCount: number;
   displayedFeeGroupCount: number;
-}
+} */

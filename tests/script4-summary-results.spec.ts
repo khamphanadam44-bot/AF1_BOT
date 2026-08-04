@@ -43,10 +43,6 @@ import {
   writeReportAutomationSummary,
 } from "../resources/AF1-resources/utils/summary/automation-summary-writer";
 
-import {
-  generateSummaryReport,
-} from "../resources/AF1-resources/utils/validators/summary/summary.service";
-
 /**
  * แปลงวันที่เป็นรูปแบบ yyyy-MM-dd
  */
@@ -109,27 +105,6 @@ describe(
       it(
         `Create ${reportName} Automation Summary`,
         async () => {
-          /**
-           * DS_LTX และ DS_FTU มีรูปแบบ Reconcile Result และ Template
-           * ต่างจาก DS_PTX/DS_FTX จึงใช้ Summary Service ของ LTX
-           */
-          if (
-            reportName === "DS_LTX" ||
-            reportName === "DS_FTU"
-          ) {
-            const summaryResult =
-              await generateSummaryReport(
-                reportName,
-              );
-
-            console.log(
-              "Output File       :",
-              summaryResult.summaryFilePath,
-            );
-
-            return;
-          }
-
           const startedAt =
             new Date();
 
@@ -163,8 +138,7 @@ describe(
             );
 
           /**
-           * ขั้นตอนที่ 2:
-           * อ่านผล Compare จาก Script 3
+           * ขั้นตอนที่ 2: อ่านผล Compare จาก Script 3
            */
           const compareRows =
             await readCompareResultRows(
@@ -250,8 +224,7 @@ describe(
           );
 
           /**
-           * ขั้นตอนที่ 5:
-           * แสดงผลการทำงานใน Terminal
+           * ขั้นตอนที่ 5: แสดงผลการทำงานใน Terminal
            */
           console.log("");
           console.log(

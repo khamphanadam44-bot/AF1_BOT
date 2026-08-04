@@ -21,12 +21,11 @@ import path from "path";
  * ตัวอย่าง:
  * Test_result/Reconcile-report/DS_PTX
  */
-const RECONCILE_REPORT_ROOT_FOLDER =
-  path.resolve(
-    process.cwd(),
-    "Test_result",
-    "Reconcile-report",
-  );
+const RECONCILE_REPORT_ROOT_FOLDER = path.resolve(
+  process.cwd(),
+  "Test_result",
+  "Reconcile-report",
+);
 
 /**
  * Folder หลักสำหรับเก็บ Checked Report จาก Script 2
@@ -34,12 +33,11 @@ const RECONCILE_REPORT_ROOT_FOLDER =
  * ตัวอย่าง:
  * Test_result/Checked-report-header/DS_PTX
  */
-const CHECKED_REPORT_HEADER_ROOT_FOLDER =
-  path.resolve(
-    process.cwd(),
-    "Test_result",
-    "Checked-report-header",
-  );
+const CHECKED_REPORT_HEADER_ROOT_FOLDER = path.resolve(
+  process.cwd(),
+  "Test_result",
+  "Checked-report-header",
+);
 
 /**
  * Folder สำหรับเก็บ Checked Test Data จาก Script 2
@@ -47,12 +45,11 @@ const CHECKED_REPORT_HEADER_ROOT_FOLDER =
  * ตัวอย่าง:
  * Test_result/Checked-testdata-header
  */
-const CHECKED_TEST_DATA_FOLDER =
-  path.resolve(
-    process.cwd(),
-    "Test_result",
-    "Checked-testdata-header",
-  );
+const CHECKED_TEST_DATA_FOLDER = path.resolve(
+  process.cwd(),
+  "Test_result",
+  "Checked-testdata-header",
+);
 
 /**
  * Folder หลักสำหรับเก็บผลลัพธ์ Summary จาก Script 4
@@ -60,13 +57,11 @@ const CHECKED_TEST_DATA_FOLDER =
  * ตัวอย่าง:
  * Test_result/Summary-report/DS_PTX
  */
-const SUMMARY_REPORT_ROOT_FOLDER =
-  path.resolve(
-    process.cwd(),
-    "Test_result",
-    "Summary-report",
-  );
-
+const SUMMARY_REPORT_ROOT_FOLDER = path.resolve(
+  process.cwd(),
+  "Test_result",
+  "Summary-report",
+);
 
 /**
  * Original Test Data กลางของทุก Report
@@ -74,13 +69,11 @@ const SUMMARY_REPORT_ROOT_FOLDER =
  * Script 4 ใช้ไฟล์นี้สร้างข้อมูลฝั่ง "Test Script Data"
  * ในชีท Summary หลักของทั้ง DS_PTX และ DS_FTX
  */
-export const ORIGINAL_TEST_DATA_PATH =
-  path.resolve(
-    process.cwd(),
-    "test_data",
-    "Test_Data_Downstream-for pilot.xlsx",
-  );
-
+export const ORIGINAL_TEST_DATA_PATH = path.resolve(
+  process.cwd(),
+  "test_data",
+  "Test_Data_Downstream-for pilot.xlsx",
+);
 
 /**
  * แปลงชื่อ Report ให้อยู่ในรูปแบบมาตรฐาน
@@ -89,15 +82,9 @@ export const ORIGINAL_TEST_DATA_PATH =
  * ds_ptx  -> DS_PTX
  * DS-PTX  -> DS_PTX
  */
-const normalizeReportName = (
-  reportName: string,
-): string => {
-  return String(reportName)
-    .trim()
-    .toUpperCase()
-    .replace(/-/g, "_");
+const normalizeReportName = (reportName: string): string => {
+  return String(reportName).trim().toUpperCase().replace(/-/g, "_");
 };
-
 
 /**
  * เลือก Template ให้ตรงกับ Report
@@ -105,39 +92,23 @@ const normalizeReportName = (
  * DS_PTX -> template/DS_PTX_Automation_Summary.xlsx
  * DS_FTX -> template/DS_FTX_Automation_Summary.xlsx
  */
-export const getSummaryTemplatePath = (
-  reportName: string,
-): string => {
-  const normalizedReportName =
-    normalizeReportName(
-      reportName,
-    );
+export const getSummaryTemplatePath = (reportName: string): string => {
+  const normalizedReportName = normalizeReportName(reportName);
 
-  const templatePath =
-    path.resolve(
-      process.cwd(),
-      "template",
-      `${normalizedReportName}_Automation_Summary.xlsx`,
-    );
+  const templatePath = path.resolve(
+    process.cwd(),
+    "template",
+    `${normalizedReportName}_Automation_Summary.xlsx`,
+  );
 
-  if (
-    !fs.existsSync(
-      templatePath,
-    )
-  ) {
-    throw new Error(
-      `Summary template not found: ${templatePath}`,
-    );
+  if (!fs.existsSync(templatePath)) {
+    throw new Error(`Summary template not found: ${templatePath}`);
   }
 
-  console.log(
-    "Summary Template      :",
-    templatePath,
-  );
+  console.log("Summary Template      :", templatePath);
 
   return templatePath;
 };
-
 
 /**
  * สร้าง Timestamp
@@ -151,53 +122,19 @@ export const getSummaryTemplatePath = (
 const getTimestamp = (): string => {
   const now = new Date();
 
-  const yyyy =
-    now.getFullYear();
+  const yyyy = now.getFullYear();
 
-  const MM =
-    String(
-      now.getMonth() + 1,
-    ).padStart(
-      2,
-      "0",
-    );
+  const MM = String(now.getMonth() + 1).padStart(2, "0");
 
-  const dd =
-    String(
-      now.getDate(),
-    ).padStart(
-      2,
-      "0",
-    );
+  const dd = String(now.getDate()).padStart(2, "0");
 
-  const HH =
-    String(
-      now.getHours(),
-    ).padStart(
-      2,
-      "0",
-    );
+  const HH = String(now.getHours()).padStart(2, "0");
 
-  const mm =
-    String(
-      now.getMinutes(),
-    ).padStart(
-      2,
-      "0",
-    );
+  const mm = String(now.getMinutes()).padStart(2, "0");
 
-  const ss =
-    String(
-      now.getSeconds(),
-    ).padStart(
-      2,
-      "0",
-    );
+  const ss = String(now.getSeconds()).padStart(2, "0");
 
-  return (
-    `${yyyy}${MM}${dd}` +
-    `_${HH}${mm}${ss}`
-  );
+  return `${yyyy}${MM}${dd}` + `_${HH}${mm}${ss}`;
 };
 
 /**
@@ -214,18 +151,10 @@ const getTimestamp = (): string => {
  * ถ้าชื่อไฟล์ไม่มี Timestamp รูปแบบนี้
  * จะคืนค่า 0 แล้วใช้ Modified Time เป็นตัวช่วยแทน
  */
-const getTimestampFromFileName = (
-  fileName: string,
-): number => {
-  const matchedTimestamp =
-    fileName.match(
-      /(\d{8})_(\d{6})/g,
-    );
+const getTimestampFromFileName = (fileName: string): number => {
+  const matchedTimestamp = fileName.match(/(\d{8})_(\d{6})/g);
 
-  if (
-    !matchedTimestamp ||
-    matchedTimestamp.length === 0
-  ) {
+  if (!matchedTimestamp || matchedTimestamp.length === 0) {
     return 0;
   }
 
@@ -233,17 +162,11 @@ const getTimestampFromFileName = (
    * ใช้ Timestamp ชุดสุดท้ายในชื่อไฟล์
    * เพื่อป้องกันกรณีชื่อไฟล์มีวันที่มากกว่าหนึ่งชุด
    */
-  const latestTimestampText =
-    matchedTimestamp[
-      matchedTimestamp.length - 1
-    ].replace(
-      "_",
-      "",
-    );
+  const latestTimestampText = matchedTimestamp[
+    matchedTimestamp.length - 1
+  ].replace("_", "");
 
-  return Number(
-    latestTimestampText,
-  );
+  return Number(latestTimestampText);
 };
 
 /**
@@ -254,148 +177,82 @@ const getTimestampFromFileName = (
  */
 const getLatestExcelFile = (
   folderPath: string,
-  fileFilter: (
-    fileName: string,
-  ) => boolean,
+  fileFilter: (fileName: string) => boolean,
 ): string => {
   /**
    * ตรวจสอบว่า Folder มีอยู่จริง
    */
-  if (
-    !fs.existsSync(
-      folderPath,
-    )
-  ) {
-    throw new Error(
-      `Folder not found: ${folderPath}`,
-    );
+  if (!fs.existsSync(folderPath)) {
+    throw new Error(`Folder not found: ${folderPath}`);
   }
 
   /**
    * อ่านไฟล์ทั้งหมดภายใน Folder
    * แล้วเลือกเฉพาะไฟล์ที่ตรงตามเงื่อนไข
    */
-  const matchedFiles =
-    fs
-      .readdirSync(
-        folderPath,
-      )
-      .filter(
-        (
-          fileName,
-        ) => {
-          const fullPath =
-            path.join(
-              folderPath,
-              fileName,
-            );
+  const matchedFiles = fs
+    .readdirSync(folderPath)
+    .filter((fileName) => {
+      const fullPath = path.join(folderPath, fileName);
 
-          /**
-           * ข้าม Folder ย่อย
-           */
-          if (
-            !fs
-              .statSync(
-                fullPath,
-              )
-              .isFile()
-          ) {
-            return false;
-          }
+      /**
+       * ข้าม Folder ย่อย
+       */
+      if (!fs.statSync(fullPath).isFile()) {
+        return false;
+      }
 
-          return fileFilter(
-            fileName,
-          );
-        },
-      )
-      .map(
-        (
-          fileName,
-        ) => {
-          const fullPath =
-            path.join(
-              folderPath,
-              fileName,
-            );
+      return fileFilter(fileName);
+    })
+    .map((fileName) => {
+      const fullPath = path.join(folderPath, fileName);
 
-          return {
-            fullPath,
-            fileName,
-            fileTimestamp:
-              getTimestampFromFileName(
-                fileName,
-              ),
-            modifiedTime:
-              fs.statSync(
-                fullPath,
-              ).mtimeMs,
-          };
-        },
-      )
-      .sort(
-        (
-          firstFile,
-          secondFile,
-        ) => {
-          /**
-           * เลือกจาก Timestamp ในชื่อไฟล์ก่อน
-           *
-           * เหตุผล:
-           * เวลา Copy Project หรือแตก ZIP
-           * Modified Time ของหลายไฟล์อาจกลายเป็นเวลาเดียวกัน
-           */
-          if (
-            firstFile.fileTimestamp !==
-            secondFile.fileTimestamp
-          ) {
-            return (
-              secondFile.fileTimestamp -
-              firstFile.fileTimestamp
-            );
-          }
+      return {
+        fullPath,
+        fileName,
+        fileTimestamp: getTimestampFromFileName(fileName),
+        modifiedTime: fs.statSync(fullPath).mtimeMs,
+      };
+    })
+    .sort((firstFile, secondFile) => {
+      /**
+       * เลือกจาก Timestamp ในชื่อไฟล์ก่อน
+       *
+       * เหตุผล:
+       * เวลา Copy Project หรือแตก ZIP
+       * Modified Time ของหลายไฟล์อาจกลายเป็นเวลาเดียวกัน
+       */
+      if (firstFile.fileTimestamp !== secondFile.fileTimestamp) {
+        return secondFile.fileTimestamp - firstFile.fileTimestamp;
+      }
 
-          /**
-           * ถ้าชื่อไฟล์ไม่มี Timestamp
-           * หรือ Timestamp เท่ากัน
-           * จึงค่อยเปรียบเทียบ Modified Time
-           */
-          if (
-            firstFile.modifiedTime !==
-            secondFile.modifiedTime
-          ) {
-            return (
-              secondFile.modifiedTime -
-              firstFile.modifiedTime
-            );
-          }
+      /**
+       * ถ้าชื่อไฟล์ไม่มี Timestamp
+       * หรือ Timestamp เท่ากัน
+       * จึงค่อยเปรียบเทียบ Modified Time
+       */
+      if (firstFile.modifiedTime !== secondFile.modifiedTime) {
+        return secondFile.modifiedTime - firstFile.modifiedTime;
+      }
 
-          /**
-           * เงื่อนไขสุดท้าย:
-           * เรียงชื่อไฟล์จากมากไปน้อย
-           */
-          return secondFile.fileName
-            .localeCompare(
-              firstFile.fileName,
-            );
-        },
-      );
+      /**
+       * เงื่อนไขสุดท้าย:
+       * เรียงชื่อไฟล์จากมากไปน้อย
+       */
+      return secondFile.fileName.localeCompare(firstFile.fileName);
+    });
 
   /**
    * แจ้ง Error หากไม่พบไฟล์
    */
-  if (
-    matchedFiles.length === 0
-  ) {
-    throw new Error(
-      `No matching Excel file found in: ${folderPath}`,
-    );
+  if (matchedFiles.length === 0) {
+    throw new Error(`No matching Excel file found in: ${folderPath}`);
   }
 
   /**
    * รายการแรกคือไฟล์ที่แก้ไขล่าสุด
    */
-  return matchedFiles[0]
-    .fullPath;
+  return matchedFiles[0].fullPath;
 };
 
 /**
@@ -407,59 +264,35 @@ const getLatestExcelFile = (
  * ตัวอย่าง:
  * DS_PTX_Compare_Result_20260721_092700.xlsx
  */
-export const getLatestCompareResultPath = (
-  reportName: string,
-): string => {
-  const normalizedReportName =
-    normalizeReportName(
-      reportName,
-    );
+export const getLatestCompareResultPath = (reportName: string): string => {
+  const normalizedReportName = normalizeReportName(reportName);
 
-  const reconcileReportFolder =
-    path.join(
-      RECONCILE_REPORT_ROOT_FOLDER,
-      normalizedReportName,
-    );
-
-  const latestCompareResult =
-    getLatestExcelFile(
-      reconcileReportFolder,
-      (
-        fileName,
-      ) => {
-        const upperFileName =
-          fileName.toUpperCase();
-
-        const isExcelFile =
-          upperFileName.endsWith(
-            ".XLSX",
-          );
-
-        const isCorrectReport =
-          upperFileName.includes(
-            normalizedReportName,
-          );
-
-        const isCompareResult =
-          upperFileName.includes(
-            "COMPARE",
-          ) &&
-          upperFileName.includes(
-            "RESULT",
-          );
-
-        return (
-          isExcelFile &&
-          isCorrectReport &&
-          isCompareResult
-        );
-      },
-    );
-
-  console.log(
-    "Latest Compare Result :",
-    latestCompareResult,
+  const reconcileReportFolder = path.join(
+    RECONCILE_REPORT_ROOT_FOLDER,
+    normalizedReportName,
   );
+
+  const latestCompareResult = getLatestExcelFile(
+    reconcileReportFolder,
+    (fileName) => {
+      const upperFileName = fileName.toUpperCase();
+
+      const isExcelFile = upperFileName.endsWith(".XLSX");
+
+      const isCorrectReport = upperFileName.includes(normalizedReportName);
+
+      const isCompareResultFile =
+        upperFileName.includes("COMPARE") && upperFileName.includes("RESULT");
+
+      const isReconcileFile = upperFileName.includes("RECONCILE");
+
+      const isScript3Result = isCompareResultFile || isReconcileFile;
+
+      return isExcelFile && isCorrectReport && isScript3Result;
+    },
+  );
+
+  console.log("Latest Compare Result :", latestCompareResult);
 
   return latestCompareResult;
 };
@@ -473,56 +306,30 @@ export const getLatestCompareResultPath = (
  * ใช้สำหรับสร้างชีท:
  * DS_PTX
  */
-export const getLatestCheckedReportPath = (
-  reportName: string,
-): string => {
-  const normalizedReportName =
-    normalizeReportName(
-      reportName,
-    );
+export const getLatestCheckedReportPath = (reportName: string): string => {
+  const normalizedReportName = normalizeReportName(reportName);
 
-  const checkedReportFolder =
-    path.join(
-      CHECKED_REPORT_HEADER_ROOT_FOLDER,
-      normalizedReportName,
-    );
-
-  const latestCheckedReport =
-    getLatestExcelFile(
-      checkedReportFolder,
-      (
-        fileName,
-      ) => {
-        const upperFileName =
-          fileName.toUpperCase();
-
-        const isExcelFile =
-          upperFileName.endsWith(
-            ".XLSX",
-          );
-
-        const isCorrectReport =
-          upperFileName.includes(
-            normalizedReportName,
-          );
-
-        const isExportFile =
-          upperFileName.startsWith(
-            "EXPORT_",
-          );
-
-        return (
-          isExcelFile &&
-          isCorrectReport &&
-          isExportFile
-        );
-      },
-    );
-
-  console.log(
-    "Latest Checked Report :",
-    latestCheckedReport,
+  const checkedReportFolder = path.join(
+    CHECKED_REPORT_HEADER_ROOT_FOLDER,
+    normalizedReportName,
   );
+
+  const latestCheckedReport = getLatestExcelFile(
+    checkedReportFolder,
+    (fileName) => {
+      const upperFileName = fileName.toUpperCase();
+
+      const isExcelFile = upperFileName.endsWith(".XLSX");
+
+      const isCorrectReport = upperFileName.includes(normalizedReportName);
+
+      const isExportFile = upperFileName.startsWith("EXPORT_");
+
+      return isExcelFile && isCorrectReport && isExportFile;
+    },
+  );
+
+  console.log("Latest Checked Report :", latestCheckedReport);
 
   return latestCheckedReport;
 };
@@ -539,13 +346,8 @@ export const getLatestCheckedReportPath = (
  * ใช้สำหรับสร้างชีท:
  * Test Data
  */
-export const getLatestCheckedTestDataPath = (
-  reportName: string,
-): string => {
-  const normalizedReportName =
-    normalizeReportName(
-      reportName,
-    );
+export const getLatestCheckedTestDataPath = (reportName: string): string => {
+  const normalizedReportName = normalizeReportName(reportName);
 
   /**
    * ระบุ Folder ย่อยตามชื่อ Report
@@ -553,60 +355,37 @@ export const getLatestCheckedTestDataPath = (
    * ตัวอย่าง:
    * Test_result/Checked-testdata-header/DS_PTX
    */
-  const checkedTestDataFolder =
-    path.join(
-      CHECKED_TEST_DATA_FOLDER,
-      normalizedReportName,
-    );
-
-  const latestCheckedTestData =
-    getLatestExcelFile(
-      checkedTestDataFolder,
-      (
-        fileName,
-      ) => {
-        const upperFileName =
-          fileName.toUpperCase();
-
-        const isExcelFile =
-          upperFileName.endsWith(
-            ".XLSX",
-          );
-
-        const isCorrectReport =
-          upperFileName.includes(
-            normalizedReportName,
-          );
-
-        const isTestDataFile =
-          upperFileName.includes(
-            "TESTDATA",
-          );
-
-        const isValidationFile =
-          upperFileName.includes(
-            "VALIDATION",
-          );
-
-        const isResultFile =
-          upperFileName.includes(
-            "RESULT",
-          );
-
-        return (
-          isExcelFile &&
-          isCorrectReport &&
-          isTestDataFile &&
-          isValidationFile &&
-          isResultFile
-        );
-      },
-    );
-
-  console.log(
-    "Latest Checked Test Data :",
-    latestCheckedTestData,
+  const checkedTestDataFolder = path.join(
+    CHECKED_TEST_DATA_FOLDER,
+    normalizedReportName,
   );
+
+  const latestCheckedTestData = getLatestExcelFile(
+    checkedTestDataFolder,
+    (fileName) => {
+      const upperFileName = fileName.toUpperCase();
+
+      const isExcelFile = upperFileName.endsWith(".XLSX");
+
+      const isCorrectReport = upperFileName.includes(normalizedReportName);
+
+      const isTestDataFile = upperFileName.includes("TESTDATA");
+
+      const isValidationFile = upperFileName.includes("VALIDATION");
+
+      const isResultFile = upperFileName.includes("RESULT");
+
+      return (
+        isExcelFile &&
+        isCorrectReport &&
+        isTestDataFile &&
+        isValidationFile &&
+        isResultFile
+      );
+    },
+  );
+
+  console.log("Latest Checked Test Data :", latestCheckedTestData);
 
   return latestCheckedTestData;
 };
@@ -620,29 +399,20 @@ export const getLatestCheckedTestDataPath = (
  * ตัวอย่างชื่อไฟล์:
  * DS_PTX_Automation_Summary_20260721_153045-Final.xlsx
  */
-export const getSummaryResultOutputPath = (
-  reportName: string,
-): string => {
-  const normalizedReportName =
-    normalizeReportName(
-      reportName,
-    );
+export const getSummaryResultOutputPath = (reportName: string): string => {
+  const normalizedReportName = normalizeReportName(reportName);
 
-  const summaryReportFolder =
-    path.join(
-      SUMMARY_REPORT_ROOT_FOLDER,
-      normalizedReportName,
-    );
+  const summaryReportFolder = path.join(
+    SUMMARY_REPORT_ROOT_FOLDER,
+    normalizedReportName,
+  );
 
   /**
    * สร้าง Folder หากยังไม่มี
    */
-  fs.mkdirSync(
-    summaryReportFolder,
-    {
-      recursive: true,
-    },
-  );
+  fs.mkdirSync(summaryReportFolder, {
+    recursive: true,
+  });
 
   const outputFileName =
     `${normalizedReportName}` +
@@ -650,10 +420,7 @@ export const getSummaryResultOutputPath = (
     `${getTimestamp()}` +
     `-Final.xlsx`;
 
-  return path.join(
-    summaryReportFolder,
-    outputFileName,
-  );
+  return path.join(summaryReportFolder, outputFileName);
 };
 
 /**
@@ -663,7 +430,5 @@ export const getSummaryResultOutputPath = (
  * RUN_20260721_153045
  */
 export const createRunId = (): string => {
-  return (
-    `RUN_${getTimestamp()}`
-  );
+  return `RUN_${getTimestamp()}`;
 };

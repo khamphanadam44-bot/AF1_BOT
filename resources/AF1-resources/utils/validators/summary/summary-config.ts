@@ -7,7 +7,7 @@
  * ที่กำหนดในไฟล์นี้ จึงไม่ต้องใส่ Business Mapping ของแต่ละ Report
  * กระจายอยู่ใน summary.service.ts หรือ summary.page.ts
  * ------------------------------------------------------------------
- */
+ *
 
 import type { ReportCode } from "../../../config/report-config";
 import { getReportRuntimeConfig } from "../../../config/report-runtime.config";
@@ -397,7 +397,7 @@ const buildCommonConfig = (
  * อื่นในระบบใช้ (RECONCILE_CONFIG, EXPECTED_CASE_BUILDERS, RECONCILE_RUNNERS) — เปลี่ยน
  * เป็น Registry Pattern เดียวกัน เพิ่ม Report ใหม่ในอนาคตแค่เติม Key ใน
  * SUMMARY_CONFIG_BUILDERS ไม่ต้องแก้ Logic ในฟังก์ชัน getSummaryConfig เลย
- */
+ 
 type SummaryConfigBuilder = (
   common: ReturnType<typeof buildCommonConfig>,
 ) => SummaryReportConfig;
@@ -425,7 +425,7 @@ const SUMMARY_CONFIG_BUILDERS: Partial<
       /**
        * FTU จับคู่ Transaction ID/Reconcile ID
        * ของ Test Data กับ Arr Number ใน Report
-       */
+       
       referenceTransactionNumber: {
         aliases: ["Arr Number"],
       },
@@ -443,7 +443,7 @@ const SUMMARY_CONFIG_BUILDERS: Partial<
 
 /**
  * สร้าง Summary Config ของ Report ที่รองรับ Script 4 แล้ว
- */
+ 
 export const getSummaryConfig = (
   reportCode: ReportCode,
 ): SummaryReportConfig => {
@@ -457,3 +457,4 @@ export const getSummaryConfig = (
 
   return builder(buildCommonConfig(reportCode));
 };
+*/
