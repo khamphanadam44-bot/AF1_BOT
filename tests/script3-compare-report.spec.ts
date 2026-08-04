@@ -32,33 +32,31 @@ import {
  * ============================================================
  * DS_PTX
  * ============================================================
+ *
+ * DS_PTX ใช้ ptx-reconcile.ts
+ * เป็น Entry Point หลักของ Script 3
  */
 
 import {
-  compareReportWithTestData as compareDsPtx,
-} from "../resources/AF1-resources/utils/reconcile/DS_PTX/compare-validator";
-
-import {
-  getLatestReportPath as getLatestDsPtxReportPath,
-} from "../resources/AF1-resources/utils/reconcile/DS_PTX/compare-file-helper";
-
+  reconcilePtxReport,
+} from "../resources/AF1-resources/utils/reconcile/DS_PTX/ptx-reconcile";
 /**
  * ============================================================
  * DS_FTX
  * ============================================================
  *
- * DS_FTX ใช้ Reconciler เป็นตัวควบคุมหลัก
- * ไม่ได้เรียก compare-validator.ts โดยตรง
+ * DS_FTX ใช้ ftx-reconcile.ts เป็นตัวควบคุมหลัก
+ * โดยรวม Flow การจับคู่ การตรวจสอบ
+ * และการเปรียบเทียบข้อมูลไว้ภายใน Reconciler
  */
-
 import {
   reconcileDsFtx,
-} from "../resources/AF1-resources/utils/reconcile/DS_FTX/ds-ftx-reconciler";
+} from "../resources/AF1-resources/utils/reconcile/DS_FTX/ftx-reconcile";
 
 import {
   prepareFtxCompareFilePaths,
   printFtxCompareFilePaths,
-} from "../resources/AF1-resources/utils/reconcile/DS_FTX/compare-file-helper";
+} from "../resources/AF1-resources/utils/reconcile/DS_FTX/ftx-file-helper";
 
 /**
  * ============================================================
@@ -80,47 +78,18 @@ const SCRIPT_TIMEOUT =
 /**
  * ทำงานสำหรับ DS_PTX
  */
+/**
+ * ทำงานสำหรับ DS_PTX
+ *
+ * รายละเอียดการหา Checked Report
+ * และการสร้าง Output Path
+ * จะถูกจัดการใน ptx-reconcile.ts
+ */
 const runDsPtxCompare = async (
   reportName: string,
 ): Promise<void> => {
-  /**
-   * หา Checked Report DS_PTX ล่าสุด
-   */
-  const reportPath =
-    getLatestDsPtxReportPath(
-      reportName,
-    );
-
-  console.log(
-    "REPORT PATH",
-  );
-
-  console.log(
-    reportPath,
-  );
-
-  console.log(
-    "================================",
-  );
-
-  console.log(
-    "TEST DATA PATH",
-  );
-
-  console.log(
-    testDataPath,
-  );
-
-  console.log(
-    "================================",
-  );
-
-  /**
-   * เรียก Logic เดิมของ DS_PTX
-   */
-  await compareDsPtx(
+  await reconcilePtxReport(
     reportName,
-    reportPath,
     testDataPath,
   );
 };
