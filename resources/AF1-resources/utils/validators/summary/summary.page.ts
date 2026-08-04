@@ -10,7 +10,7 @@
  * Class นี้ไม่อ่าน Reconcile Result และไม่จับคู่ Test Data
  * จึงไม่มี Business Logic ปะปนกับ Logic การจัดการ Template
  * ------------------------------------------------------------------
- */
+ 
 
 import * as fs from "fs";
 import * as path from "path";
@@ -102,7 +102,7 @@ export class SummaryPage {
    * เขียน Summary Details โดยใช้ Value/Text เป็นหลัก
    * ยกเว้น Cell Test Result ที่ Copy เฉพาะสี Fill และสี Font จาก Reconcile Result
    * ส่วน Border, Alignment และรูปแบบอื่นยังใช้จาก Summary Template
-   */
+   
   writeDetails(detailRows: SummaryDetailRow[]): number {
     const locator = this.getConfig().locator;
     const activeFeeIndexes = this.findActiveFeeIndexes(detailRows);
@@ -146,7 +146,7 @@ export class SummaryPage {
   /**
    * Copy Worksheet ทั้ง Tab จากไฟล์ต้นทางลง Tab ที่มีอยู่ใน Summary Template
    * โดยรักษาตำแหน่ง Row, Column, Style, Merge, Validation และ Filter ตามต้นฉบับ
-   */
+   
   async replaceWorksheetFromFile(
     sourceFilePath: string,
     sourceSheetName: string,
@@ -361,7 +361,7 @@ export class SummaryPage {
   /**
    * ใช้สีของ Test Result จาก Reconcile Result โดย Copy เฉพาะสีเท่านั้น
    * Style ส่วนอื่นของ Cell เช่น Border และ Alignment ยังคงมาจาก Template
-   */
+   
   private applyTestResultColor(
     rowNumber: number,
     columnNumber: number,
@@ -391,7 +391,7 @@ export class SummaryPage {
    *
    * Merge เฉพาะ Column L ถึง Fee Column สุดท้าย
    * ข้อมูล Reconcile ทางซ้ายยังคงแยกเป็นคนละแถวตามเดิม
-   */
+   
   private mergeRepeatedTestScriptRows(
     detailRows: SummaryDetailRow[],
   ): void {
@@ -449,7 +449,7 @@ export class SummaryPage {
   /**
    * ป้องกัน Merge Range เก่าจาก Template หรือไฟล์ที่เคยสร้างไว้
    * โดย Unmerge เฉพาะพื้นที่ Detail ตั้งแต่แถวข้อมูลลงไป
-   */
+   
   private unmergeExistingDetailRows(): void {
     const worksheet = this.getWorksheet();
     const detailStartRow = this.getConfig().locator.detailStartRow;
@@ -488,7 +488,7 @@ export class SummaryPage {
   /**
    * ถ้า Report มี Fee มากกว่า Template เดิม 2 Type
    * ให้ต่อ Column ใหม่ทางขวา และ Copy เฉพาะ Style/Width จาก Fee Group ตัวอย่าง
-   */
+   
   private prepareDynamicFeeColumns(feeGroupCount: number): void {
     const worksheet = this.getWorksheet();
     const locator = this.getConfig().locator;
@@ -718,4 +718,4 @@ export class SummaryPage {
 
     return this.config;
   }
-}
+} */

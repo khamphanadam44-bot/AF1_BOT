@@ -20,7 +20,7 @@ import { COLORS } from "../../validators/shared/excel-style.util";
 
 const META_COLUMN_HEADERS = [
   "Test Script No.",
-  "Test Result.",
+  "Test Result",
   "Remark",
 ] as const;
 const META_COLUMN_COUNT = META_COLUMN_HEADERS.length;
@@ -34,7 +34,7 @@ const DATA_ROW_HEIGHT = 20;
 const META_COLUMN_WIDTHS: Record<(typeof META_COLUMN_HEADERS)[number], number> =
   {
     "Test Script No.": 18,
-    "Test Result.": 15,
+    "Test Result": 15,
     Remark: 70,
   };
 const REPORT_COLUMN_MIN_WIDTH = 14;

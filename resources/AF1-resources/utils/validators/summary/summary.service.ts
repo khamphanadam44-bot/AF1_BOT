@@ -14,7 +14,7 @@
  * 7. สร้าง Metadata จาก Timestamp ในชื่อ Reconcile Result
  * 8. เรียก SummaryPage เพื่อกรอก Template และ Save แบบ Temp File
  * ------------------------------------------------------------------
- */
+ 
 
 import * as fs from "fs";
 import * as path from "path";
@@ -119,21 +119,21 @@ export class SummaryService {
     summaryPage.writeMetadata(metadata);
     summaryPage.writeSummaryCounts(source.counts);
     const displayedFeeGroupCount = summaryPage.writeDetails(detailRows);
-    /** Copy DS_LTX_Reconcile ทั้ง Tab จาก Reconcile-report */
+    /** Copy DS_LTX_Reconcile ทั้ง Tab จาก Reconcile-report 
     await summaryPage.replaceWorksheetFromFile(
       reconcileFilePath,
       config.reconcileSheetName,
       config.reconcileSheetName,
     );
 
-    /** Copy DS_LTX ทั้ง Tab จาก Checked-report-header */
+    /** Copy DS_LTX ทั้ง Tab จาก Checked-report-header 
     await summaryPage.replaceWorksheetFromFile(
       checkedReportFilePath,
       config.checkedReportSourceSheetName,
       config.checkedReportTargetSheetName,
     );
 
-    /** Copy Test Data ทั้ง Tab จาก Checked-testdata-header โดยไม่เลื่อน Column */
+    /** Copy Test Data ทั้ง Tab จาก Checked-testdata-header โดยไม่เลื่อน Column 
     await summaryPage.replaceWorksheetFromFile(
       checkedTestDataFilePath,
       config.checkedTestDataSourceSheetName,
@@ -180,7 +180,7 @@ export class SummaryService {
   /**
    * เลือกไฟล์จาก Timestamp ในชื่อไฟล์ ไม่ใช้เฉพาะ Modified Time
    * เพื่อให้ผลลัพธ์คงที่แม้มีการ Copy ไฟล์เก่ากลับเข้ามาใหม่
-   */
+   
   private findLatestReconcileFile(config: SummaryReportConfig): string {
     const escapedPrefix = this.escapeRegExp(config.reconcileFilePrefix);
     const expectedPattern = new RegExp(
@@ -278,7 +278,7 @@ export class SummaryService {
        * ข้ามเฉพาะแถว AF1 ที่ไม่ได้ผูกกับ Test Case จริง ๆ
        *
        * Test No. ว่างแต่มีผล Pass/Fail ต้องนำเข้า Summary ต่อ
-       */
+       
       if (
         testScriptNo === "" &&
         testResultText === ""
@@ -474,7 +474,7 @@ export class SummaryService {
   /**
    * Resolve Header ของ Field ที่จะแสดงใน Summary
    * จาก Config ของ Report ปัจจุบัน
-   */
+   
   private resolveSummaryFields(
     headerMap: Map<string, number>,
     mappings: readonly SummaryFieldMapping[],
@@ -496,7 +496,7 @@ export class SummaryService {
   /**
    * อ่านค่าตาม Field Mapping
    * และเก็บเป็น Key/Value กลางเพื่อรองรับหลาย Report
-   */
+   
   private readSummaryFieldValues(
     row: ExcelJS.Row,
     resolvedFields: readonly ResolvedSummaryField[],
@@ -604,7 +604,7 @@ export class SummaryService {
   /**
    * เก็บเฉพาะ Fee Group ที่มีข้อมูลจริงในแถวนั้น
    * จึงไม่สร้าง Fee Type 3-5 ใน Summary เพียงเพราะ Test Data มี Header ว่างไว้ล่วงหน้า
-   */
+   
   private readActiveFeeGroups(
     row: ExcelJS.Row,
     feeColumnGroups: FeeColumnGroup[],
@@ -673,7 +673,7 @@ export class SummaryService {
        * ข้ามค่าที่ว่างและข้อความ Validation จาก Script 2
        * เพราะข้อความดังกล่าวใช้แสดงผลเท่านั้น
        * ไม่ใช่ Transaction ID สำหรับจับคู่ข้อมูล
-       */
+       
       if (
         key === "" ||
         this.isValidationPlaceholder(
@@ -721,7 +721,7 @@ export class SummaryService {
        * ข้ามค่าที่ว่างและข้อความ Validation จาก Script 2
        * เพื่อไม่ให้ข้อความ "โปรดกรอกข้อมูล"
        * ถูกใช้เป็น Test Script Key
-       */
+       
       if (
         key === "" ||
         this.isValidationPlaceholder(
@@ -786,7 +786,7 @@ export class SummaryService {
      *
      * หากมีหลายแถวจะหยุดด้วย Structural Error
      * เพื่อป้องกันการเลือก Test Data ผิดแถวโดยอาศัยลำดับ
-     */
+     
     if (
       referenceKey === "" &&
       testScriptKey === ""
@@ -967,7 +967,7 @@ export class SummaryService {
   /**
    * อ่านเฉพาะสี Fill และสี Font จาก Cell Test Result ใน Reconcile Result
    * ไม่ Copy Border, Number Format หรือ Alignment เพื่อไม่ทำลายรูปแบบ Template
-   */
+   
   private readTestResultColorStyle(
     cell: ExcelJS.Cell,
   ): SummaryTestResultColorStyle {
@@ -1049,7 +1049,7 @@ export class SummaryService {
    *
    * ข้อความนี้ใช้สำหรับแสดงผล Validation เท่านั้น
    * ห้ามนำไปใช้เป็น Matching Key ของ Script 4
-   */
+   
   private isValidationPlaceholder(
     value: string,
   ): boolean {
@@ -1105,10 +1105,11 @@ export class SummaryService {
   }
 }
 
-/** Function wrapper สำหรับเรียกจาก Mocha Test หรือ Runner */
+/** Function wrapper สำหรับเรียกจาก Mocha Test หรือ Runner 
 export const generateSummaryReport = (
   reportCode: ReportCode,
 ): Promise<SummaryGenerationResult> => {
   const config = getSummaryConfig(reportCode);
   return new SummaryService().generate(config);
 };
+*/

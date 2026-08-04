@@ -6,7 +6,7 @@
 export const FEE_TYPE_COUNT = 2;
 
 /** DS_LTX รองรับ Fee Group จำนวน n ชุด */
-export const LTX_FEE_TYPE_COUNT = 5;
+export const LTX_FEE_TYPE_COUNT = 2;
 
 /**
  * คืนชื่อ Header ของ Fee Amount
