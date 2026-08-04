@@ -8,9 +8,10 @@
  * 2. สร้าง Matching Key ของ Expected Row
  * 3. สร้าง Expected Row จาก Test Data
  * 4. สร้าง Actual Row จาก AF1 Report
+ * 5. ตรวจจำนวน Fee Group จาก Header ของ Test Data จริง
  *
  * ไฟล์นี้มีหน้าที่เตรียมข้อมูลเท่านั้น
- * ไม่มี Logic ตัดสิน PASS, FAIL
+ * ไม่มี Logic ตัดสิน PASS หรือ FAIL
  * และไม่ได้เขียนผลลัพธ์ลงในไฟล์ Excel
  * ------------------------------------------------------------------
  */
@@ -23,9 +24,12 @@ import {
 } from "../../../config/mapping-helper";
 
 import {
-  FEE_TYPE_COUNT,
   getFeeAmountHeader,
 } from "../../../config/testdata-config";
+
+import {
+  detectFeeTypeCount,
+} from "../../../config/testdata-helper";
 
 import {
   getCellText,
@@ -39,19 +43,40 @@ import type {
   TestDataRow,
 } from "./ptx-types";
 
-/** แถว Header ของ Test Data */
+/**
+ * หมายเลขแถว Header ของ Test Data
+ *
+ * Test Data เริ่ม Header ที่แถว 5
+ * และข้อมูลจริงเริ่มที่แถว 6
+ */
 const TEST_DATA_HEADER_ROW = 5;
 
-/** รหัสระบบที่ใช้สร้าง Matching Key ของ DS_PTX */
+/**
+ * รหัสระบบที่ใช้สร้าง Matching Key ของ DS_PTX
+ */
 const PTX_SYSTEM_ID = "GPMH";
 
-/** ข้อความต่อท้าย Matching Key ของ Report */
+/**
+ * ข้อความต่อท้าย Matching Key ของ Report
+ */
 const PTX_REPORT_SUFFIX = "RM";
 
-/** จำนวนหลักของ Running Number เช่น 1 จะถูกแปลงเป็น 01 */
+/**
+ * จำนวนหลักของ Running Number
+ *
+ * ตัวอย่าง:
+ * 1  → 01
+ * 2  → 02
+ * 10 → 10
+ */
 const RUNNING_NUMBER_LENGTH = 2;
 
-/** แปลงค่าเป็นข้อความและตัดช่องว่างหัวท้าย */
+/**
+ * แปลงค่าเป็นข้อความและตัดช่องว่างหัวท้าย
+ *
+ * หากค่าเป็น null หรือ undefined
+ * จะคืนค่าเป็นข้อความว่าง
+ */
 const toText = (
   value: unknown,
 ): string => {
@@ -60,7 +85,15 @@ const toText = (
   ).trim();
 };
 
-/** แปลงค่าเป็นตัวเลข โดยคืน 0 เมื่อค่าไม่สามารถใช้เป็นตัวเลขได้ */
+/**
+ * แปลงค่าเป็นตัวเลข
+ *
+ * คืนค่า 0 เมื่อ:
+ * - ค่าเป็น undefined
+ * - ค่าเป็น null
+ * - ค่าเป็นข้อความว่าง
+ * - ค่าไม่สามารถแปลงเป็นตัวเลขได้
+ */
 const toNumber = (
   value: unknown,
 ): number => {
@@ -72,16 +105,21 @@ const toNumber = (
     return 0;
   }
 
-  const result = Number(
-    value,
-  );
+  const result =
+    Number(value);
 
   return Number.isNaN(result)
     ? 0
     : result;
 };
 
-/** ตรวจว่าค่าเป็นค่าว่างหรือไม่ */
+/**
+ * ตรวจว่าค่าเป็นค่าว่างหรือไม่
+ *
+ * คืนค่า:
+ * true  = ค่าว่าง
+ * false = มีข้อมูล
+ */
 const isBlank = (
   value: unknown,
 ): boolean => {
@@ -93,17 +131,27 @@ const isBlank = (
 };
 
 /**
- * แปลง Excel Row เป็น Object ที่อ่านค่าด้วยชื่อ Header ได้
+ * แปลง Excel Row เป็น Object
+ * ที่สามารถอ่านค่าด้วยชื่อ Header ได้
  *
- * ตัวอย่าง:
- * Header: Txn Date | Currency Id
- * Data:   25/11/2025 | HKD
+ * ตัวอย่างข้อมูล:
+ *
+ * Header:
+ * Txn Date | From Currency (CCY)
+ *
+ * Data:
+ * 25/11/2025 | HKD
  *
  * ผลลัพธ์:
  * {
  *   "Txn Date": "25/11/2025",
- *   "Currency Id": "HKD"
+ *   "From Currency (CCY)": "HKD"
  * }
+ *
+ * หมายเหตุ:
+ * Array ของ Header เริ่มนับจาก Index 0
+ * แต่ ExcelJS เริ่มนับ Column จาก 1
+ * จึงต้องใช้ index + 1
  */
 const mapRowToObject = (
   row: ExcelJS.Row,
@@ -116,6 +164,9 @@ const mapRowToObject = (
 
   headers.forEach(
     (header, index) => {
+      /**
+       * ข้าม Column ที่ไม่มีชื่อ Header
+       */
       if (!header) {
         return;
       }
@@ -132,7 +183,13 @@ const mapRowToObject = (
   return result;
 };
 
-/** เติมเลข 0 ด้านหน้า Running Number เช่น 1 เป็น 01 */
+/**
+ * เติมเลข 0 ด้านหน้า Running Number
+ *
+ * ตัวอย่าง:
+ * 1 → 01
+ * 2 → 02
+ */
 const formatRunningNumber = (
   runningNumber: number,
 ): string => {
@@ -148,8 +205,11 @@ const formatRunningNumber = (
  * อ่าน Channel จาก 3 ตัวแรกของ Transaction ID
  *
  * ตัวอย่าง:
- * KBO304... เป็น KBO
- * KMA301... เป็น KMA
+ * KBO304... → KBO
+ * KMA301... → KMA
+ *
+ * หาก Transaction ID มีความยาวน้อยกว่า 3 ตัว
+ * ระบบจะไม่สามารถสร้าง Matching Key ได้
  */
 const resolveChannelFromTransactionId = (
   transactionId: string,
@@ -174,10 +234,21 @@ const resolveChannelFromTransactionId = (
 };
 
 /**
- * สร้าง Matching Key สำหรับจับคู่ Expected Row กับ AF1 Report
+ * สร้าง Matching Key สำหรับจับคู่
+ * Expected Row กับ AF1 Report
  *
  * รูปแบบ:
  * TransactionId_RunningNumber_GPMH_Channel_RM
+ *
+ * ตัวอย่าง:
+ * KBO304001_01_GPMH_KBO_RM
+ *
+ * Running Number ใช้ลำดับของ Fee Group
+ *
+ * ตัวอย่าง:
+ * Fee Group 1 → 01
+ * Fee Group 2 → 02
+ * Fee Group 3 → 03
  */
 const buildMatchingKey = (
   transactionId: string,
@@ -188,6 +259,10 @@ const buildMatchingKey = (
       .trim()
       .toUpperCase();
 
+  /**
+   * รายการที่มี Fee จำเป็นต้องมี Transaction ID
+   * เพราะต้องใช้สร้าง Matching Key
+   */
   if (
     normalizedTransactionId === ""
   ) {
@@ -196,6 +271,9 @@ const buildMatchingKey = (
     );
   }
 
+  /**
+   * Running Number ของ Fee ต้องเริ่มตั้งแต่ 1
+   */
   if (
     !Number.isInteger(
       runningNumber,
@@ -225,7 +303,18 @@ const buildMatchingKey = (
   );
 };
 
-/** อ่าน Test Script No. โดยรองรับชื่อ Header หลายรูปแบบ */
+/**
+ * อ่าน Test Script No.
+ * โดยรองรับชื่อ Header หลายรูปแบบ
+ *
+ * ลำดับการค้นหา:
+ * 1. Test No.
+ * 2. Test Script No.
+ * 3. Test No
+ * 4. Test Script No
+ *
+ * เมื่อพบค่าที่ไม่ว่างจะคืนค่านั้นทันที
+ */
 const getTestScriptNo = (
   rowData: TestDataRow,
 ): string => {
@@ -237,11 +326,13 @@ const getTestScriptNo = (
   ];
 
   for (
-    const header of possibleHeaders
+    const header
+    of possibleHeaders
   ) {
-    const value = toText(
-      rowData[header],
-    );
+    const value =
+      toText(
+        rowData[header],
+      );
 
     if (value !== "") {
       return value;
@@ -251,7 +342,10 @@ const getTestScriptNo = (
   return "";
 };
 
-/** อ่าน Transaction ID ที่ใช้สร้าง Matching Key */
+/**
+ * อ่าน Transaction ID
+ * ที่ใช้สร้าง Matching Key
+ */
 const getTransactionId = (
   rowData: TestDataRow,
 ): string => {
@@ -265,8 +359,14 @@ const getTransactionId = (
 /**
  * ตรวจว่า Test Data เป็นแถวว่างจริงหรือไม่
  *
- * แถวจะถูกข้ามเมื่อ Test No. และ Transaction ID ว่างพร้อมกันเท่านั้น
- * หากมีอย่างใดอย่างหนึ่ง ระบบยังต้องสร้างผลลัพธ์ของ Test Case นั้น
+ * ข้ามแถวเฉพาะเมื่อ:
+ * - Test No. ว่าง
+ * - Transaction ID ว่าง
+ *
+ * และทั้งสองช่องว่างพร้อมกันเท่านั้น
+ *
+ * หากมีข้อมูลในช่องใดช่องหนึ่ง
+ * ระบบยังต้องประมวลผล Test Case นั้นต่อ
  */
 const isActualBlankTestDataRow = (
   rowData: TestDataRow,
@@ -287,7 +387,27 @@ const isActualBlankTestDataRow = (
   );
 };
 
-/** สร้าง Expected Row จำนวนหนึ่งรายการ */
+/**
+ * สร้าง Expected Row หนึ่งรายการ
+ *
+ * @param rowNumber
+ * หมายเลขแถวจริงใน Test Data
+ *
+ * @param sourceRow
+ * ข้อมูลทั้งหมดของ Test Data แถวนั้น
+ *
+ * @param runningNumber
+ * ลำดับของ Fee Group
+ *
+ * @param feeType
+ * ประเภท Fee ของกลุ่มนั้น
+ *
+ * @param feeAmount
+ * จำนวนเงิน Fee ของกลุ่มนั้น
+ *
+ * @param hasFee
+ * ระบุว่า Expected Row นี้มี Fee หรือไม่
+ */
 const createExpectedRow = (
   rowNumber: number,
   sourceRow: TestDataRow,
@@ -307,15 +427,20 @@ const createExpectedRow = (
     );
 
   /**
-   * รายการที่มี Fee ใช้ Matching Key จริงเพื่อจับคู่กับ Report
-   * รายการที่ไม่มี Fee ใช้ Internal Key เพื่อสร้างผล SKIP
+   * รายการที่มี Fee:
+   * ใช้ Matching Key จริงเพื่อจับคู่กับ Report
+   *
+   * รายการที่ไม่มี Fee:
+   * ใช้ Internal Key เพื่อให้ Compare Engine
+   * สามารถสร้างผล SKIP ได้
    */
-  const matchingKey = hasFee
-    ? buildMatchingKey(
-        transactionId,
-        runningNumber,
-      )
-    : `NO_FEE_ROW_${rowNumber}`;
+  const matchingKey =
+    hasFee
+      ? buildMatchingKey(
+          transactionId,
+          runningNumber,
+        )
+      : `NO_FEE_ROW_${rowNumber}`;
 
   return {
     rowNumber,
@@ -323,13 +448,15 @@ const createExpectedRow = (
     matchingKey,
     runningNumber,
 
-    feeType: toText(
-      feeType,
-    ),
+    feeType:
+      toText(
+        feeType,
+      ),
 
-    feeAmount: toNumber(
-      feeAmount,
-    ),
+    feeAmount:
+      toNumber(
+        feeAmount,
+      ),
 
     hasFee,
     data: sourceRow,
@@ -340,26 +467,59 @@ const createExpectedRow = (
  * สร้าง Expected Row จาก Test Data
  *
  * กติกา:
- * - Test Data หนึ่งแถวสามารถสร้างได้หลาย Expected Row
- * - Fee หนึ่งลำดับสร้าง Expected Row หนึ่งรายการ
- * - หากไม่มี Fee ทุกลำดับ จะสร้างหนึ่งรายการสำหรับผล SKIP
+ * 1. Test Data หนึ่งแถวสามารถสร้างหลาย Expected Row
+ * 2. Fee หนึ่งกลุ่มสร้าง Expected Row หนึ่งรายการ
+ * 3. Running Number ใช้หมายเลข Fee Group
+ * 4. หากไม่มี Fee ทุกกลุ่ม จะสร้างหนึ่งรายการสำหรับผล SKIP
+ * 5. จำนวน Fee Group ตรวจจาก Header ของ Test Data จริง
+ *
+ * ตัวอย่าง:
+ *
+ * Test Data หนึ่งแถวมี:
+ * - Fee Type 1 และ Fee Amount Type 1
+ * - Fee Type 2 และ Fee Amount 2
+ *
+ * ระบบจะสร้าง Expected Row จำนวน 2 รายการ
  */
 export const buildExpectedRows = (
   worksheet: ExcelJS.Worksheet,
 ): ExpectedRow[] => {
+  /**
+   * อ่าน Header จริงจาก Test Data
+   */
   const headers =
     getHeadersFromRow(
       worksheet,
       TEST_DATA_HEADER_ROW,
     );
 
-  const expectedRows: ExpectedRow[] = [];
+  /**
+   * ตรวจหมายเลข Fee Group สูงสุด
+   * จาก Header ที่พบจริงใน Test Data
+   *
+   * ตัวอย่าง:
+   * หากพบ Fee Type 1 ถึง Fee Type 5
+   * feeTypeCount จะมีค่าเป็น 5
+   *
+   * ไม่ใช้ FEE_TYPE_COUNT แบบ Hard code อีกต่อไป
+   */
+  const feeTypeCount =
+    detectFeeTypeCount(
+      headers,
+    );
 
+  const expectedRows:
+    ExpectedRow[] = [];
+
+  /**
+   * เริ่มอ่านข้อมูลจากแถวถัดจาก Header
+   */
   for (
     let rowNumber =
       TEST_DATA_HEADER_ROW + 1;
 
-    rowNumber <= worksheet.rowCount;
+    rowNumber <=
+      worksheet.rowCount;
 
     rowNumber += 1
   ) {
@@ -368,12 +528,20 @@ export const buildExpectedRows = (
         rowNumber,
       );
 
+    /**
+     * แปลง Excel Row เป็น Object
+     * เพื่อให้สามารถอ่านข้อมูลด้วยชื่อ Header
+     */
     const rowData =
       mapRowToObject(
         row,
         headers,
       ) as TestDataRow;
 
+    /**
+     * ข้ามแถวที่ไม่มีทั้ง Test No.
+     * และ Transaction ID
+     */
     if (
       isActualBlankTestDataRow(
         rowData,
@@ -382,21 +550,40 @@ export const buildExpectedRows = (
       continue;
     }
 
-    let hasAnyFee = false;
+    let hasAnyFee =
+      false;
 
+    /**
+     * ตรวจ Fee Group ตั้งแต่ 1
+     * ถึงหมายเลขสูงสุดที่พบจาก Header จริง
+     */
     for (
       let feeIndex = 1;
 
-      feeIndex <= FEE_TYPE_COUNT;
+      feeIndex <=
+        feeTypeCount;
 
       feeIndex += 1
     ) {
-      const feeType = toText(
-        rowData[
-          `Fee Type ${feeIndex}`
-        ],
-      );
+      const feeType =
+        toText(
+          rowData[
+            `Fee Type ${feeIndex}`
+          ],
+        );
 
+      /**
+       * ชื่อ Fee Amount ของกลุ่มแรก
+       * แตกต่างจากกลุ่มถัดไป
+       *
+       * Fee 1:
+       * Fee Amount Type 1
+       *
+       * Fee 2 เป็นต้นไป:
+       * Fee Amount 2
+       * Fee Amount 3
+       * ...
+       */
       const feeAmountHeader =
         getFeeAmountHeader(
           feeIndex,
@@ -408,20 +595,27 @@ export const buildExpectedRows = (
         ];
 
       /**
-       * Fee Type และ Fee Amount ว่างพร้อมกัน
-       * แสดงว่า Fee Slot นี้ไม่มีข้อมูล
+       * หาก Fee Type และ Fee Amount
+       * ว่างพร้อมกัน แสดงว่า Fee Group นี้ไม่มีข้อมูล
+       *
+       * ระบบจะข้าม Fee Group นี้
+       * และตรวจกลุ่มถัดไป
        */
       if (
         feeType === "" &&
-        isBlank(feeAmount)
+        isBlank(
+          feeAmount,
+        )
       ) {
         continue;
       }
 
-      hasAnyFee = true;
+      hasAnyFee =
+        true;
 
       /**
-       * Fee หนึ่งลำดับสร้าง Expected Row หนึ่งรายการ
+       * Fee หนึ่งกลุ่ม
+       * สร้าง Expected Row หนึ่งรายการ
        */
       expectedRows.push(
         createExpectedRow(
@@ -436,8 +630,11 @@ export const buildExpectedRows = (
     }
 
     /**
-     * Test Case ไม่มี Fee ทุกลำดับ
-     * สร้างหนึ่งรายการเพื่อให้ Compare Engine สร้างผล SKIP
+     * หาก Test Case ไม่มี Fee ทุกกลุ่ม
+     * ให้สร้าง Expected Row หนึ่งรายการ
+     *
+     * Expected Row นี้ใช้สำหรับให้ Compare Engine
+     * สร้างผลลัพธ์เป็น SKIP
      */
     if (!hasAnyFee) {
       expectedRows.push(
@@ -460,25 +657,43 @@ export const buildExpectedRows = (
  * สร้าง Actual Row จาก AF1 Report
  *
  * กติกา:
- * - อ่าน Header Row และ Matching Key จาก Mapping Config
- * - ข้ามแถวที่ไม่มี Matching Key
- * - เก็บ Row Number จริงสำหรับใช้แสดงในผล Compare
+ * 1. อ่านหมายเลขแถว Header จาก Mapping Config
+ * 2. อ่านชื่อ Matching Key Header จาก Mapping Config
+ * 3. แปลงแต่ละแถวของ Report เป็น Object
+ * 4. ข้ามแถวที่ไม่มี Matching Key
+ * 5. เก็บ Row Number จริงสำหรับแสดงในผล Compare
+ *
+ * Report ที่ส่งเข้ามาต้องมี Mapping Config
+ * สำหรับ Header Row และ Matching Key
  */
 export const buildActualRows = (
   worksheet: ExcelJS.Worksheet,
   reportName: string,
 ): ActualRow[] => {
+  /**
+   * อ่านหมายเลขแถว Header ของ Report
+   * จาก Mapping Config
+   */
   const headerRowNumber =
     getMappingHeaderRowNumber(
       reportName,
     );
 
+  /**
+   * อ่าน Header จริงของ AF1 Report
+   */
   const headers =
     getHeadersFromRow(
       worksheet,
       headerRowNumber,
     );
 
+  /**
+   * อ่านชื่อ Header ที่ใช้เป็น Matching Key
+   *
+   * DS_PTX ใช้ Matching Key ตัวแรก
+   * ที่กำหนดไว้ใน Mapping Config
+   */
   const matchingKeyHeader =
     getMappingMatchingKeyHeaders(
       reportName,
@@ -490,13 +705,18 @@ export const buildActualRows = (
     );
   }
 
-  const actualRows: ActualRow[] = [];
+  const actualRows:
+    ActualRow[] = [];
 
+  /**
+   * เริ่มอ่านข้อมูลจากแถวถัดจาก Header
+   */
   for (
     let rowNumber =
       headerRowNumber + 1;
 
-    rowNumber <= worksheet.rowCount;
+    rowNumber <=
+      worksheet.rowCount;
 
     rowNumber += 1
   ) {
@@ -505,19 +725,33 @@ export const buildActualRows = (
         rowNumber,
       );
 
+    /**
+     * แปลง Excel Row เป็น ReportRow Object
+     */
     const rowData =
       mapRowToObject(
         row,
         headers,
       ) as ReportRow;
 
-    const matchingKey = toText(
-      rowData[
-        matchingKeyHeader
-      ],
-    );
+    /**
+     * อ่าน Matching Key จาก Header
+     * ที่กำหนดไว้ใน Mapping Config
+     */
+    const matchingKey =
+      toText(
+        rowData[
+          matchingKeyHeader
+        ],
+      );
 
-    if (matchingKey === "") {
+    /**
+     * ข้ามแถวที่ไม่มี Matching Key
+     * เพราะไม่สามารถนำไปจับคู่กับ Expected Row ได้
+     */
+    if (
+      matchingKey === ""
+    ) {
       continue;
     }
 

@@ -1,313 +1,697 @@
-import type { ReportPresenceRule,} from "../shared/presence-rule";
-import { RESIDENT_THB_TO_FCD_MUST_NOT_EXIST } from "../shared/presence-rule";
-import type { ReportCode } from "../../../config/report-config";
-import { getReportRuntimeConfig } from "../../../config/report-runtime.config";
+/**
+ * ltx-config.ts
+ * ------------------------------------------------------------
+ * Config สำหรับการ Reconcile DS_LTX ใน Script 3
+ *
+ * หน้าที่หลัก:
+ * 1. กำหนด Header ที่ใช้จับกลุ่มข้อมูล
+ * 2. กำหนด Header ที่ใช้สร้าง DR และ FE
+ * 3. กำหนด Business Rule ของแต่ละ Field
+ * 4. กำหนดวิธีเปรียบเทียบข้อมูล
+ * 5. กำหนด Expected Presence และ Expected Absence
+ *
+ * หมายเหตุ:
+ * จำนวน Fee Group จะไม่กำหนดในไฟล์นี้
+ * แต่จะตรวจจาก Header ใน Test Data จริง
+ * ภายใน ltx-expected-case-builder.ts
+ * ------------------------------------------------------------
+ */
 
-// ======================================================
-// Reconcile Configuration (Script 3)
-//
-// เก็บ Field Mapping + Compare Rule ระหว่าง AF1 Report กับ Test Data
-// ไฟล์นี้เก็บว่า "field ไหนของ Report
-// ต้องเทียบกับ field ไหนของ Test Data และเทียบแบบไหน" (Script3)
-//
-// โครงสร้างเดินตาม pattern เดียวกับ REPORT_CONFIG / REPORT_CONFIG_mapping
-// เดิม: 1 object เก็บทุก report, key = report code เดียวกับที่ report-detector
-// ใช้อยู่แล้ว (DS_LTX, DS_PTX, ...)
-// ======================================================
+import type {
+  ReportPresenceRule,
+} from "../shared/presence-rule";
 
-/** วิธีเปรียบเทียบค่าของ 1 field */
+import {
+  RESIDENT_THB_TO_FCD_MUST_NOT_EXIST,
+} from "../shared/presence-rule";
+
+import type {
+  ReportCode,
+} from "../../../config/report-config";
+
+import {
+  getReportRuntimeConfig,
+} from "../../../config/report-runtime.config";
+
+/**
+ * วิธีเปรียบเทียบค่าของแต่ละ Field
+ */
 export type CompareMode =
-  | "exact" // ต้องตรงกันเป๊ะ (หลัง normalize)
-  | "amountTolerance" // ตัวเลข ยอมรับส่วนต่าง +-tolerance
-  | "fixedValue" // ค่าคงที่ตาม Requirement (ไม่ได้มาจาก Test Data)
-  | "dateWithIdFallback"; // เทียบวันที่ ถ้าไม่ตรงให้ดึงจาก Reference Transaction Number แทน
+  | "exact"
+  | "amountTolerance"
+  | "fixedValue"
+  | "dateWithIdFallback";
 
+/**
+ * Rule สำหรับเปรียบเทียบ Field
+ * ระหว่าง AF1 Report กับ Test Data
+ */
 export interface ReconcileFieldRule {
-  /** ชื่อ header ฝั่ง AF1 Report */
+  /**
+   * ชื่อ Header ฝั่ง AF1 Report
+   */
   reportField: string;
 
-  /** ชื่อ header ฝั่ง Test Data — null ถ้าไม่มี source (ใช้กับ fixedValue) */
+  /**
+   * ชื่อ Header ฝั่ง Test Data
+   *
+   * ใช้ null เมื่อ Field ไม่มีข้อมูลต้นทางจาก Test Data
+   * เช่น Rule ที่ใช้ fixedValue
+   */
   testDataField: string | null;
 
+  /**
+   * วิธีเปรียบเทียบข้อมูล
+   */
   compareMode: CompareMode;
 
-  /** ใช้เมื่อ compareMode = "fixedValue" */
+  /**
+   * ค่าคงที่ที่คาดหวัง
+   *
+   * ใช้เมื่อ compareMode เป็น fixedValue
+   */
   fixedValue?: string;
 
-  /** ใช้เมื่อ compareMode = "amountTolerance" (ไม่ระบุ = ใช้ DEFAULT_AMOUNT_TOLERANCE) */
+  /**
+   * ส่วนต่างของตัวเลขที่ยอมรับได้
+   *
+   * ใช้เมื่อ compareMode เป็น amountTolerance
+   *
+   * หากไม่กำหนด จะใช้ DEFAULT_AMOUNT_TOLERANCE
+   */
   tolerance?: number;
 
   /**
-   * ใช้เมื่อ compareMode = "amountTolerance" — field สำรองฝั่ง Test Data ถ้าเทียบกับ
-   * testDataField หลักแล้วไม่ผ่าน ตาม Business Rule: "หาก Transaction Amount ไม่ตรงกับ
-   * From Transfer Amount ให้ไปดูที่ From Debit Amount"
+   * Header สำรองฝั่ง Test Data
+   *
+   * ใช้เมื่อเปรียบเทียบกับ testDataField หลักไม่ผ่าน
+   *
+   * ตัวอย่าง:
+   * หาก Transaction Amount ไม่ตรงกับ
+   * From Transfer Amount ให้ลองเปรียบเทียบกับ
+   * From Debit Amount
    */
   fallbackTestDataField?: string;
 
-  /** true = Core Field ต้องตรวจสอบทุก Test Case, false = Conditional Field */
+  /**
+   * true:
+   * เป็น Core Field ที่ต้องตรวจทุก Test Case
+   *
+   * false:
+   * เป็น Conditional Field
+   */
   isRequiredForAllCases: boolean;
 
   /**
-   * ใช้เมื่อ isRequiredForAllCases = false (Conditional Field)
-   * ถ้า field ของ Test Data นี้ว่าง จะข้ามการเปรียบเทียบ field นี้ทั้งแถว
-   * ไม่ระบุ = ใช้ testDataField ของตัวเองเป็นตัวเช็คเงื่อนไข
+   * ใช้กับ Conditional Field
+   *
+   * หาก Field นี้ใน Test Data ว่าง
+   * ระบบจะข้ามการเปรียบเทียบ Rule นี้
+   *
+   * หากไม่กำหนด จะใช้ testDataField
+   * ของ Rule นี้เป็นตัวตรวจ
    */
   skipWhenTestDataFieldEmpty?: string;
 
   /**
-   * ใช้เมื่อ isRequiredForAllCases = false (Conditional Field) — เงื่อนไขฝั่ง AF1 Report
-   * แทนที่จะเป็นฝั่ง Test Data (ต่างจาก skipWhenTestDataFieldEmpty) ถ้า field นี้ฝั่ง
-   * AF1 Report ว่าง จะข้ามการเปรียบเทียบ field นี้ทั้งแถวไปเลย
+   * ใช้กับ Conditional Field
    *
-   * ใช้กับ Inflow Transaction Purpose ตาม Requirement: "ตรวจเฉพาะเมื่อ direction
-   * เป็น Inflow ใน AF1 Report" — ตรวจ direction จากการที่ field นี้ (ฝั่ง Report เอง)
-   * มีค่าอยู่หรือไม่ ไม่ได้ดูฝั่ง Test Data เลย
+   * ตรวจค่าจากฝั่ง AF1 Report
+   * แทนการตรวจจาก Test Data
+   *
+   * หาก Field นี้ใน AF1 Report ว่าง
+   * ระบบจะข้าม Rule นี้
+   *
+   * ใช้กับ Inflow Transaction Purpose
+   * ซึ่งจะตรวจเฉพาะแถวที่เป็น Inflow
    */
   onlyWhenReportFieldHasValue?: string;
 
-  /** หมายเหตุจาก Requirement สำหรับอธิบายกติกาของ field นี้ */
+  /**
+   * หมายเหตุสำหรับอธิบาย Business Rule
+   */
   remark?: string;
 
   /**
-   * จำกัดว่า rule นี้ใช้ตรวจกับแถว suffix ไหนบ้าง (เช่น ["DR"])
-   * ไม่ระบุ = ใช้ตรวจกับทุก suffix (ค่าเริ่มต้น)
+   * จำกัดว่า Rule นี้ใช้กับ Suffix ใด
    *
-   * จำเป็นสำหรับ field ที่เกี่ยวกับ "ผู้รับ/ลูกค้า" เช่น Beneficiary Name, Cust Code —
-   * เพราะแถว FE ใน AF1 Report ใช้ field กลุ่มนี้เก็บข้อมูล "ธนาคารผู้รับค่าธรรมเนียม"
-   * (เช่น BANK OF AYUDHYA) ไม่ใช่ข้อมูลลูกค้าตัวจริงจาก Test Data จึงห้ามเอาไป
-   * เทียบกับแถว FE เด็ดขาด มิฉะนั้นจะ False Fail ทุกครั้ง
+   * ตัวอย่าง:
+   * ["DR"] หมายถึงตรวจเฉพาะแถว DR
+   *
+   * หากไม่กำหนด:
+   * Rule นี้ใช้กับทุก Suffix
+   *
+   * Field กลุ่มข้อมูลลูกค้า เช่น:
+   * - Beneficiary Name
+   * - Cust Code
+   * - Cust Name
+   *
+   * ต้องตรวจเฉพาะแถว DR เพราะแถว FE
+   * ใช้เก็บข้อมูลธนาคารผู้รับค่าธรรมเนียม
+   * ไม่ใช่ข้อมูลลูกค้าจาก Test Data
    */
   applicableSuffixes?: string[];
 }
 
-/** ชื่อ header (ทั้ง 2 ฝั่ง) ที่ใช้จับกลุ่ม record ของ Test Case เดียวกัน (ก่อนแยก DR/FE) */
+/**
+ * Header ที่ใช้จับกลุ่ม Record
+ * ของ Test Case เดียวกัน
+ */
 export interface ReconcileGroupKeyFields {
+  /**
+   * Header เลขที่บัญชีฝั่ง AF1 Report
+   */
   reportAccountField: string;
+
+  /**
+   * Header เลขที่บัญชีฝั่ง Test Data
+   */
   testDataAccountField: string;
+
+  /**
+   * Headerสกุลเงินฝั่ง AF1 Report
+   */
   reportCurrencyField: string;
+
+  /**
+   * Header สกุลเงินฝั่ง Test Data
+   */
   testDataCurrencyField: string;
 }
 
+/**
+ * Config หลักสำหรับ Reconcile Report
+ */
 export interface ReconcileReportConfig {
+  /**
+   * หมายเลขแถว Header ของ AF1 Report
+   */
   headerRowNumber: number;
+
+  /**
+   * หมายเลขแถว Header ของ Test Data
+   */
   testDataHeaderRowNumber: number;
 
+  /**
+   * Field ที่ใช้จับกลุ่มข้อมูล
+   */
   groupKeyFields: ReconcileGroupKeyFields;
 
-  /** ชื่อ header ของ Report ที่บอกประเภทธุรกรรม (ใช้กรอง DR/FE candidate) */
+  /**
+   * Header ฝั่ง Report ที่บอกประเภทธุรกรรม
+   *
+   * ใช้กรอง Candidate ของแถว DR และ FE
+   */
   withdrawTypeReportField: string;
-  /** ค่าที่ withdrawTypeReportField ต้องเป็นเสมอสำหรับแถว DR/FE */
+
+  /**
+   * Transaction Type ที่แถว DR และ FE ต้องมี
+   */
   withdrawTransactionTypeCode: string;
 
-  /** ชื่อ header ของ Report ที่เก็บ Purpose Code (ใช้แยก DR จาก FE) */
+  /**
+   * Header Purpose Code ฝั่ง Report
+   *
+   * ใช้แยกแถว DR ออกจากแถว FE
+   */
   outflowPurposeReportField: string;
-  /** ชื่อ header ของ Test Data ที่เก็บ Purpose Code ของแถว DR */
+
+  /**
+   * Header Purpose Code ฝั่ง Test Data
+   *
+   * ใช้เป็น Expected Value ของแถว DR
+   */
   purposeCodeTestDataField: string;
-  /** ค่า Purpose Code คงที่ที่ AF1 ใช้แทนแถว Fee เสมอ (ไม่ได้มาจาก Test Data) */
+
+  /**
+   * Purpose Code คงที่ของแถว Fee
+   *
+   * ไม่ได้อ่านจาก Test Data
+   */
   feeOutflowPurposeCode: string;
 
-  /** ชื่อ header ของ Report ที่เก็บ Reference Transaction Number (ใช้จับคู่ DR<->FE ด้วยกันหลังเจอ DR แล้ว) */
+  /**
+   * Header Reference Transaction Number
+   * ฝั่ง AF1 Report
+   */
   referenceNumberReportField: string;
-  /** suffix ท้าย Reference Transaction Number ของแถว DR / FE ตามลำดับ */
+
+  /**
+   * Suffix ของแถว Debit
+   */
   drSuffixLabel: string;
+
+  /**
+   * Suffix ของแถว Fee
+   */
   feSuffixLabel: string;
 
   /**
-   * ชื่อ header ของ Test Data ที่เก็บ "Transaction ID/ Reconcile ID" — ใช้เป็น "base"
-   * ของ Reference Transaction Number โดยตรง (base + drSuffixLabel = Reference ที่คาดหวัง
-   * ของแถว DR, base + feSuffixLabel = ของแถว FE)
+   * Header Transaction ID ฝั่ง Test Data
+   *
+   * ใช้เป็น Base สำหรับสร้าง Reference:
+   * - Transaction ID + DR
+   * - Transaction ID + FE
    */
   testDataIdField: string;
 
-  /** ชื่อ header ของ Report ที่เก็บยอดเงิน (ใช้เทียบทั้งแถว DR และ FE) */
-  transactionAmountReportField: string;
-  /** ชื่อ header ของ Test Data ที่เป็นยอดคาดหวังของแถว DR (Transfer Amount) */
-  drAmountTestDataField: string;
   /**
-   * ชื่อ header สำรอง ใช้เมื่อเทียบกับ drAmountTestDataField แล้วไม่ผ่าน
-   * ตาม Business Rule: "หาก Transaction Amount ไม่ตรงกับ From Transfer Amount
-   * ให้ไปดูที่ From Debit Amount"
+   * Header จำนวนเงินฝั่ง AF1 Report
+   */
+  transactionAmountReportField: string;
+
+  /**
+   * Header จำนวนเงินหลักฝั่ง Test Data
+   * สำหรับแถว DR
+   */
+  drAmountTestDataField: string;
+
+  /**
+   * Header จำนวนเงินสำรองฝั่ง Test Data
+   *
+   * ใช้เมื่อเทียบกับ drAmountTestDataField
+   * แล้วไม่ผ่าน
    */
   drAmountFallbackTestDataField: string;
 
-  /** Rule ตัดสินว่ารายการต้องมีหรือห้ามมีใน AF1 Report */
-  reportPresenceRules: readonly ReportPresenceRule[];
+  /**
+   * Rule ตัดสินว่ารายการ:
+   * - ต้องมีใน Report
+   * - ห้ามมีใน Report
+   */
+  reportPresenceRules:
+    readonly ReportPresenceRule[];
 
+  /**
+   * รายการ Rule สำหรับเปรียบเทียบ Field
+   */
   fieldRules: ReconcileFieldRule[];
 }
 
-export const DEFAULT_AMOUNT_TOLERANCE = 0.01;
-
 /**
- * จำนวนกลุ่ม Fee ที่ใช้รวมยอด Fee Amount
- * สำหรับกระบวนการ Reconcile DS_LTX
+ * ส่วนต่างของตัวเลขที่ยอมรับได้
  *
- * แยกค่านี้ออกจาก Test Data Validation Config
- * เพราะ Test Data จริงของ DS_LTX รองรับ Fee Amount Type 1-5
+ * ตัวอย่าง:
+ * Expected = 100
+ * Actual = 100.01
+ * ถือว่ายังอยู่ภายใน Tolerance
  */
-export const RECONCILE_FEE_TYPE_COUNT = 5;
-
-// ------------------------------------------------------------------
-// ค่าคงที่ทางธุรกิจของ DS_LTX (โค้ดตาม BOT ที่ AF1 ต้องรายงานเสมอ)
-// แยกเป็นชื่อ const ที่สื่อความหมาย แทนการฝัง magic number ปนในกติกา
-// ------------ ต้องแก้ ไม่ fixed ค่าแต่จะมองว่า ข้อมูล Raw report ถูกต้องเสมอ
-const RELATIONSHIP_OTHER_CODE = "172064"; // Resident/Non Resident -> อื่นๆ
-const WITHDRAW_TRANSACTION_TYPE_CODE = "184010"; // Withdraw (ใช้กับทั้งแถว DR และ FE)
-const FEE_OUTFLOW_PURPOSE_CODE = "318029"; // ค่าธรรมเนียมและค่านายหน้าทางด้านการเงิน
-
+export const DEFAULT_AMOUNT_TOLERANCE =
+  0.01;
 
 /**
- *  เดิม testDataHeaderRowNumber = 5 ถูก Hardcode เปลี่ยนมา Derive จาก
- * report-runtime.config.ts (ที่ Script 2/4 ใช้อยู่แล้ว) ให้เป็น Single Source
- * of Truth จุดเดียว
+ * ไม่มีการกำหนดจำนวน Fee Group ใน Config นี้
+ *
+ * จำนวน Fee Group ของ DS_LTX จะตรวจจาก Header
+ * ใน Test Data จริงภายใน ltx-expected-case-builder.ts
+ *
+ * จึงไม่มี RECONCILE_FEE_TYPE_COUNT
+ * และไม่มีจำนวน Fee Group แบบ Hard code
+ */
+
+/**
+ * ค่าคงที่ทางธุรกิจของ DS_LTX
+ *
+ * แยกเป็น Constant เพื่อไม่ให้มี Magic Number
+ * กระจายอยู่ภายใน Business Rule
+ */
+const RELATIONSHIP_OTHER_CODE =
+  "172064";
+
+const WITHDRAW_TRANSACTION_TYPE_CODE =
+  "184010";
+
+const FEE_OUTFLOW_PURPOSE_CODE =
+  "318029";
+
+/**
+ * อ่านหมายเลขแถว Header ของ Test Data
+ * จาก report-runtime.config.ts
+ *
+ * ทำให้ Script 2, Script 3 และ Script 4
+ * ใช้ Config จากแหล่งเดียวกัน
  */
 const LTX_TEST_DATA_HEADER_ROW_NUMBER =
-  getReportRuntimeConfig("DS_LTX").testDataHeaderRowNumber;
+  getReportRuntimeConfig(
+    "DS_LTX",
+  ).testDataHeaderRowNumber;
 
-  /**
- * Partial<Record<ReportCode, ...>> เพื่อให้ TypeScript ช่วยจับ Typo
- * ตอนเพิ่ม Report ใหม่ (เช่น พิมพ์ "DS_PTx" ผิด) ตั้งแต่ Compile Time
+/**
+ * Config สำหรับ Reconcile Report
+ *
+ * ใช้ Partial<Record<ReportCode, ...>>
+ * เพื่อให้ TypeScript ช่วยตรวจ Report Code
+ * และช่วยตรวจการพิมพ์ชื่อ Report ผิด
  */
-export const RECONCILE_CONFIG: Partial<Record<ReportCode, ReconcileReportConfig>> = {
-  // ======================================================
-  // DS_LTX — verify กับไฟล์ EXPORT_DS_LTX
-  // ======================================================
+export const RECONCILE_CONFIG: Partial<
+  Record<
+    ReportCode,
+    ReconcileReportConfig
+  >
+> = {
+  // ====================================================
+  // DS_LTX
+  // ====================================================
   DS_LTX: {
+    /**
+     * Header ของ DS_LTX Report อยู่แถวที่ 1
+     */
     headerRowNumber: 1,
-    testDataHeaderRowNumber: LTX_TEST_DATA_HEADER_ROW_NUMBER,
 
+    /**
+     * Header ของ Test Data อ่านจาก Runtime Config
+     */
+    testDataHeaderRowNumber:
+      LTX_TEST_DATA_HEADER_ROW_NUMBER,
+
+    /**
+     * Field ที่ใช้จับกลุ่ม Record
+     * ของ Test Case เดียวกัน
+     */
     groupKeyFields: {
-      reportAccountField: "FI Arrangement Number",
-      testDataAccountField: "From Account ( A/C Client/Sender)",
-      reportCurrencyField: "Currency Id",
-      testDataCurrencyField: "From Currency (CCY)",
+      reportAccountField:
+        "FI Arrangement Number",
+
+      testDataAccountField:
+        "From Account ( A/C Client/Sender)",
+
+      reportCurrencyField:
+        "Currency Id",
+
+      testDataCurrencyField:
+        "From Currency (CCY)",
     },
 
-    withdrawTypeReportField: "Loan Deposit Transaction Type",
-    withdrawTransactionTypeCode: WITHDRAW_TRANSACTION_TYPE_CODE,
+    /**
+     * Transaction Type ของแถว DR และ FE
+     */
+    withdrawTypeReportField:
+      "Loan Deposit Transaction Type",
 
-    outflowPurposeReportField: "Outflow Transaction Purpose",
-    purposeCodeTestDataField: "From BOT Purpose code",
-    feeOutflowPurposeCode: FEE_OUTFLOW_PURPOSE_CODE,
+    withdrawTransactionTypeCode:
+      WITHDRAW_TRANSACTION_TYPE_CODE,
 
-    referenceNumberReportField: "Reference Transaction Number",
-    drSuffixLabel: "DR",
-    feSuffixLabel: "FE",
-    testDataIdField: "Transaction ID/ Reconcile ID",
+    /**
+     * Purpose Code สำหรับแยกแถว DR และ FE
+     */
+    outflowPurposeReportField:
+      "Outflow Transaction Purpose",
 
-    transactionAmountReportField: "Transaction Amount",
-    drAmountTestDataField: "From Transfer Amount",
-    drAmountFallbackTestDataField: "From Debit Amount",
+    purposeCodeTestDataField:
+      "From BOT Purpose code",
 
-    reportPresenceRules: [RESIDENT_THB_TO_FCD_MUST_NOT_EXIST],
+    feeOutflowPurposeCode:
+      FEE_OUTFLOW_PURPOSE_CODE,
 
+    /**
+     * Reference Transaction Number
+     *
+     * DR:
+     * Transaction ID + DR
+     *
+     * FE:
+     * Transaction ID + FE
+     */
+    referenceNumberReportField:
+      "Reference Transaction Number",
+
+    drSuffixLabel:
+      "DR",
+
+    feSuffixLabel:
+      "FE",
+
+    testDataIdField:
+      "Transaction ID/ Reconcile ID",
+
+    /**
+     * Field จำนวนเงิน
+     */
+    transactionAmountReportField:
+      "Transaction Amount",
+
+    drAmountTestDataField:
+      "From Transfer Amount",
+
+    drAmountFallbackTestDataField:
+      "From Debit Amount",
+
+    /**
+     * Rule Expected Presence/Absence
+     *
+     * Resident โอน THB ไปบัญชี FCD
+     * ต้องไม่พบรายการใน DS_LTX Report
+     */
+    reportPresenceRules: [
+      RESIDENT_THB_TO_FCD_MUST_NOT_EXIST,
+    ],
+
+    /**
+     * Rule สำหรับเปรียบเทียบ Field
+     */
     fieldRules: [
-      // ---------------- Core Fields (ต้องตรวจสอบทุก Test Case) ----------------
+      // ==================================================
+      // Core Fields
+      // ต้องตรวจสอบทุก Test Case
+      // ==================================================
       {
-        reportField: "Transaction Date",
-        testDataField: "Txn Date",
-        compareMode: "dateWithIdFallback",
-        isRequiredForAllCases: true,
+        reportField:
+          "Transaction Date",
+
+        testDataField:
+          "Txn Date",
+
+        compareMode:
+          "dateWithIdFallback",
+
+        isRequiredForAllCases:
+          true,
+
         remark:
-          "ต้องตรงกัน หากไม่ตรงให้ดึงจาก Reference Transaction Number (ตำแหน่ง 7-12)",
-      },
-      {
-        reportField: "Currency Id",
-        testDataField: "From Currency (CCY)",
-        compareMode: "exact",
-        isRequiredForAllCases: true,
-        remark: "ต้องตรงกัน ห้ามเปลี่ยนสกุลเงิน",
-      },
-  
-      {
-      
-        // "Outflow Transaction Purpose ↔ From BOT Purpose code ต้องตรงกัน")
-        // ตรวจเฉพาะแถว DR เพราะแถว FE ใช้ Purpose Code คงที่ (feeOutflowPurposeCode) เสมอ
-        reportField: "Outflow Transaction Purpose",
-        testDataField: "From BOT Purpose code",
-        compareMode: "exact",
-        isRequiredForAllCases: true,
-        applicableSuffixes: ["DR"],
-        remark:
-          "ตรวจเฉพาะแถว DR (แถว FE ใช้ Purpose Code คงที่ 318029 เสมอ ไม่ได้มาจาก Test Data)",
+          "ต้องตรงกัน หากไม่ตรงให้ดึงจาก Reference Transaction Number ตำแหน่ง 7-12",
       },
 
-      // ---------------- Conditional Fields ----------------
       {
-        reportField: "Beneficiary or Sender Name",
-        testDataField: "To CIF Name (Beneficiary)",
-        compareMode: "exact",
-        isRequiredForAllCases: false,
-        applicableSuffixes: ["DR"],
+        reportField:
+          "Currency Id",
+
+        testDataField:
+          "From Currency (CCY)",
+
+        compareMode:
+          "exact",
+
+        isRequiredForAllCases:
+          true,
+
         remark:
-          "ตรวจเฉพาะเมื่อคู่สัญญาไม่ใช่นิติบุคคลรับอนุญาต และตรวจเฉพาะแถว DR เท่านั้น (แถว FE เป็นข้อมูลธนาคารผู้รับค่าธรรมเนียม ไม่ใช่ข้อมูลลูกค้า)",
+          "ต้องตรงกัน ห้ามเปลี่ยนสกุลเงิน",
       },
+
       {
-        reportField: "Country Id of Beneficiary or Sender",
-        testDataField: "To Region (Bene Country)",
-        compareMode: "exact",
-        isRequiredForAllCases: false,
-        applicableSuffixes: ["DR"],
-        skipWhenTestDataFieldEmpty: "To CIF Name (Beneficiary)",
-        remark: "ตรวจเฉพาะเมื่อ Beneficiary Name มีค่า และตรวจเฉพาะแถว DR",
-      },
-      {
-        reportField: "Relationship with Beneficiary or Sender",
-        testDataField: null,
-        compareMode: "fixedValue",
-        fixedValue: RELATIONSHIP_OTHER_CODE,
-        isRequiredForAllCases: false,
-        applicableSuffixes: ["DR"],
-        skipWhenTestDataFieldEmpty: "To CIF Name (Beneficiary)",
-        remark: "Resident/Non Resident -> 172064 (อื่นๆ) ตรวจเฉพาะแถว DR",
-      },
-      {
-        reportField: "Cust Code",
-        testDataField: "From CIF No. (Client/Sender)",
-        compareMode: "exact",
-        isRequiredForAllCases: false,
-        applicableSuffixes: ["DR"],
+        /**
+         * ตรวจเฉพาะแถว DR
+         *
+         * แถว FE ใช้ Purpose Code คงที่
+         * จาก feeOutflowPurposeCode
+         */
+        reportField:
+          "Outflow Transaction Purpose",
+
+        testDataField:
+          "From BOT Purpose code",
+
+        compareMode:
+          "exact",
+
+        isRequiredForAllCases:
+          true,
+
+        applicableSuffixes: [
+          "DR",
+        ],
+
         remark:
-          "ตรวจเฉพาะเมื่อมีค่าใน Test Data และตรวจเฉพาะแถว DR (ตัวเลขล้วน จะถูกตัด leading zero ก่อนเทียบ)",
+          "ตรวจเฉพาะแถว DR เพราะแถว FE ใช้ Purpose Code คงที่ 318029",
       },
+
+      // ==================================================
+      // Conditional Fields
+      // ตรวจเฉพาะเมื่อเข้าเงื่อนไข
+      // ==================================================
       {
-        reportField: "Cust Name",
-        testDataField: "From CIF Name (Client/Sender)",
-        compareMode: "exact",
-        isRequiredForAllCases: false,
-        applicableSuffixes: ["DR"],
-        skipWhenTestDataFieldEmpty: "From CIF No. (Client/Sender)",
-        remark: "ตรวจเมื่อ Cust Code มีค่า และตรวจเฉพาะแถว DR",
-      },
-      {
-        reportField: "Inflow Transaction Purpose",
-        testDataField: "From BOT Purpose code",
-        compareMode: "exact",
-        isRequiredForAllCases: false,
-        onlyWhenReportFieldHasValue: "Inflow Transaction Purpose",
+        reportField:
+          "Beneficiary or Sender Name",
+
+        testDataField:
+          "To CIF Name (Beneficiary)",
+
+        compareMode:
+          "exact",
+
+        isRequiredForAllCases:
+          false,
+
+        applicableSuffixes: [
+          "DR",
+        ],
+
         remark:
-          "ตรวจเฉพาะเมื่อ AF1 Report row นี้ direction เป็น Inflow (มีค่าใน Inflow Transaction Purpose)",
+          "ตรวจเฉพาะแถว DR เพราะแถว FE เป็นข้อมูลธนาคารผู้รับค่าธรรมเนียม",
+      },
+
+      {
+        reportField:
+          "Country Id of Beneficiary or Sender",
+
+        testDataField:
+          "To Region (Bene Country)",
+
+        compareMode:
+          "exact",
+
+        isRequiredForAllCases:
+          false,
+
+        applicableSuffixes: [
+          "DR",
+        ],
+
+        skipWhenTestDataFieldEmpty:
+          "To CIF Name (Beneficiary)",
+
+        remark:
+          "ตรวจเมื่อ Beneficiary Name มีค่า และตรวจเฉพาะแถว DR",
+      },
+
+      {
+        reportField:
+          "Relationship with Beneficiary or Sender",
+
+        testDataField:
+          null,
+
+        compareMode:
+          "fixedValue",
+
+        fixedValue:
+          RELATIONSHIP_OTHER_CODE,
+
+        isRequiredForAllCases:
+          false,
+
+        applicableSuffixes: [
+          "DR",
+        ],
+
+        skipWhenTestDataFieldEmpty:
+          "To CIF Name (Beneficiary)",
+
+        remark:
+          "Resident/Non Resident ใช้ค่า 172064 และตรวจเฉพาะแถว DR",
+      },
+
+      {
+        reportField:
+          "Cust Code",
+
+        testDataField:
+          "From CIF No. (Client/Sender)",
+
+        compareMode:
+          "exact",
+
+        isRequiredForAllCases:
+          false,
+
+        applicableSuffixes: [
+          "DR",
+        ],
+
+        remark:
+          "ตรวจเมื่อมีค่าใน Test Data และตรวจเฉพาะแถว DR โดยตัด Leading Zero ก่อนเปรียบเทียบ",
+      },
+
+      {
+        reportField:
+          "Cust Name",
+
+        testDataField:
+          "From CIF Name (Client/Sender)",
+
+        compareMode:
+          "exact",
+
+        isRequiredForAllCases:
+          false,
+
+        applicableSuffixes: [
+          "DR",
+        ],
+
+        skipWhenTestDataFieldEmpty:
+          "From CIF No. (Client/Sender)",
+
+        remark:
+          "ตรวจเมื่อ Cust Code มีค่า และตรวจเฉพาะแถว DR",
+      },
+
+      {
+        reportField:
+          "Inflow Transaction Purpose",
+
+        testDataField:
+          "From BOT Purpose code",
+
+        compareMode:
+          "exact",
+
+        isRequiredForAllCases:
+          false,
+
+        onlyWhenReportFieldHasValue:
+          "Inflow Transaction Purpose",
+
+        remark:
+          "ตรวจเฉพาะเมื่อแถวใน AF1 Report เป็น Inflow",
       },
     ],
-    // หมายเหตุ (ตามที่ทีมยืนยัน): Installment Number และ Approval Document Number
-    // เป็น Conditional Field ตาม Requirement แต่ "ไม่ต้อง reconcile กับ Test Data" —
-    // Column ทั้ง 2 นี้จะถูก copy ค่าจริงจาก AF1 Report ไปแสดงในไฟล์ผลลัพธ์โดยอัตโนมัติ
-    // ไม่มีแถวไหนถูกไฮไลท์จาก 2 field นี้เด็ดขาด
-  },
 
-}; 
+    /**
+     * Installment Number และ Approval Document Number
+     * เป็น Conditional Field ตาม Requirement
+     *
+     * แต่ไม่ต้อง Reconcile กับ Test Data
+     *
+     * Column ทั้งสองจะถูกคัดลอกจาก AF1 Report
+     * ไปแสดงในไฟล์ผลลัพธ์โดยตรง
+     * และจะไม่ถูก Highlight จาก Rule ในไฟล์นี้
+     */
+  },
+};
 
 /**
  * คืน Config ของ Report ที่พร้อม Reconcile
+ *
+ * หากไม่พบ Config หรือ Config ไม่ครบ
+ * ระบบจะ Throw Error และหยุดการ Reconcile
  */
 export const getReconcileConfig = (
   reportCode: string,
 ): ReconcileReportConfig => {
-  const config = RECONCILE_CONFIG[reportCode as ReportCode];
+  const config =
+    RECONCILE_CONFIG[
+      reportCode as ReportCode
+    ];
 
-  if (!config || config.groupKeyFields.reportAccountField === "") {
+  if (
+    !config ||
+    config.groupKeyFields
+      .reportAccountField === ""
+  ) {
     throw new Error(
-      `Reconcile Config ของ Report ` + `"${reportCode}" ยังไม่ครบถ้วน`,
+      `Reconcile Config ของ Report "${reportCode}" ยังไม่ครบถ้วน`,
     );
   }
 

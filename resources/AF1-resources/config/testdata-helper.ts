@@ -3,14 +3,18 @@
  * ------------------------------------------------------------
  * Helper สำหรับอ่าน Test Data Config ตาม Report
  *
- * แยกรายการ Header ออกเป็น:
+ * หน้าที่หลัก:
+ * 1. ดึงรายการ Header ที่ต้องตรวจของแต่ละ Report
+ * 2. ดึงรายการ Normal Required Header
+ * 3. ดึงหมายเลขแถว Header
+ * 4. ตรวจจับจำนวน Fee Group จาก Header ในไฟล์จริง
  *
- * 1. Header ทั้งหมด
- *    ใช้ตรวจว่า Header มีอยู่ในไฟล์ครบหรือไม่
+ * DS_PTX และ DS_LTX:
+ * - ตรวจจับจำนวน Fee Group จาก Header ใน Test Data
  *
- * 2. Normal Required Header
- *    ใช้ตรวจข้อมูลในแต่ละแถว
- *    โดยไม่รวม Fee Group
+ * DS_FTX และ DS_FTU:
+ * - ไม่มีการตรวจ Fee Group
+ * - คืนจำนวน Fee Group เป็น 0
  * ------------------------------------------------------------
  */
 
@@ -27,7 +31,9 @@ import type {
  *
  * ตัวอย่าง:
  * DS_PTX → TESTDATA_CONFIG.DS_PTX
+ * DS_LTX → TESTDATA_CONFIG.DS_LTX
  * DS_FTX → TESTDATA_CONFIG.DS_FTX
+ * DS_FTU → TESTDATA_CONFIG.DS_FTU
  */
 const getTestDataReportConfig = (
   reportCode: TestDataReportCode,
@@ -45,21 +51,23 @@ const getTestDataReportConfig = (
 };
 
 /**
- * ดึง Header ทั้งหมดของ Report
+ * ดึง Header ทั้งหมดที่ต้องตรวจของ Report
  *
- * ใช้สำหรับตรวจว่า Header ในไฟล์ Test Data
- * มีอยู่ครบตาม Config หรือไม่
- *
- * รวมกลุ่ม:
+ * รวม Header จากกลุ่ม:
  * - matchingKey
  * - core
  * - customer
  * - conditional
  * - reference
  * - feeGroup
+ *
+ * Fee Group:
+ * - DS_PTX และ DS_LTX สร้าง Header ตามจำนวนที่ตรวจพบ
+ * - DS_FTX และ DS_FTU ไม่มี Fee Group
  */
 export function getRequiredTestDataHeaders(
   reportCode: TestDataReportCode,
+  actualHeaders: readonly string[],
 ): string[] {
   const reportConfig =
     getTestDataReportConfig(
@@ -69,25 +77,45 @@ export function getRequiredTestDataHeaders(
   const groups =
     reportConfig.requiredHeaders;
 
+  const feeTypeCount =
+    getFeeTypeCount(
+      reportCode,
+      actualHeaders,
+    );
+
+  /**
+   * DS_PTX และ DS_LTX:
+   * feeGroup เป็นฟังก์ชันสำหรับสร้าง Header
+   *
+   * DS_FTX และ DS_FTU:
+   * feeGroup เป็น Array ว่าง
+   */
+  const feeHeaders =
+    typeof groups.feeGroup === "function"
+      ? groups.feeGroup(
+          feeTypeCount,
+        )
+      : [...groups.feeGroup];
+
   return [
     ...groups.matchingKey,
     ...groups.core,
     ...groups.customer,
     ...groups.conditional,
     ...groups.reference,
-    ...groups.feeGroup,
+    ...feeHeaders,
   ].map(String);
 }
 
 /**
  * ดึงเฉพาะ Header ที่ต้องตรวจแบบ Normal Field
  *
- * ไม่รวม feeGroup เพราะ Fee Group
- * ต้องตรวจด้วย validateFeeGroupFields()
+ * ไม่รวม Fee Group เพราะ Fee Group จะถูกตรวจแยก
+ * ด้วย validateFeeGroupFields()
  *
- * หากรวม feeGroup ในฟังก์ชันนี้:
- * - Fee จะถูกตรวจซ้ำ
- * - Fee ชุดที่ไม่ได้ใช้อาจถูกมองว่าเป็นข้อมูลไม่ครบ
+ * หากนำ Fee Group มารวมในฟังก์ชันนี้:
+ * - Fee อาจถูกตรวจซ้ำ
+ * - Fee Group ที่ไม่ได้ใช้อาจถูกมองว่าข้อมูลไม่ครบ
  */
 export function getNormalRequiredTestDataHeaders(
   reportCode: TestDataReportCode,
@@ -109,13 +137,11 @@ export function getNormalRequiredTestDataHeaders(
   ].map(String);
 }
 
-
 /**
  * ดึงหมายเลขแถว Header ของ Test Data
  *
- * ตอนนี้:
- * DS_PTX → แถวที่ 5
- * DS_FTX → แถวที่ 5
+ * ปัจจุบันทุก Report ใช้ Header ที่แถว 5
+ * แต่ยังแยกไว้ใน Config เพื่อรองรับการเปลี่ยนแปลงในอนาคต
  */
 export function getTestDataHeaderRowNumber(
   reportCode: TestDataReportCode,
@@ -129,53 +155,160 @@ export function getTestDataHeaderRowNumber(
 }
 
 /**
- * นับจำนวน Fee Group จากรายการ Header ใน Config
+ * ปรับรูปแบบ Header ก่อนนำไปตรวจ Fee Group
  *
- * นับเฉพาะ Header รูปแบบ "Fee Type N"
- * เพราะ Fee Group หนึ่งชุดต้องมี Fee Type หนึ่งช่องเสมอ
+ * รองรับกรณี:
+ * - มีช่องว่างซ้ำกัน
+ * - มีอักขระช่องว่างพิเศษ
+ * - มีอักขระที่มองไม่เห็น
+ * - มีช่องว่างด้านหน้าและด้านหลัง
  */
-const countFeeTypes = (
-  feeHeaders: readonly string[],
-): number => {
-  return feeHeaders.filter(
-    (header) =>
-      /^Fee Type \d+$/i.test(
-        String(header).trim(),
-      ),
-  ).length;
+const normalizeFeeHeader = (
+  header: unknown,
+): string => {
+  return String(header ?? "")
+    .replace(/\u00A0/g, " ")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 /**
- * คืนจำนวน Fee Group ที่ต้องใช้
+ * รูปแบบ Header ที่สามารถใช้ตรวจหมายเลข Fee Group
  *
- * เมื่อส่ง reportCode:
- * - DS_LTX → 5
- * - DS_PTX → 2
- * - Report ที่ไม่มี Fee Group → 0
- *
- * เมื่อไม่ส่ง reportCode:
- * คืนจำนวนสูงสุดของทุก Report เพื่อใช้สร้าง Header Alias กลาง
+ * ตัวอย่าง Header ที่รองรับ:
+ * - Fee Type 1
+ * - Fee Charge Type 1
+ * - Fee Charge Account No. Type 1
+ * - Fee Charge Account Number Type 1
+ * - Fee Amount Type 1
+ * - Fee Amount 2
+ * - Charge Account Type 1
+ * - Bank Code Type 1
+ * - Branch Code Type 1
+ * - Fee Currency Type 1
+ * - Fee Currency 2
+ * - Fee Timing Type 1
  */
-export function getFeeTypeCount(
-  reportCode?: TestDataReportCode,
+const FEE_GROUP_HEADER_PATTERNS: readonly RegExp[] = [
+  /^fee type (\d+)$/i,
+  /^fee charge type (\d+)$/i,
+  /^fee charge account (?:no\.?|number) type (\d+)$/i,
+  /^fee amount(?: type)? (\d+)$/i,
+  /^charge account type (\d+)$/i,
+  /^bank code type (\d+)$/i,
+  /^branch code type (\d+)$/i,
+  /^fee currency(?: type)? (\d+)$/i,
+  /^fee timing type (\d+)$/i,
+];
+
+/**
+ * ตรวจหมายเลข Fee Group สูงสุดจาก Header ที่พบจริง
+ *
+ * ตัวอย่าง:
+ *
+ * หากพบ:
+ * - Fee Type 1
+ * - Fee Type 2
+ * - Fee Type 3
+ *
+ * จะคืนค่า:
+ * 3
+ *
+ * หากไม่พบ Header ของ Fee Group:
+ * จะคืนค่า:
+ * 0
+ *
+ * หมายเหตุ:
+ * ใช้หมายเลขสูงสุดแทนการนับจำนวน Header
+ * เพื่อให้ระบบยังตรวจพบกรณีลำดับ Fee Group ขาดหาย
+ *
+ * ตัวอย่าง:
+ * พบ Fee Type 1 และ Fee Type 3 แต่ไม่มี Fee Type 2
+ * ระบบจะคืนค่า 3 เพื่อให้ขั้นตอนตรวจ Header
+ * สามารถรายงานว่า Fee Group 2 หายได้
+ */
+export function detectFeeTypeCount(
+  actualHeaders: readonly string[],
 ): number {
-  if (reportCode) {
-    return countFeeTypes(
-      TESTDATA_CONFIG[
-        reportCode
-      ].requiredHeaders.feeGroup,
-    );
+  let highestFeeIndex = 0;
+
+  for (const header of actualHeaders) {
+    const normalizedHeader =
+      normalizeFeeHeader(header);
+
+    for (
+      const pattern
+      of FEE_GROUP_HEADER_PATTERNS
+    ) {
+      const matched =
+        normalizedHeader.match(pattern);
+
+      if (!matched) {
+        continue;
+      }
+
+      const feeIndex =
+        Number(matched[1]);
+
+      if (
+        Number.isInteger(feeIndex) &&
+        feeIndex > highestFeeIndex
+      ) {
+        highestFeeIndex =
+          feeIndex;
+      }
+
+      /**
+       * Header หนึ่งช่องตรงกับ Pattern เดียวก็เพียงพอ
+       * จึงไม่ต้องตรวจ Pattern ที่เหลือ
+       */
+      break;
+    }
   }
 
-  return Math.max(
-    0,
-    ...Object.values(
-      TESTDATA_CONFIG,
-    ).map(
-      (config) =>
-        countFeeTypes(
-          config.requiredHeaders.feeGroup,
-        ),
-    ),
+  return highestFeeIndex;
+}
+
+/**
+ * คืนจำนวน Fee Group ที่ต้องตรวจของแต่ละ Report
+ *
+ * DS_PTX และ DS_LTX:
+ * - ตรวจจำนวนจาก Header ใน Test Data จริง
+ *
+ * DS_FTX และ DS_FTU:
+ * - ไม่มี Fee Group
+ * - คืนค่า 0 เสมอ
+ */
+export function getFeeTypeCount(
+  reportCode: TestDataReportCode,
+  actualHeaders: readonly string[],
+): number {
+  const reportConfig =
+    getTestDataReportConfig(
+      reportCode,
+    );
+
+  /**
+   * ถ้า feeGroup ไม่ใช่ฟังก์ชัน
+   * หมายความว่า Report นี้ไม่ได้ตรวจ Fee Group
+   *
+   * ปัจจุบันคือ:
+   * - DS_FTX
+   * - DS_FTU
+   */
+  if (
+    typeof reportConfig.requiredHeaders.feeGroup !==
+    "function"
+  ) {
+    return 0;
+  }
+
+  /**
+   * DS_PTX และ DS_LTX
+   * ตรวจจำนวน Fee Group จาก Header ที่พบในไฟล์จริง
+   */
+  return detectFeeTypeCount(
+    actualHeaders,
   );
 }
