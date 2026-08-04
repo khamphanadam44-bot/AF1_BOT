@@ -139,9 +139,11 @@ export interface ReconcileReportConfig {
 export const DEFAULT_AMOUNT_TOLERANCE = 0.01;
 
 /**
- * จำนวนกลุ่ม Fee ที่ใช้ตอนรวมยอด (SUM) สำหรับ Fee Amount Aggregation Logic ของ Reconcile
- * (เดิม expected-case-builder.ts ดึงค่านี้จาก shared/testdata-config.ts ซึ่งตั้งไว้
- * ที่ 2 แต่ Test Data จริงมีถึง Fee Amount Type 5 — แยกค่าออกมาเป็นของ Reconcile เอง)
+ * จำนวนกลุ่ม Fee ที่ใช้รวมยอด Fee Amount
+ * สำหรับกระบวนการ Reconcile DS_LTX
+ *
+ * แยกค่านี้ออกจาก Test Data Validation Config
+ * เพราะ Test Data จริงของ DS_LTX รองรับ Fee Amount Type 1-5
  */
 export const RECONCILE_FEE_TYPE_COUNT = 5;
 
