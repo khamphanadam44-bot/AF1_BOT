@@ -1,5 +1,5 @@
 /**
- * ReconcileService (Main Orchestrator)
+ * ltx-reconcile
  *
  * โครงสร้าง Class ที่เกี่ยวข้อง:
  *   getReconcileConfig          -> อ่านและตรวจ Config ของ LTX
@@ -10,7 +10,7 @@
  *   FieldRuleValidatorSet       -> เทียบ field อื่นที่ไม่ใช่ 3 หัวข้อหลัก (ผล = ไฮไลท์เหลืองเท่านั้น)
  *   ReconcileResultSheetWriter  -> เขียนผลลง Sheet (copy ทุกแถวจาก AF1 Report + แปะ annotation)
  *
-*  Test_Result Pass/Fail ตัดสินจาก "3 หัวข้อ" เท่านั้น:
+ *  Test_Result Pass/Fail ตัดสินจาก "3 หัวข้อ" เท่านั้น:
  *   1. Reference Transaction Number (Report) vs Transaction ID/ Reconcile ID (Test Data)
  *   2. FI Arrangement Number (Report) vs From Account (A/C Client/Sender) (Test Data)
  *   3. Transaction Amount (Report) vs SUM ของ Fee Amount ทุกรายการ (แถว FE) หรือ
@@ -21,6 +21,16 @@
  * Requirement เดิมผ่าน FieldRuleValidatorSet เหมือนเดิมทุกอย่าง แต่ผลลัพธ์ตอนนี้ไม่ว่าจะ
  * เป็น FAIL หรือ REVIEW (ตามตรรกะเดิมของ FieldComparer) จะถูกปฏิบัติเหมือนกันหมด คือ
  * "ไฮไลท์เหลือง + ใส่ข้อความใน Remark" เท่านั้น ไม่กระทบ Pass/Fail ของแถวอีกต่อไป
+ *
+ *  Fallback Matching ของ LTX:
+ * - ใช้ Exact Reference Matching เป็นทางหลักเหมือนเดิม
+ * - ถ้า Test Data ไม่มี Transaction ID หรือค้น Reference ไม่พบ ให้ค้นคู่สำรองจาก
+ *   FI Arrangement Number/Account + Currency + DR/FE suffix + Amount
+ * - DR Amount เทียบ From Transfer Amount หรือ Debit Amount
+ * - FE Amount เทียบ SUM Fee Amount ที่ ExpectedCaseBuilder คำนวณไว้
+ * - ต้องพบ Report row เพียง 1 แถวเท่านั้นจึงถือว่า Mapping เจอ
+ * - แม้ Fallback จะ Mapping เจอ แต่ Transaction ID ที่ว่าง/ไม่ตรงยังคงทำให้ Key เป็น FAIL
+ *   และระบบจะตรวจ Account, Amount และ Field อื่นต่อ พร้อมบันทึก Remark
  * ------------------------------------------------------------------
  */
 import { getReconcileConfig, ReconcileReportConfig } from "./ltx-config";
@@ -50,14 +60,14 @@ import {
 } from "../../../config/mapping-helper";
 import type { ReportCode } from "../../../config/report-config";
 
+const TEST_NO_HEADER = "Test No.";
+
 /**
  * เลือก ExpectedCaseBuilder ที่ถูกต้องให้แต่ละ report — จุดเดียวที่ต้องแก้เมื่อเพิ่ม report ใหม่
- *
- * Bug fix (Code Review): เดิม Type เป็น Record<string, ...> กว้างเกินไป เปลี่ยนเป็น
- * Partial<Record<ReportCode, ...>> เพื่อให้ TypeScript ช่วยจับ Typo ตอนเพิ่ม Report ใหม่
- * ตั้งแต่ Compile Time (สอดคล้องกับ Pattern เดียวกับ RECONCILE_CONFIG ใน ltx-config.ts)
  */
-const EXPECTED_CASE_BUILDERS: Partial<Record<ReportCode, IExpectedCaseBuilder>> = {
+const EXPECTED_CASE_BUILDERS: Partial<
+  Record<ReportCode, IExpectedCaseBuilder>
+> = {
   DS_LTX: new LtxExpectedCaseBuilder(),
 };
 
@@ -183,6 +193,142 @@ export class ReconcileService {
     );
   }
 
+  /**
+   * Normalize ค่าที่ใช้ Fallback Matching
+   * - ตัดช่องว่างหน้าและหลัง
+   * - ไม่สนตัวพิมพ์เล็ก/ใหญ่
+   */
+  private normalizeFallbackValue(value: string): string {
+    return value.trim().toUpperCase();
+  }
+
+  /**
+   * ตรวจว่าค่าจาก Test Data และ AF1 Report ตรงกันหรือไม่
+   * ค่าว่างจะไม่ถือว่าตรงกัน เพื่อป้องกันการ Mapping จากค่าว่างสองฝั่ง
+   */
+  private isSameFallbackValue(
+    expectedValue: string,
+    actualValue: string,
+  ): boolean {
+    const normalizedExpected = this.normalizeFallbackValue(expectedValue);
+    const normalizedActual = this.normalizeFallbackValue(actualValue);
+
+    return (
+      normalizedExpected !== "" &&
+      normalizedActual !== "" &&
+      normalizedExpected === normalizedActual
+    );
+  }
+
+  /**
+   * ตรวจว่า Report Row เป็นขา DR หรือ FE
+   * ที่กำลังทำ Fallback Matching หรือไม่
+   *
+   * ตัวอย่าง:
+   * - suffix = "-DR" ใช้ Reference ที่ลงท้ายด้วย -DR
+   * - suffix = "-FE" ใช้ Reference ที่ลงท้ายด้วย -FE
+   */
+  private isSameReferenceSlot(
+    record: ReconcileRecord,
+    config: ReconcileReportConfig,
+    suffix: string,
+  ): boolean {
+    const actualReference = this.normalizeFallbackValue(
+      record.get(config.referenceNumberReportField),
+    );
+
+    const normalizedSuffix = this.normalizeFallbackValue(suffix);
+
+    return (
+      actualReference !== "" &&
+      normalizedSuffix !== "" &&
+      actualReference.endsWith(normalizedSuffix)
+    );
+  }
+
+  /**
+   * ตรวจ Amount ตาม Logic เดิมของ LTX
+   * - FE: Report Transaction Amount ต้องเท่ากับ SUM Fee Amount
+   * - DR: Report Transaction Amount ต้องเท่ากับ From Transfer Amount
+   *       หรือ Debit Amount ซึ่งเป็นค่า Fallback
+   */
+  private isFallbackAmountMatch(
+    record: ReconcileRecord,
+    expectedCase: ExpectedCase,
+    config: ReconcileReportConfig,
+    suffix: string,
+  ): boolean {
+    const actualAmount = record.get(config.transactionAmountReportField);
+    const isFeSlot =
+      this.normalizeFallbackValue(suffix) ===
+      this.normalizeFallbackValue(config.feSuffixLabel);
+
+    if (isFeSlot) {
+      return this.amountComparator.compare(
+        expectedCase.expectedFeAmount,
+        actualAmount,
+      ).isMatch;
+    }
+
+    const matchesPrimary = this.amountComparator.compare(
+      expectedCase.primaryRecord.get(config.drAmountTestDataField),
+      actualAmount,
+    ).isMatch;
+    const matchesFallback = this.amountComparator.compare(
+      expectedCase.primaryRecord.get(config.drAmountFallbackTestDataField),
+      actualAmount,
+    ).isMatch;
+
+    return matchesPrimary || matchesFallback;
+  }
+
+  /**
+   * Fallback Matching ของ LTX เมื่อ Exact Reference Matching ใช้งานไม่ได้
+   *
+   * ลำดับการกรอง:
+   * 1. FI Arrangement Number ต้องตรงกับ Account ใน Test Data
+   * 2. Currency Id ต้องตรงกับ Currency ใน Test Data
+   * 3. Reference ต้องเป็นขา DR/FE ที่กำลังตรวจ
+   * 4. Amount ต้องตรงตาม Logic ของ DR หรือ FE
+   *
+   * ไม่เลือก .first() เพราะถ้าพบหลายแถวจะเป็น Mapping ที่กำกวม
+   */
+  private findLtxFallbackCandidates(
+    reportRecords: ReconcileRecord[],
+    expectedCase: ExpectedCase,
+    config: ReconcileReportConfig,
+    suffix: string,
+  ): ReconcileRecord[] {
+    const expectedAccount = expectedCase.primaryRecord
+      .get(config.groupKeyFields.testDataAccountField)
+      .trim();
+    const expectedCurrency = expectedCase.primaryRecord
+      .get(config.groupKeyFields.testDataCurrencyField)
+      .trim();
+
+    // Account และ Currency เป็นข้อมูลขั้นต่ำของ Fallback Mapping
+    // ถ้าขาดอย่างใดอย่างหนึ่งจะไม่เดา Report row จาก Amount เพียงอย่างเดียว
+    if (expectedAccount === "" || expectedCurrency === "") {
+      return [];
+    }
+
+    return reportRecords.filter((record) => {
+      const actualAccount = record
+        .get(config.groupKeyFields.reportAccountField)
+        .trim();
+      const actualCurrency = record
+        .get(config.groupKeyFields.reportCurrencyField)
+        .trim();
+
+      return (
+        this.isSameFallbackValue(expectedAccount, actualAccount) &&
+        this.isSameFallbackValue(expectedCurrency, actualCurrency) &&
+        this.isSameReferenceSlot(record, config, suffix) &&
+        this.isFallbackAmountMatch(record, expectedCase, config, suffix)
+      );
+    });
+  }
+
   private checkKeyConditions(
     reportCode: string,
     config: ReconcileReportConfig,
@@ -260,7 +406,7 @@ export class ReconcileService {
       failedKeyFieldHeaders.push(config.transactionAmountReportField);
       if (suffix === config.feSuffixLabel) {
         failRemarks.push(
-          `[TS] : SUM(Fee Amount Type 1-5) = "${expectedCase.expectedFeAmount}" | ` +
+          `[TS] : SUM(Fee Amount) = "${expectedCase.expectedFeAmount}" | ` +
             `[${reportCode}] : ${config.transactionAmountReportField} = "${actualAmount}"`,
         );
       } else {
@@ -329,21 +475,120 @@ export class ReconcileService {
       config.reportPresenceRules,
     );
 
-    const matchedRecord = this.matcher.findByExactReference(
-      reportRecords,
-      config.referenceNumberReportField,
-      expectedReference,
-    );
+    const expectedId = expectedCase.primaryRecord
+      .get(config.testDataIdField)
+      .trim();
+    const normalizedExpectedReference = expectedReference.trim();
 
+    const testNo = expectedCase.primaryRecord.get(TEST_NO_HEADER).trim();
+
+    const missingTestNoRemark =
+      testNo === "" ? `Test Data ไม่มี ${TEST_NO_HEADER}` : "";
+
+    /**
+     * ใส่ Comment กรณี Test No. ว่างให้ Result ทุกเส้นทาง
+     * โดยไม่กระทบผล Matching และ PASS/FAIL
+     */
+    const withMissingTestNoRemark = (...remarks: string[]): string =>
+      [missingTestNoRemark, ...remarks]
+        .filter((remark) => remark.trim() !== "")
+        .join("\n");
+
+    /**
+     * Primary Matching:
+     * ถ้ามี Expected Reference ให้ค้นแบบ Exact Reference ก่อนเสมอ
+     */
+    let matchedRecord =
+      normalizedExpectedReference !== ""
+        ? this.matcher.findByExactReference(
+            reportRecords,
+            config.referenceNumberReportField,
+            normalizedExpectedReference,
+          )
+        : undefined;
+
+    let fallbackRemark = "";
+
+    /**
+     * Fallback Matching:
+     * ทำเมื่อ Transaction ID ว่าง หรือ Exact Reference Matching ไม่พบคู่
+     */
+    if (!matchedRecord) {
+      const fallbackCandidates = this.findLtxFallbackCandidates(
+        reportRecords,
+        expectedCase,
+        config,
+        suffix,
+      );
+
+      if (fallbackCandidates.length > 1) {
+        const candidateRows = fallbackCandidates
+          .map((record) => record.rowNumber)
+          .join(", ");
+        const fallbackReason =
+          expectedId === ""
+            ? `Test Data ไม่มี ${config.testDataIdField}`
+            : `ไม่พบ Exact Reference = "${normalizedExpectedReference}"`;
+
+        return {
+          testCaseNo: expectedCase.displayTestCaseNo,
+          status: "FAIL",
+          remark: withMissingTestNoRemark(
+            fallbackReason,
+            `LTX Fallback Matching พบ ${fallbackCandidates.length} แถว ` +
+              `(Report row: ${candidateRows}) จึงไม่สามารถระบุคู่ที่แน่นอนได้`,
+          ),
+          matchedRowNumber: undefined,
+          failedKeyFieldHeaders: [],
+          reviewFieldHeaders: [],
+          isExpectedAbsence: false,
+        };
+      }
+
+      if (fallbackCandidates.length === 1) {
+        matchedRecord = fallbackCandidates[0];
+
+        const matchedReference = matchedRecord
+          .get(config.referenceNumberReportField)
+          .trim();
+        const fallbackReason =
+          expectedId === ""
+            ? `Test Data ไม่มี ${config.testDataIdField}`
+            : `ไม่พบ Exact Reference = "${normalizedExpectedReference}"`;
+
+        fallbackRemark =
+          `${fallbackReason}\n` +
+          "Mapping ด้วย LTX Fallback: Account + Currency + DR/FE + Amount " +
+          `พบคู่กับ ${config.referenceNumberReportField} = "${matchedReference}"`;
+      }
+    }
+
+    /**
+     * Presence Rule กำหนดว่า Test Data รายการนี้
+     * ต้องไม่มีอยู่ใน AF1 Report
+     */
     if (presenceDecision.expectation === "MUST_NOT_EXIST") {
+      /**
+       * ไม่พบ Report Row ตามที่ Business Rule คาดไว้
+       * จึงถือว่า PASS แบบ Expected Absence
+       *
+       * ถ้า Transaction ID ว่าง
+       * ให้บันทึก Comment เพิ่ม แต่ไม่เปลี่ยนผล
+       * ของ Expected Absence
+       */
       if (!matchedRecord) {
         return {
           testCaseNo: expectedCase.displayTestCaseNo,
+
           status: "PASS",
-          remark: this.formatRuleRemark(
-            presenceDecision.passRemark,
-            reportCode,
+
+          remark: withMissingTestNoRemark(
+            this.formatRuleRemark(presenceDecision.passRemark, reportCode),
+            expectedId === ""
+              ? `Test Data ไม่มี ${config.testDataIdField}`
+              : "",
           ),
+
           matchedRowNumber: undefined,
           failedKeyFieldHeaders: [],
           reviewFieldHeaders: [],
@@ -351,27 +596,53 @@ export class ReconcileService {
         };
       }
 
+      /**
+       * พบ Report Row ทั้งที่ Business Rule กำหนด
+       * ว่ารายการนี้ต้องไม่มี จึงถือว่า FAIL
+       */
       return {
         testCaseNo: expectedCase.displayTestCaseNo,
+
         status: "FAIL",
-        remark:
-          this.formatRuleRemark(presenceDecision.failRemark, reportCode) +
-          `\n[${reportCode}] : ${config.referenceNumberReportField} = ` +
-          `"${expectedReference}"`,
+
+        remark: withMissingTestNoRemark(
+          this.formatRuleRemark(presenceDecision.failRemark, reportCode),
+
+          `[${reportCode}] : ${config.referenceNumberReportField} = ` +
+            `"${matchedRecord.get(config.referenceNumberReportField).trim()}"`,
+
+          fallbackRemark !== ""
+            ? fallbackRemark
+            : expectedId === ""
+              ? `Test Data ไม่มี ${config.testDataIdField}`
+              : "",
+        ),
         matchedRowNumber: matchedRecord.rowNumber,
+
         failedKeyFieldHeaders: [config.referenceNumberReportField],
+
         reviewFieldHeaders: [],
         isExpectedAbsence: false,
       };
     }
 
     if (!matchedRecord) {
+      const fallbackReason =
+        expectedId === ""
+          ? `Test Data ไม่มี ${config.testDataIdField}`
+          : `ไม่พบ Exact Reference = "${normalizedExpectedReference}"`;
+
       return {
         testCaseNo: expectedCase.displayTestCaseNo,
+
         status: "FAIL",
-        remark:
-          `ไม่พบแถว ${suffix} ใน ${reportCode} ที่ ` +
-          `${config.referenceNumberReportField} = "${expectedReference}"`,
+
+        remark: withMissingTestNoRemark(
+          fallbackReason,
+          `ไม่พบแถว ${suffix} ใน ${reportCode} ทั้งจาก Exact Reference ` +
+            "และ LTX Fallback Matching " +
+            "(Account + Currency + DR/FE + Amount)",
+        ),
         matchedRowNumber: undefined,
         failedKeyFieldHeaders: [],
         reviewFieldHeaders: [],
@@ -395,14 +666,16 @@ export class ReconcileService {
         matchedRecord,
         suffix,
       );
-    const remarkLines = [
+    const remark = withMissingTestNoRemark(
+      fallbackRemark,
       ...failRemarks,
-      ...(reviewRemark.trim() !== "" ? [reviewRemark] : []),
-    ];
+      reviewRemark,
+    );
+
     return {
       testCaseNo: expectedCase.displayTestCaseNo,
       status,
-      remark: remarkLines.join("\n"),
+      remark,
       matchedRowNumber: matchedRecord.rowNumber,
       failedKeyFieldHeaders,
       reviewFieldHeaders,
@@ -460,26 +733,68 @@ export class ReconcileService {
     };
 
     expectedCases.forEach((expectedCase) => {
-      if (expectedCase.expectedDrReference) {
+      const expectedDrReference = expectedCase.expectedDrReference ?? "";
+
+      const expectedFeReference = expectedCase.expectedFeReference ?? "";
+
+      /**
+       * Parse DR Amount ด้วย Logic กลางเดียวกับ
+       * LtxExpectedCaseBuilder
+       */
+      const drPrimaryAmount = this.amountComparator.parse(
+        expectedCase.primaryRecord.get(config.drAmountTestDataField),
+      );
+
+      const drFallbackAmount = this.amountComparator.parse(
+        expectedCase.primaryRecord.get(config.drAmountFallbackTestDataField),
+      );
+
+      /**
+       * Expected FE Amount เป็นผลรวม Fee Amount
+       * ที่ LtxExpectedCaseBuilder คำนวณไว้แล้ว
+       */
+      const expectedFeAmount = this.amountComparator.parse(
+        String(expectedCase.expectedFeAmount ?? ""),
+      );
+
+      /**
+       * Transaction ID ว่างอาจทำให้ Expected Reference ว่าง
+       * จึงใช้ Amount ตรวจว่ายังมี DR Slot
+       * ที่ต้องนำไป Fallback Matching หรือไม่
+       */
+      const shouldResolveDr =
+        expectedDrReference.trim() !== "" ||
+        (drPrimaryAmount !== null && drPrimaryAmount > 0.01) ||
+        (drFallbackAmount !== null && drFallbackAmount > 0.01);
+
+      /**
+       * มี FE Slot เมื่อมี Expected Reference
+       * หรือ SUM Fee Amount มากกว่า 0.01
+       */
+      const shouldResolveFe =
+        expectedFeReference.trim() !== "" ||
+        (expectedFeAmount !== null && expectedFeAmount > 0.01);
+
+      if (shouldResolveDr) {
         collect(
           this.resolveSlot(
             reportCode,
             config,
             expectedCase,
-            expectedCase.expectedDrReference,
+            expectedDrReference,
             config.drSuffixLabel,
             reportRecords,
           ),
         );
       }
 
-      if (expectedCase.expectedFeReference) {
+      if (shouldResolveFe) {
         collect(
           this.resolveSlot(
             reportCode,
             config,
             expectedCase,
-            expectedCase.expectedFeReference,
+            expectedFeReference,
             config.feSuffixLabel,
             reportRecords,
           ),

@@ -14,6 +14,12 @@
  * 2. Fee Charge Account No.
  * 3. Fee Amount
  *
+ * DS_LTX:
+ * - ตรวจ 3 ช่องหลักตาม Logic เดิม
+ * - Fee Type
+ * - Fee Charge Account No.
+ * - Fee Amount
+ * - ถ้าว่างทั้งกลุ่มให้เป็นสีแดง
  * กฎที่ใช้ร่วมกัน:
  * - ว่างทุกช่องในกลุ่ม: ข้าม ไม่ Highlight และไม่บันทึกผล
  * - มีข้อมูลครบ: Highlight สีเขียว

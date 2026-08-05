@@ -395,6 +395,11 @@ export const readCompareResultRows = async (
 
 type CheckedTestDataResult = {
   testDataRowsByTestNo: Map<string, DataRecord[]>;
+
+  testDataRowsByTransactionId: Map<string, DataRecord[]>;
+
+  testDataRowsByRowNumber: Map<number, DataRecord>;
+
   maxFeeIndex: number;
 };
 
@@ -542,8 +547,16 @@ const readCheckedTestDataRows = async (
 
   const testDataRowsByTestNo = new Map<string, DataRecord[]>();
 
-  //const testDataMap =
-  //new Map<string, DataRecord>();
+  /**
+   * ใช้กรณี Test No. ว่าง แต่มี Transaction ID
+   */
+  const testDataRowsByTransactionId = new Map<string, DataRecord[]>();
+
+  /**
+   * ใช้กรณี Test No. และ Transaction ID ว่างทั้งคู่
+   * โดยอ้างอิงจากเลขแถวจริงใน Test Data
+   */
+  const testDataRowsByRowNumber = new Map<number, DataRecord>();
 
   /*
    * เก็บ Record ทั้งหมดไว้ใช้ตรวจว่า
@@ -557,13 +570,7 @@ const readCheckedTestDataRows = async (
     rowNumber += 1
   ) {
     const row = worksheet.getRow(rowNumber);
-    const testNo = normalizeTestNo(getCellValue(
-    row.getCell(
-      testNoColumn,
-    ),
-  ),
-);
-    
+    const testNo = normalizeTestNo(getCellValue(row.getCell(testNoColumn)));
 
     const record = worksheetRowToRecord(worksheet, rowNumber, headerRowNumber);
 
@@ -577,10 +584,50 @@ const readCheckedTestDataRows = async (
 
     allTestDataRecords.push(record);
 
-    const testDataRows = testDataRowsByTestNo.get(testNo) ?? [];
+    /**
+     * เก็บ Record ตามเลขแถวจริงใน Excel
+     *
+     * ตัวอย่าง:
+     * Test Data Row 6 จะย้อนกลับมาหา Record
+     * ของ Excel row 6 ได้
+     */
+    testDataRowsByRowNumber.set(rowNumber, record);
 
-    testDataRows.push(record);
-    testDataRowsByTestNo.set(testNo, testDataRows);
+    /**
+     * เก็บตาม Test No. เฉพาะกรณีที่ Test No. มีค่า
+     *
+     * ไม่เก็บ Test No. ว่าง เพราะอาจมีหลายแถวว่าง
+     * และทำให้เกิด Ambiguous Matching
+     */
+    if (testNo !== "") {
+      const testDataRows = testDataRowsByTestNo.get(testNo) ?? [];
+
+      testDataRows.push(record);
+
+      testDataRowsByTestNo.set(testNo, testDataRows);
+    }
+
+    /**
+     * สร้างดัชนีจาก Transaction ID
+     * สำหรับกรณี Test No. ว่าง
+     */
+    const transactionId = normalizeTestNo(
+      getRecordValue(record, [
+        "Transaction ID/ Reconcile ID",
+        "Transaction ID / Reconcile ID",
+        "Transaction ID",
+        "Reconcile ID",
+      ]),
+    );
+
+    if (transactionId !== "") {
+      const transactionIdRows =
+        testDataRowsByTransactionId.get(transactionId) ?? [];
+
+      transactionIdRows.push(record);
+
+      testDataRowsByTransactionId.set(transactionId, transactionIdRows);
+    }
   }
 
   if (allTestDataRecords.length === 0) {
@@ -612,6 +659,8 @@ const readCheckedTestDataRows = async (
 
   return {
     testDataRowsByTestNo,
+    testDataRowsByTransactionId,
+    testDataRowsByRowNumber,
     maxFeeIndex: maxFeeIndexFromActualData,
   };
 };
@@ -705,29 +754,93 @@ const writeSummaryInformation = (
   findKpiValueCell(summarySheet, ["FAILED/UNMATCH"]).value = info.failed;
 };
 
-/** จับคู่ Reconcile.Test Script No. กับ Original Test Data.Test No. */
+/**
+ * จับคู่ Reconcile Result กลับไปยัง Test Data ต้นทาง
+ *
+ * ลำดับการค้นหา:
+ * 1. Test No.
+ * 2. Test Data Row N
+ * 3. Transaction ID
+ */
 const findMatchingTestDataRow = (
   compareRow: CompareResultRow,
   testDataResult: CheckedTestDataResult,
   config: SummaryReportConfig,
 ): DataRecord => {
-  const testNo = normalizeTestNo(compareRow.testScriptNo);
-  const candidates = testDataResult.testDataRowsByTestNo.get(testNo) ?? [];
+  const lookupValue = normalizeTestNo(compareRow.testScriptNo);
 
-  if (candidates.length === 1) {
-    return candidates[0];
+  /**
+   * วิธีที่ 1:
+   * ค้นจาก Test No. ตามปกติ
+   * 
+   */
+  const testNoCandidates =
+    testDataResult.testDataRowsByTestNo.get(lookupValue) ?? [];
+
+  if (testNoCandidates.length === 1) {
+    return testNoCandidates[0];
   }
 
-  if (candidates.length > 1) {
+  if (testNoCandidates.length > 1) {
     throw new Error(
       `[${config.reportCode}] Ambiguous Original Test Data: ` +
-        `Test No. "${testNo}" matched ${candidates.length} rows.`,
+        `Test No. "${lookupValue}" matched ` +
+        `${testNoCandidates.length} rows.`,
+    );
+  }
+
+  /**
+   * วิธีที่ 2:
+   * ถ้าค่าเป็น "Test Data Row N หรือ Row N"
+   * ให้ดึงเลข N แล้วค้นจากเลขแถว Excel
+   */
+  const rowNumberMatch =
+  /^(?:TEST\s+DATA\s+)?ROW\s*[:#-]?\s*(\d+)$/i.exec(
+    lookupValue,
+  );
+
+  if (rowNumberMatch) {
+    const sourceRowNumber = Number(rowNumberMatch[1]);
+
+    const matchedByRowNumber =
+      testDataResult.testDataRowsByRowNumber.get(sourceRowNumber);
+
+    if (matchedByRowNumber) {
+      return matchedByRowNumber;
+    }
+
+    throw new Error(
+      `[${config.reportCode}] Original Test Data row not found: ` +
+        `Row Number = ${sourceRowNumber}.`,
+    );
+  }
+
+  /**
+   * วิธีที่ 3:
+   * ถ้า Test No. ว่างในต้นทาง Builder จะนำ
+   * Transaction ID มาแสดงใน Test Script No.
+   *
+   * จึงค้น Transaction ID ด้วยค่าเดียวกัน
+   */
+  const transactionIdCandidates =
+    testDataResult.testDataRowsByTransactionId.get(lookupValue) ?? [];
+
+  if (transactionIdCandidates.length === 1) {
+    return transactionIdCandidates[0];
+  }
+
+  if (transactionIdCandidates.length > 1) {
+    throw new Error(
+      `[${config.reportCode}] Ambiguous Original Test Data: ` +
+        `Transaction ID "${lookupValue}" matched ` +
+        `${transactionIdCandidates.length} rows.`,
     );
   }
 
   throw new Error(
     `[${config.reportCode}] Original Test Data not found: ` +
-      `Test No. = "${testNo}".`,
+      `Test No., Transaction ID or Row Reference = ` +
+      `"${lookupValue}".`,
   );
 };
 
@@ -1210,12 +1323,9 @@ const copyWorksheetFromFile = async (
     ...sourceWorksheet.headerFooter,
   };
 
-  targetWorksheet.views = (
-  sourceWorksheet.views ??
-  []
-).map(
-  (view) => ({ ...view }),
-);
+  targetWorksheet.views = (sourceWorksheet.views ?? []).map((view) => ({
+    ...view,
+  }));
 
   console.log(
     `Copied Worksheet      : ${sourceWorksheet.name} -> ${targetSheetName}`,
