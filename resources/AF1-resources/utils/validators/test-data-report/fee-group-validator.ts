@@ -16,7 +16,7 @@
  * - Fee Type
  * - Fee Charge Account No.
  * - Fee Amount
- * - ถ้าว่างทั้งกลุ่มให้ข้าม
+ * - ถ้าว่างทั้งกลุ่มให้เป็นสีแดง
  */
 
 import ExcelJS from "exceljs";
@@ -383,8 +383,8 @@ export const validateFeeGroupFields = (
      */
     if (valueCount === 0) {
       /**
-       * LTX ใช้ Logic เดิม:
-       * Fee Group ว่างทั้งชุดให้ข้าม
+       * ถ้า Report ไม่บังคับ Fee Group
+       * และข้อมูลว่างทั้งกลุ่ม ให้ข้าม
        */
       if (
         !rule.emptyGroupIsRequired
@@ -392,11 +392,11 @@ export const validateFeeGroupFields = (
         continue;
       }
 
-      /**
-       * PTX:
-       * Fee Group ว่างทั้งชุด
-       * ใส่สีแดงครบทั้ง 4 ช่อง
-       */
+     /**
+      * PTX และ LTX:
+      * ถ้า Fee Group เป็นข้อมูลบังคับและว่างทั้งชุด
+      * ให้ใส่สีแดงทุกช่องที่ Report กำหนดให้ตรวจ
+      */
       feeCells.forEach(
         (item) => {
           markFeeCellAsRequired(
