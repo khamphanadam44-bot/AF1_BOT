@@ -37,15 +37,15 @@ import { getReconcileConfig, ReconcileReportConfig } from "./ltx-config";
 import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
 import { ReconcileExcelReader } from "../shared/excel-reader";
 import { ReconcileMatcher } from "../shared/record-matcher";
-import { AmountComparator } from "./amount-compare";
-import { FieldRuleValidatorSet } from "./field-validator";
+import { AmountComparator } from "./ltx-amount-compare";
+import { FieldRuleValidatorSet } from "./ltx-field-validator";
 import {
   ReconcileResultSheetWriter,
   ResultRow,
   RowStatus,
 } from "../shared/result-writer";
-import { ExpectedCase, IExpectedCaseBuilder } from "./expected-case";
-import { LtxExpectedCaseBuilder } from "./expected-case-builder";
+import { ExpectedCase, IExpectedCaseBuilder } from "./ltx-expected-case";
+import { LtxExpectedCaseBuilder } from "./ltx-expected-case-builder";
 import { ReconcileRecord } from "../shared/record";
 import {
   getPresenceRuleFields,

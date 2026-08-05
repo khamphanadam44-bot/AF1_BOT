@@ -1,42 +1,36 @@
 /**
  * test-data-validator.ts
- * ------------------------------------------------------------------
- * หน้าที่ของไฟล์นี้
+ * ------------------------------------------------------------
+ * ตัวควบคุมหลักของ Test Data Validation ใน Script 2
  *
- * เป็นตัวควบคุมหลักของ Test Data Validation ใน Script 2
- *
- * ใช้ตรวจสอบ
- * 1. Header ของไฟล์ Test Data
- * 2. ข้อมูลภายใน Required Field
- * 3. Fee Group เฉพาะ Report ที่รองรับ เช่น DS_PTX
- *
- * ถึงแม้ทุก Report จะใช้ไฟล์ Test Data ตัวเดียวกัน
- * แต่ Requirement ที่นำมาตรวจสอบจะเลือกตาม reportCode
- *
- * ตัวอย่าง:
- * - reportCode = DS_PTX → ใช้ Config ของ DS_PTX
- * - reportCode = DS_FTX → ใช้ Config ของ DS_FTX
- *
- * ลำดับการทำงาน
+ * หน้าที่หลัก:
  * 1. ตรวจสอบว่าไฟล์ Test Data มีอยู่จริง
- * 2. เตรียม Folder และชื่อไฟล์ผลลัพธ์
- * 3. เปิดไฟล์ Test Data
- * 4. อ่าน Config ตาม Report
- * 5. ตรวจสอบข้อมูลภายใน Field
- * 6. ตรวจสอบ Header
- * 7. บันทึกไฟล์ผลลัพธ์
- * 8. สรุปผลการตรวจสอบ
+ * 2. เปิดไฟล์ Test Data
+ * 3. อ่าน Header จริงจาก Worksheet
+ * 4. ตรวจจำนวน Fee Group จาก Header จริง
+ * 5. สร้าง Required Header ตาม Report
+ * 6. ตรวจข้อมูลใน Required Field
+ * 7. ตรวจ Header
+ * 8. บันทึกไฟล์ผลลัพธ์
  *
- * คำศัพท์
- * - Input File  = ไฟล์ต้นทาง
- * - Output File = ไฟล์ผลลัพธ์
- * - Temporary File = ไฟล์ชั่วคราว
- * - Validation  = การตรวจสอบ
- * - Invalid     = ข้อมูลไม่ถูกต้องหรือไม่ครบ
- * ------------------------------------------------------------------
+ * การตรวจ Fee Group:
+ *
+ * DS_PTX และ DS_LTX:
+ * - ตรวจจำนวน Fee Group จาก Header จริง
+ * - ตรวจข้อมูลภายใน Fee Group
+ *
+ * DS_FTX และ DS_FTU:
+ * - ไม่มีการตรวจ Fee Group
+ * - จำนวน Fee Group เป็น 0
+ *
+ * หมายเหตุ:
+ * ทุก Report สามารถใช้ไฟล์ Test Data ตัวเดียวกันได้
+ * แต่ Requirement ที่นำมาตรวจจะเลือกตาม reportCode
+ * ------------------------------------------------------------
  */
 
 import * as fs from "fs";
+
 import ExcelJS from "exceljs";
 
 import {
@@ -48,6 +42,11 @@ import {
 } from "./field-validator";
 
 import {
+  getHeadersFromRow,
+} from "../shared/excel-cell.util";
+
+import {
+  getFeeTypeCount,
   getNormalRequiredTestDataHeaders,
   getRequiredTestDataHeaders,
   getTestDataHeaderRowNumber,
@@ -65,16 +64,16 @@ import {
 } from "../../file-system.util";
 
 /**
- * ตรวจสอบ Header และข้อมูลทั้งหมดของไฟล์ Test Data
+ * ตรวจ Header และข้อมูลทั้งหมดของ Test Data
  *
- * ไฟล์ Test Data ต้นทางจะไม่ถูกแก้ไขโดยตรง
- * เพราะระบบจะบันทึกผลเป็นไฟล์ใหม่ใน outputDirectory
+ * ไฟล์ต้นทางจะไม่ถูกแก้ไขโดยตรง
+ * ระบบจะบันทึกผลการตรวจเป็นไฟล์ใหม่
  *
  * @param inputFilePath
  * Path ของไฟล์ Test Data ต้นทาง
  *
  * @param outputDirectory
- * Folder สำหรับเก็บไฟล์ผลการตรวจสอบ
+ * Folder สำหรับเก็บไฟล์ผลลัพธ์
  *
  * @param resultBaseName
  * ชื่อหลักของไฟล์ผลลัพธ์ก่อนเติม Timestamp
@@ -83,18 +82,20 @@ import {
  * DS_PTX_TestData_Validation_Result
  *
  * @param reportCode
- * รหัส Report ที่ใช้เลือก Config และ Logic การตรวจสอบ
+ * Report ที่กำลังตรวจ
  *
  * ตัวอย่าง:
  * - DS_PTX
+ * - DS_LTX
  * - DS_FTX
+ * - DS_FTU
  *
  * @returns
- * Promise ที่คืน Path ของไฟล์ผลลัพธ์
+ * Path ของไฟล์ผลลัพธ์
  *
  * หมายเหตุ:
- * - ถ้า Header ขาด ฟังก์ชันจะบันทึกไฟล์ก่อนแล้ว Throw Error
- * - ถ้า Field ว่าง ฟังก์ชันจะไม่ Throw Error และยังคืน Path
+ * - ถ้า Header ขาด ระบบจะบันทึกไฟล์ก่อน Throw Error
+ * - ถ้า Field ว่าง ระบบจะไม่ Throw Error
  */
 export const validateTestData = async (
   inputFilePath: string,
@@ -102,26 +103,20 @@ export const validateTestData = async (
   resultBaseName: string,
   reportCode: TestDataReportCode,
 ): Promise<string> => {
-  // แสดงหัวข้อการตรวจสอบ
   console.log(
     "\n===== TEST DATA VALIDATION =====",
   );
 
-  // แสดง Report ที่กำลังตรวจสอบ
   console.log(
     `Report Code : ${reportCode}`,
   );
 
-  // แสดงตำแหน่งไฟล์ Test Data ต้นทาง
   console.log(
     `Input File  : ${inputFilePath}`,
   );
 
   /**
-   * ตรวจสอบว่าไฟล์ Test Data ต้นทางมีอยู่จริงหรือไม่
-   *
-   * ถ้าไม่พบไฟล์ จะหยุดการทำงานทันที
-   * และยังไม่มีการสร้างไฟล์ผลลัพธ์
+   * ตรวจสอบว่าไฟล์ Test Data ต้นทางมีอยู่จริง
    */
   if (!fs.existsSync(inputFilePath)) {
     throw new Error(
@@ -130,10 +125,7 @@ export const validateTestData = async (
   }
 
   /**
-   * ตรวจสอบและสร้าง Folder สำหรับเก็บผลลัพธ์
-   *
-   * ถ้า Folder มีอยู่แล้วจะใช้งานต่อ
-   * ถ้ายังไม่มีจะสร้าง Folder ขึ้นมา
+   * สร้าง Folder ผลลัพธ์หากยังไม่มี
    */
   ensureDirectoryExists(
     outputDirectory,
@@ -143,7 +135,7 @@ export const validateTestData = async (
    * สร้างชื่อไฟล์ผลลัพธ์พร้อม Timestamp
    *
    * ตัวอย่าง:
-   * DS_PTX_TestData_Validation_Result_20260730_143000.xlsx
+   * DS_PTX_TestData_Validation_Result_20260804_143000.xlsx
    */
   const finalOutputFilePath =
     buildTimestampedFilePath(
@@ -153,17 +145,10 @@ export const validateTestData = async (
     );
 
   /**
-   * สร้าง Path ของไฟล์ชั่วคราวจากชื่อไฟล์จริง
+   * สร้าง Path สำหรับไฟล์ชั่วคราว
    *
-   * ตัวอย่าง:
-   * ไฟล์จริง:
-   * DS_PTX_TestData_Validation_Result_20260730_143000.xlsx
-   *
-   * ไฟล์ชั่วคราว:
-   * DS_PTX_TestData_Validation_Result_20260730_143000_temp.xlsx
-   *
-   * ระบบจะเขียนผลลงไฟล์ชั่วคราวก่อน
-   * เพื่อลดโอกาสได้ไฟล์จริงที่เขียนไม่สมบูรณ์
+   * ระบบจะเขียนไฟล์ชั่วคราวให้เสร็จก่อน
+   * แล้วจึงเปลี่ยนชื่อเป็นไฟล์ผลลัพธ์จริง
    */
   const tempOutputFilePath =
     buildTempFilePath(
@@ -171,131 +156,116 @@ export const validateTestData = async (
     );
 
   /**
-   * ลบไฟล์ชั่วคราวเก่าที่อาจค้างอยู่ใน Folder
-   *
-   * ตัวอย่างสาเหตุที่มีไฟล์ค้าง:
-   * - การ Run ครั้งก่อนถูกปิดกลางคัน
-   * - Excel เขียนไฟล์ไม่สำเร็จ
-   * - Process ถูกหยุดก่อนเปลี่ยนชื่อไฟล์
+   * ลบไฟล์ชั่วคราวเก่าที่อาจค้างจากการ Run ครั้งก่อน
    */
   cleanupStaleTempFiles(
     outputDirectory,
   );
 
   /**
-   * สร้าง Workbook ใหม่ในหน่วยความจำ
-   *
-   * ตอนนี้ยังเป็น Workbook ว่าง
+   * สร้าง Workbook และอ่านไฟล์ Test Data
    */
   const workbook =
     new ExcelJS.Workbook();
 
-  /**
-   * อ่านไฟล์ Test Data ต้นทางเข้ามาใน Workbook
-   *
-   * await หมายถึงรอจนกว่า ExcelJS
-   * จะอ่านไฟล์เสร็จก่อนทำขั้นตอนถัดไป
-   */
   await workbook.xlsx.readFile(
     inputFilePath,
   );
 
   /**
-   * ตรวจสอบว่าไฟล์ Test Data มี Worksheet แรกหรือไม่
-   *
-   * getWorksheet(1)
-   * หมายถึง Worksheet ลำดับแรก
-   * ไม่ได้หมายถึง Worksheet ที่ชื่อว่า "1"
+   * เลือก Worksheet ลำดับแรก
    */
-  if (!workbook.getWorksheet(1)) {
+  const worksheet =
+    workbook.getWorksheet(1);
+
+  if (!worksheet) {
     throw new Error(
       "Original worksheet not found",
     );
   }
 
-  // แสดง Path ของไฟล์ผลลัพธ์
   console.log(
     `Output File : ${finalOutputFilePath}`,
   );
 
   /**
-   * ดึง Required Header ทั้งหมดตาม Report
-   *
-   * รายการนี้ใช้สำหรับตรวจสอบ Header
-   * จึงรวมทั้ง
-   * - Normal Required Header
-   * - Fee Group Header
-   *
-   * ตัวอย่าง:
-   * reportCode = DS_PTX
-   * จะอ่าน Config ของ DS_PTX
-   *
-   * reportCode = DS_FTX
-   * จะอ่าน Config ของ DS_FTX
-   */
-  const requiredHeaders =
-    getRequiredTestDataHeaders(
-      reportCode,
-    );
-
-  /**
-   * ดึงเฉพาะ Header สำหรับตรวจข้อมูลแบบ Normal Field
-   *
-   * รายการนี้ไม่รวม 3 Field หลักของ Fee Group
-   * เพราะ Fee Group จะถูกตรวจแยกใน
-   * fee-group-validator.ts
-   *
-   * ตัวอย่าง Fee Group Header ที่ไม่รวม:
-   * - Fee Type N
-   * - Fee Charge Account No. Type N
-   * - Fee Amount Type N หรือ Fee Amount N
-   */
-  const normalRequiredHeaders =
-    getNormalRequiredTestDataHeaders(
-      reportCode,
-    );
-
-  /**
    * ดึงหมายเลขแถว Header จาก Config ของ Report
    *
-   * ปัจจุบัน DS_PTX และ DS_FTX
-   * ใช้ Header Row แถวที่ 5
-   *
-   * แต่ไม่ได้เขียนเลข 5 ตายตัวในไฟล์นี้
-   * ทำให้ Report ในอนาคตสามารถกำหนดแถวอื่นได้
+   * ไม่กำหนดหมายเลขแถวแบบ Hard code ในไฟล์นี้
    */
   const headerRowNumber =
     getTestDataHeaderRowNumber(
       reportCode,
     );
 
-  // แสดงหมายเลขแถว Header
+  /**
+   * อ่าน Header จริงจาก Test Data
+   *
+   * ต้องทำขั้นตอนนี้ก่อนสร้าง Required Header
+   * เพราะจำนวน Fee Group จะตรวจจาก Header จริง
+   */
+  const actualHeaders =
+    getHeadersFromRow(
+      worksheet,
+      headerRowNumber,
+    );
+
+  /**
+   * ตรวจจำนวน Fee Group ตาม Report
+   *
+   * DS_PTX และ DS_LTX:
+   * - ตรวจหมายเลข Fee Group สูงสุดจาก Header จริง
+   *
+   * DS_FTX และ DS_FTU:
+   * - คืนค่า 0
+   */
+  const feeTypeCount =
+    getFeeTypeCount(
+      reportCode,
+      actualHeaders,
+    );
+
+  /**
+   * ดึง Required Header ทั้งหมด
+   *
+   * DS_PTX และ DS_LTX:
+   * - รวม Fee Header ตามจำนวนที่ตรวจพบจริง
+   *
+   * DS_FTX และ DS_FTU:
+   * - ไม่มี Fee Header
+   */
+  const requiredHeaders =
+    getRequiredTestDataHeaders(
+      reportCode,
+      actualHeaders,
+    );
+
+  /**
+   * ดึงเฉพาะ Header สำหรับตรวจ Normal Field
+   *
+   * ไม่รวม Fee Group เพราะ Fee Group
+   * มี Logic ตรวจแยกต่างหาก
+   */
+  const normalRequiredHeaders =
+    getNormalRequiredTestDataHeaders(
+      reportCode,
+    );
+
   console.log(
-    `Header Row  : ${headerRowNumber}`,
+    `Header Row : ${headerRowNumber}`,
   );
 
-  // แสดงจำนวน Required Header ทั้งหมด
   console.log(
-    `Required Header Count: ${requiredHeaders.length}`,
+    `Required Header Count : ${requiredHeaders.length}`,
+  );
+
+  console.log(
+    `Detected Fee Group Count : ${feeTypeCount}`,
   );
 
   /**
-   * ขั้นตอนที่ 1: ตรวจสอบข้อมูลภายใน Field
-   *
-   * ส่ง normalRequiredHeaders เข้าไป
-   * เพื่อให้ Normal Field Validator
-   * ตรวจเฉพาะ Field ข้อมูลทั่วไป
-   *
-   * ส่ง reportCode เข้าไปเพื่อกำหนดว่า
-   * ต้องตรวจ Fee Group เพิ่มหรือไม่
-   *
-   * DS_PTX:
-   * - ตรวจ Normal Field
-   * - ตรวจ Fee Group
-   *
-   * DS_FTX:
-   * - ตรวจ Normal Field
-   * - ไม่ตรวจ Fee Group
+   * ขั้นตอนที่ 1:
+   * ตรวจข้อมูลภายใน Required Field
    *
    * ค่าที่ได้:
    * true  = พบข้อมูลไม่ครบอย่างน้อย 1 จุด
@@ -310,17 +280,13 @@ export const validateTestData = async (
     );
 
   /**
-   * ขั้นตอนที่ 2: ตรวจสอบ Header
-   *
-   * ใช้ requiredHeaders ซึ่งรวม Header
-   * ทุกประเภทที่ Report ต้องมี
+   * ขั้นตอนที่ 2:
+   * ตรวจ Header ของ Test Data
    *
    * ค่าที่ได้:
-   * [] = พบ Header ครบทั้งหมด
+   * [] = พบ Header ครบ
    *
-   * Array มีข้อมูล เช่น:
-   * ["Currency Id", "Payment Method"]
-   * = ไม่พบ Header ตามรายชื่อดังกล่าว
+   * Array มีข้อมูล = พบ Header ขาด
    */
   const missingHeaders =
     validateTestDataHeader(
@@ -332,11 +298,13 @@ export const validateTestData = async (
   /**
    * บันทึก Workbook ลงไฟล์ชั่วคราวก่อน
    *
-   * Workbook นี้อาจมีการเปลี่ยนแปลงจาก Field Validation เช่น
-   * - Cell ถูก Highlight สีเขียว
-   * - Cell ถูก Highlight สีแดง
-   * - Cell ถูกใส่ข้อความ "โปรดกรอกข้อมูล"
-   * - มี Sheet "Field Validation"
+   * Workbook อาจมีการเปลี่ยนแปลงจาก Field Validation:
+   * - Highlight สีเขียว
+   * - Highlight สีแดง
+   * - Highlight สีเหลือง
+   * - ใส่ข้อความ "โปรดกรอกข้อมูล"
+   * - ใส่ข้อความ "โปรดตรวจสอบข้อมูล"
+   * - สร้าง Sheet "Field Validation"
    */
   await workbook.xlsx.writeFile(
     tempOutputFilePath,
@@ -344,32 +312,22 @@ export const validateTestData = async (
 
   /**
    * เปลี่ยนชื่อไฟล์ชั่วคราวเป็นไฟล์ผลลัพธ์จริง
-   *
-   * หลังจากคำสั่งนี้ทำงานสำเร็จ
-   * tempOutputFilePath จะไม่มีอยู่แล้ว
-   * และจะเหลือ finalOutputFilePath
    */
   fs.renameSync(
     tempOutputFilePath,
     finalOutputFilePath,
   );
 
-  // แจ้งว่าสร้างไฟล์ผลลัพธ์สำเร็จแล้ว
   console.log(
     "✅ Validation result file created successfully",
   );
 
   /**
-   * ตรวจสอบผล Header Validation
-   *
    * ถ้าพบ Missing Header:
-   * 1. ไฟล์ผลลัพธ์ถูกบันทึกไว้แล้ว
-   * 2. จากนั้นจึง Throw Error
-   * 3. Script หรือ Test ที่เรียกใช้จะมีสถานะ Fail
    *
-   * ตัวอย่าง Error:
-   * Header Validation Failed:
-   * Missing 2 Header(s): Currency Id, Payment Method
+   * 1. ไฟล์ผลลัพธ์จะถูกบันทึกเรียบร้อยแล้ว
+   * 2. ระบบจึง Throw Error
+   * 3. Script 2 จะแสดงสถานะ Fail
    */
   if (missingHeaders.length > 0) {
     throw new Error(
@@ -380,15 +338,11 @@ export const validateTestData = async (
   }
 
   /**
-   * ตรวจสอบผล Field Validation
+   * ถ้าพบ Field ที่ข้อมูลไม่ครบ:
    *
-   * ถ้าพบ Field ที่ไม่มีข้อมูล:
    * - แสดงข้อความ Failed ใน Console
    * - ไม่ Throw Error
-   * - ยังคืน Path ของไฟล์ผลลัพธ์ตามปกติ
-   *
-   * ทำให้ Script สามารถนำไฟล์ผลลัพธ์
-   * ไปตรวจสอบหรือใช้งานต่อได้
+   * - คืน Path ของไฟล์ผลลัพธ์ตามปกติ
    */
   if (hasInvalidField) {
     console.log(
@@ -399,13 +353,11 @@ export const validateTestData = async (
   }
 
   /**
-   * ถ้า Header ครบและไม่พบ Invalid Field
-   * ให้แสดงว่าการตรวจสอบผ่าน
+   * Header ครบและไม่พบ Invalid Field
    */
   console.log(
     "✅ Test Data Validation Passed",
   );
 
-  // คืน Path ของไฟล์ผลลัพธ์
   return finalOutputFilePath;
 };

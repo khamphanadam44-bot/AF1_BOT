@@ -1,15 +1,18 @@
 /**
- * ตรวจข้อมูล Fee Group ของ Test Data
+ * fee-group-validator.ts
+ * ------------------------------------------------------------
+ * ตรวจข้อมูล Fee Group ของ Test Data ใน Script 2
  *
- * ใช้ไฟล์เดียวร่วมกัน แต่แยก Business Rule ตาม reportCode
+ * DS_PTX ตรวจ 4 ช่องหลัก:
+ * 1. Fee Type
+ * 2. Fee Charge Type
+ * 3. Fee Charge Account No.
+ * 4. Fee Amount
  *
- * DS_PTX:
- * - ตรวจ 4 ช่องหลัก
- * - Fee Type
- * - Fee Charge Type
- * - Fee Charge Account No.
- * - Fee Amount
- * - ถ้าว่างทั้งกลุ่มให้เป็นสีแดง
+ * DS_LTX ตรวจ 3 ช่องหลัก:
+ * 1. Fee Type
+ * 2. Fee Charge Account No.
+ * 3. Fee Amount
  *
  * DS_LTX:
  * - ตรวจ 3 ช่องหลักตาม Logic เดิม
@@ -17,16 +20,22 @@
  * - Fee Charge Account No.
  * - Fee Amount
  * - ถ้าว่างทั้งกลุ่มให้เป็นสีแดง
+ * กฎที่ใช้ร่วมกัน:
+ * - ว่างทุกช่องในกลุ่ม: ข้าม ไม่ Highlight และไม่บันทึกผล
+ * - มีข้อมูลครบ: Highlight สีเขียว
+ * - มีเฉพาะ Fee Amount: Fee Amount สีเขียว ช่องอื่นสีเหลือง
+ * - มีข้อมูลบางช่อง: ช่องที่มีข้อมูลสีเขียว ช่องที่ว่างสีแดง
+ * ------------------------------------------------------------
  */
 
 import ExcelJS from "exceljs";
 
-import type {
-  TestDataReportCode,
-} from "../../../config/testdata-config";
-
 import {
   getFeeAmountHeader,
+} from "../../../config/testdata-config";
+
+import type {
+  TestDataReportCode,
 } from "../../../config/testdata-config";
 
 import {
@@ -53,61 +62,52 @@ import {
   markSuccessCell,
 } from "./field-helpers.util";
 
+/**
+ * Cell และชื่อ Header จริงของ Field
+ * ภายใน Fee Group
+ */
 type FeeCellInfo = {
   actualHeader: string;
   cell: ExcelJS.Cell;
 };
 
+/**
+ * กฎที่แตกต่างกันของแต่ละ Report
+ */
 type FeeValidationRule = {
   includeFeeChargeType: boolean;
-  emptyGroupIsRequired: boolean;
 };
 
-/** คืนกฎ Fee ตาม Report โดยไม่ให้ PTX กระทบ LTX */
-/** คืนกฎการตรวจ Fee Group แยกตาม Report */
+/**
+ * คืนกฎการตรวจ Fee Group ตาม Report
+ *
+ * DS_PTX:
+ * ใช้ Fee Charge Type เป็น Field หลัก
+ *
+ * DS_LTX:
+ * ไม่ใช้ Fee Charge Type เป็น Field หลัก
+ */
 const getFeeValidationRule = (
   reportCode: TestDataReportCode,
 ): FeeValidationRule => {
-  /**
-   * PTX:
-   * - ตรวจ Fee Type
-   * - ตรวจ Fee Charge Type
-   * - ตรวจ Fee Charge Account No.
-   * - ตรวจ Fee Amount
-   * - ถ้าว่างทั้งกลุ่มให้ใส่สีแดง
-   */
   if (reportCode === "DS_PTX") {
     return {
       includeFeeChargeType: true,
-      emptyGroupIsRequired: true,
     };
   }
 
-  /**
-   * LTX:
-   * - ตรวจ Fee Type
-   * - ไม่รวม Fee Charge Type ในกฎหลัก
-   * - ตรวจ Fee Charge Account No.
-   * - ตรวจ Fee Amount
-   * - ถ้าว่างทั้งกลุ่มให้ใส่สีแดง
-   */
-  if (reportCode === "DS_LTX") {
-    return {
-      includeFeeChargeType: false,
-      emptyGroupIsRequired: true,
-    };
-  }
-
-  /**
-   * Report อื่นไม่มีการบังคับ Fee Group
-   */
   return {
     includeFeeChargeType: false,
-    emptyGroupIsRequired: false,
   };
 };
 
-/** ตรวจว่า Header เป็นหนึ่งใน Field หลักของ Fee Group หรือไม่ */
+/**
+ * ตรวจว่า Header เป็น Field หลัก
+ * ของ Fee Group หรือไม่
+ *
+ * รองรับหมายเลข Fee Group หลายหลัก
+ * เช่น 1, 5 และ 10
+ */
 export const isFeeGroupHeader = (
   header: string,
 ): boolean => {
@@ -117,15 +117,32 @@ export const isFeeGroupHeader = (
     );
 
   return (
-    /^fee type \d+$/.test(normalizedHeader) ||
-    /^fee charge type \d+$/.test(normalizedHeader) ||
-    /^fee charge account no\. type \d+$/.test(normalizedHeader) ||
-    /^fee amount type \d+$/.test(normalizedHeader) ||
-    /^fee amount \d+$/.test(normalizedHeader)
+    /^fee type \d+$/.test(
+      normalizedHeader,
+    ) ||
+    /^fee charge type \d+$/.test(
+      normalizedHeader,
+    ) ||
+    /^fee charge account no\. type \d+$/.test(
+      normalizedHeader,
+    ) ||
+    /^fee amount type \d+$/.test(
+      normalizedHeader,
+    ) ||
+    /^fee amount \d+$/.test(
+      normalizedHeader,
+    )
   );
 };
 
-/** ค้นหา Fee Cell จากชื่อ Header */
+/**
+ * ค้นหา Cell ของ Fee
+ * จากชื่อ Expected Header
+ *
+ * คืน undefined เมื่อ:
+ * - ไม่พบ Header
+ * - Header ที่พบไม่ใช่ Field หลักของ Fee Group
+ */
 const getFeeCellByHeader = (
   row: ExcelJS.Row,
   headers: string[],
@@ -154,13 +171,18 @@ const getFeeCellByHeader = (
 
   return {
     actualHeader,
-    cell: row.getCell(
-      headerIndex + 1,
-    ),
+
+    cell:
+      row.getCell(
+        headerIndex + 1,
+      ),
   };
 };
 
-/** ใส่สีเขียวและบันทึกผลว่า Cell มีข้อมูล */
+/**
+ * Highlight สีเขียว
+ * และบันทึกว่า Cell มีข้อมูล
+ */
 const markFeeCellAsFound = (
   resultSheet: ExcelJS.Worksheet,
   rowNumber: number,
@@ -189,12 +211,14 @@ const markFeeCellAsFound = (
   );
 };
 
-/** ใส่สีแดงและข้อความ "โปรดกรอกข้อมูล" */
+/**
+ * Highlight สีแดง
+ * และใส่ข้อความ "โปรดกรอกข้อมูล"
+ */
 const markFeeCellAsRequired = (
   resultSheet: ExcelJS.Worksheet,
   rowNumber: number,
   item: FeeCellInfo,
-  status: "EMPTY" | "INCOMPLETE",
 ): void => {
   markRequiredCell(
     item.cell,
@@ -205,13 +229,16 @@ const markFeeCellAsRequired = (
     rowNumber,
     item.actualHeader,
     "",
-    status,
+    "INCOMPLETE",
     REQUIRED_MESSAGE,
     COLORS.RED,
   );
 };
 
-/** ใส่สีเหลืองและข้อความ "โปรดตรวจสอบข้อมูล" */
+/**
+ * Highlight สีเหลือง
+ * และใส่ข้อความ "โปรดตรวจสอบข้อมูล"
+ */
 const markFeeCellAsCheck = (
   resultSheet: ExcelJS.Worksheet,
   rowNumber: number,
@@ -233,11 +260,30 @@ const markFeeCellAsCheck = (
 };
 
 /**
- * ตรวจ Fee Group ทุกชุดในข้อมูล 1 แถว
+ * ตรวจ Fee Group ทุกกลุ่ม
+ * ใน Test Data หนึ่งแถว
+ *
+ * @param row
+ * แถว Test Data ที่กำลังตรวจ
+ *
+ * @param headers
+ * Header จริงของ Test Data
+ *
+ * @param resultSheet
+ * Sheet สำหรับบันทึกผล Field Validation
+ *
+ * @param feeTypeCount
+ * หมายเลข Fee Group สูงสุดที่ตรวจพบ
+ *
+ * @param reportCode
+ * Report ที่กำลังตรวจ
  *
  * @returns
- * true  = พบ Fee Group ที่ไม่ผ่าน
- * false = Fee Group ผ่านทั้งหมด
+ * true:
+ * พบ Fee Group ที่มีข้อมูลไม่ครบ
+ *
+ * false:
+ * ทุกกลุ่มผ่าน หรือกลุ่มว่างทั้งหมดถูกข้าม
  */
 export const validateFeeGroupFields = (
   row: ExcelJS.Row,
@@ -254,9 +300,16 @@ export const validateFeeGroupFields = (
   let hasInvalidField =
     false;
 
+  /**
+   * ตรวจตั้งแต่ Fee Group 1
+   * ถึงกลุ่มสูงสุดที่ตรวจพบจาก Header
+   */
   for (
     let feeIndex = 1;
-    feeIndex <= feeTypeCount;
+
+    feeIndex <=
+      feeTypeCount;
+
     feeIndex += 1
   ) {
     /**
@@ -272,8 +325,8 @@ export const validateFeeGroupFields = (
     /**
      * Fee Charge Type
      *
-     * ตรวจเฉพาะ PTX
-     * LTX จะได้ค่า undefined
+     * ตรวจเฉพาะ DS_PTX
+     * DS_LTX จะได้ค่า undefined
      */
     const feeChargeTypeInfo =
       rule.includeFeeChargeType
@@ -296,6 +349,14 @@ export const validateFeeGroupFields = (
 
     /**
      * Fee Amount
+     *
+     * Fee Group 1:
+     * Fee Amount Type 1
+     *
+     * Fee Group 2 เป็นต้นไป:
+     * Fee Amount 2
+     * Fee Amount 3
+     * ...
      */
     const feeAmountInfo =
       getFeeCellByHeader(
@@ -307,8 +368,13 @@ export const validateFeeGroupFields = (
       );
 
     /**
-     * ถ้า Header หลักขาด ให้ Header Validator
-     * เป็นผู้แจ้ง Missing Header และข้าม Fee Group นี้
+     * หาก Header หลักขาด:
+     *
+     * ให้ Header Validator
+     * เป็นผู้แจ้ง Missing Header
+     *
+     * แล้วข้ามการตรวจข้อมูล
+     * ของ Fee Group นี้
      */
     if (
       !feeTypeInfo ||
@@ -323,30 +389,34 @@ export const validateFeeGroupFields = (
     }
 
     /**
-     * PTX จะมี 4 Cell
-     * LTX จะมี 3 Cell
+     * สร้างรายการ Cell หลักของ Fee Group
+     *
+     * DS_PTX:
+     * มี 4 Cell
+     *
+     * DS_LTX:
+     * มี 3 Cell
      */
-    const feeCells: FeeCellInfo[] = [
-      feeTypeInfo,
+    const feeCells:
+      FeeCellInfo[] = [
+        feeTypeInfo,
 
-      ...(
-        feeChargeTypeInfo
-          ? [
-              feeChargeTypeInfo,
-            ]
-          : []
-      ),
+        ...(
+          feeChargeTypeInfo
+            ? [
+                feeChargeTypeInfo,
+              ]
+            : []
+        ),
 
-      feeChargeAccountInfo,
+        feeChargeAccountInfo,
 
-      feeAmountInfo,
-    ];
+        feeAmountInfo,
+      ];
 
-    const feeAmountHasValue =
-      !isCellEmpty(
-        feeAmountInfo.cell,
-      );
-
+    /**
+     * นับจำนวน Cell ที่มีข้อมูล
+     */
     const valueCount =
       feeCells.filter(
         (item) =>
@@ -357,7 +427,28 @@ export const validateFeeGroupFields = (
 
     /**
      * Case 1:
+     * ว่างทุกช่องใน Fee Group
+     *
+     * ไม่มีข้อมูลให้ตรวจ
+     * จึงข้ามกลุ่มนี้ทันที
+     *
+     * ผลลัพธ์:
+     * - ไม่ Highlight
+     * - ไม่ใส่ข้อความ
+     * - ไม่บันทึกใน Field Validation
+     * - ไม่กำหนดผลเป็น Invalid
+     */
+    if (valueCount === 0) {
+      continue;
+    }
+
+    /**
+     * Case 2:
      * มีข้อมูลครบทุกช่องหลัก
+     *
+     * ผลลัพธ์:
+     * - ทุกช่องเป็นสีเขียว
+     * - บันทึก Status FOUND
      */
     if (
       valueCount ===
@@ -378,52 +469,24 @@ export const validateFeeGroupFields = (
     }
 
     /**
-     * Case 2:
-     * ว่างทั้งกลุ่ม
+     * ตรวจว่า Fee Amount มีข้อมูลหรือไม่
      */
-    if (valueCount === 0) {
-      /**
-       * ถ้า Report ไม่บังคับ Fee Group
-       * และข้อมูลว่างทั้งกลุ่ม ให้ข้าม
-       */
-      if (
-        !rule.emptyGroupIsRequired
-      ) {
-        continue;
-      }
-
-     /**
-      * PTX และ LTX:
-      * ถ้า Fee Group เป็นข้อมูลบังคับและว่างทั้งชุด
-      * ให้ใส่สีแดงทุกช่องที่ Report กำหนดให้ตรวจ
-      */
-      feeCells.forEach(
-        (item) => {
-          markFeeCellAsRequired(
-            resultSheet,
-            row.number,
-            item,
-            "EMPTY",
-          );
-        },
+    const feeAmountHasValue =
+      !isCellEmpty(
+        feeAmountInfo.cell,
       );
-
-      console.log(
-        `🔴 EMPTY FEE GROUP | Row: ${row.number}, Fee Group: ${feeIndex}`,
-      );
-
-      hasInvalidField =
-        true;
-
-      continue;
-    }
 
     /**
-     * Case 3:
-     * มีเฉพาะ Fee Amount
+     * Field ที่ไม่ใช่ Fee Amount
      *
-     * - Fee Amount เป็นสีเขียว
-     * - ช่องหลักอื่นเป็นสีเหลือง
+     * DS_PTX:
+     * - Fee Type
+     * - Fee Charge Type
+     * - Fee Charge Account No.
+     *
+     * DS_LTX:
+     * - Fee Type
+     * - Fee Charge Account No.
      */
     const nonAmountCells =
       feeCells.slice(
@@ -431,6 +494,14 @@ export const validateFeeGroupFields = (
         -1,
       );
 
+    /**
+     * Case 3:
+     * มีข้อมูลเฉพาะ Fee Amount
+     *
+     * เงื่อนไข:
+     * - Fee Amount มีข้อมูล
+     * - Field หลักอื่นว่างทั้งหมด
+     */
     const onlyFeeAmountHasValue =
       feeAmountHasValue &&
       nonAmountCells.every(
@@ -441,6 +512,10 @@ export const validateFeeGroupFields = (
       );
 
     if (onlyFeeAmountHasValue) {
+      /**
+       * Field หลักอื่นเป็นสีเหลือง
+       * พร้อมข้อความ "โปรดตรวจสอบข้อมูล"
+       */
       nonAmountCells.forEach(
         (item) => {
           markFeeCellAsCheck(
@@ -451,6 +526,10 @@ export const validateFeeGroupFields = (
         },
       );
 
+      /**
+       * Fee Amount มีข้อมูล
+       * จึง Highlight สีเขียว
+       */
       markFeeCellAsFound(
         resultSheet,
         row.number,
@@ -472,8 +551,10 @@ export const validateFeeGroupFields = (
      * Case 4:
      * มีข้อมูลบางช่องในรูปแบบอื่น
      *
+     * ผลลัพธ์:
      * - ช่องที่มีข้อมูลเป็นสีเขียว
      * - ช่องที่ว่างเป็นสีแดง
+     * - ช่องสีแดงใส่ข้อความ "โปรดกรอกข้อมูล"
      */
     feeCells.forEach(
       (item) => {
@@ -496,7 +577,6 @@ export const validateFeeGroupFields = (
           resultSheet,
           row.number,
           item,
-          "INCOMPLETE",
         );
       },
     );

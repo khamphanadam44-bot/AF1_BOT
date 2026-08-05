@@ -1,22 +1,26 @@
 /**
- * Config สำหรับตรวจ Header และข้อมูลใน Test Data แยกตาม Report
+ * Config สำหรับตรวจ Header และข้อมูลใน Test Data
+ * โดยแยกการตั้งค่าตาม Report
  */
 
-/** DS_PTX รองรับ Fee Group จำนวน n ชุด */
-export const FEE_TYPE_COUNT = 2;
-
-/** DS_LTX รองรับ Fee Group จำนวน n ชุด */
-export const LTX_FEE_TYPE_COUNT = 2;
-
 /**
- * คืนชื่อ Header ของ Fee Amount
- * - Fee 1 ใช้ "Fee Amount Type 1"
- * - Fee 2 เป็นต้นไปใช้ "Fee Amount 2", "Fee Amount 3", ...
+ * คืนชื่อ Header ของ Fee Amount ตามลำดับ Fee Group
+ *
+ * Fee Group 1:
+ * - Fee Amount Type 1
+ *
+ * Fee Group 2 เป็นต้นไป:
+ * - Fee Amount 2
+ * - Fee Amount 3
+ * - ...
  */
 export const getFeeAmountHeader = (
   feeNumber: number,
 ): string => {
-  if (feeNumber < 1) {
+  if (
+    !Number.isInteger(feeNumber) ||
+    feeNumber < 1
+  ) {
     throw new Error(
       `Invalid Fee number: ${feeNumber}`,
     );
@@ -28,7 +32,7 @@ export const getFeeAmountHeader = (
 };
 
 /**
- * สร้าง Header ของ Fee Group ตามกฎของ Report
+ * สร้างรายการ Header ของ Fee Group
  *
  * DS_LTX:
  * - Fee Type
@@ -40,38 +44,53 @@ export const getFeeAmountHeader = (
  * - Fee Charge Type
  * - Fee Charge Account No.
  * - Fee Amount
+ *
+ * จำนวน Fee Group จะถูกส่งเข้ามาจากผลการตรวจ Header
+ * ของไฟล์ Test Data จริง จึงไม่ต้องกำหนดจำนวนแบบ Hard code
  */
 const createFeeHeaders = (
-  count: number,
+  feeTypeCount: number,
   includeFeeChargeType = false,
 ): string[] => {
+  if (
+    !Number.isInteger(feeTypeCount) ||
+    feeTypeCount < 0
+  ) {
+    throw new Error(
+      `Invalid Fee Type count: ${feeTypeCount}`,
+    );
+  }
+
   return Array.from(
-    { length: count },
+    {
+      length: feeTypeCount,
+    },
     (_, index) => {
-      const feeNumber =
-        index + 1;
+      const feeNumber = index + 1;
 
-      return [
+      const headers = [
         `Fee Type ${feeNumber}`,
-
-        ...(
-          includeFeeChargeType
-            ? [
-                `Fee Charge Type ${feeNumber}`,
-              ]
-            : []
-        ),
-
-        `Fee Charge Account No. Type ${feeNumber}`,
-
-        getFeeAmountHeader(
-          feeNumber,
-        ),
       ];
+
+      if (includeFeeChargeType) {
+        headers.push(
+          `Fee Charge Type ${feeNumber}`,
+        );
+      }
+
+      headers.push(
+        `Fee Charge Account No. Type ${feeNumber}`,
+        getFeeAmountHeader(feeNumber),
+      );
+
+      return headers;
     },
   ).flat();
 };
 
+/**
+ * Config สำหรับตรวจ Test Data ของแต่ละ Report
+ */
 export const TESTDATA_CONFIG = {
   // ====================================================
   // DS_LTX
@@ -113,15 +132,20 @@ export const TESTDATA_CONFIG = {
       reference: [],
 
       /**
-       * LTX ใช้ Logic เดิม:
-       * - ตรวจ Fee หลัก 3 ช่อง
-       * - Fee Group ว่างทั้งชุดให้ข้าม
+       * DS_LTX ใช้ Fee Header หลัก 3 ช่องต่อหนึ่งกลุ่ม:
+       * - Fee Type
+       * - Fee Charge Account No.
+       * - Fee Amount
+       *
+       * จำนวนกลุ่มจะรับมาจาก Header ใน Test Data จริง
        */
-      feeGroup: [
-        ...createFeeHeaders(
-          LTX_FEE_TYPE_COUNT,
-        ),
-      ],
+      feeGroup: (
+        feeTypeCount: number,
+      ): string[] => {
+        return createFeeHeaders(
+          feeTypeCount,
+        );
+      },
     },
   },
 
@@ -164,18 +188,22 @@ export const TESTDATA_CONFIG = {
       reference: [],
 
       /**
-       * PTX ตรวจ Fee หลัก 4 ช่อง:
+       * DS_PTX ใช้ Fee Header หลัก 4 ช่องต่อหนึ่งกลุ่ม:
        * - Fee Type
        * - Fee Charge Type
        * - Fee Charge Account No.
        * - Fee Amount
+       *
+       * จำนวนกลุ่มจะรับมาจาก Header ใน Test Data จริง
        */
-      feeGroup: [
-        ...createFeeHeaders(
-          FEE_TYPE_COUNT,
+      feeGroup: (
+        feeTypeCount: number,
+      ): string[] => {
+        return createFeeHeaders(
+          feeTypeCount,
           true,
-        ),
-      ],
+        );
+      },
     },
   },
 
@@ -207,6 +235,9 @@ export const TESTDATA_CONFIG = {
 
       reference: [],
 
+      /**
+       * DS_FTX ไม่มีการตรวจ Fee Group
+       */
       feeGroup: [],
     },
   },
@@ -238,10 +269,16 @@ export const TESTDATA_CONFIG = {
 
       reference: [],
 
+      /**
+       * DS_FTU ไม่มีการตรวจ Fee Group
+       */
       feeGroup: [],
     },
   },
 } as const;
 
+/**
+ * Report Code ที่รองรับใน Test Data Config
+ */
 export type TestDataReportCode =
   keyof typeof TESTDATA_CONFIG;

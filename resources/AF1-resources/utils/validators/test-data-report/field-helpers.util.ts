@@ -1,15 +1,20 @@
 /**
  * field-helpers.util.ts
- * ------------------------------------------------------------------
- * รวมฟังก์ชันช่วยเหลือที่ใช้ร่วมกันระหว่าง
- * - Normal Field Validator = ตรวจสอบ Field ข้อมูลทั่วไป
- * - Fee Group Validator    = ตรวจสอบข้อมูลกลุ่มค่าธรรมเนียม
+ * ------------------------------------------------------------
+ * รวมฟังก์ชันช่วยเหลือที่ใช้ร่วมกันระหว่าง:
  *
- * หน้าที่หลัก
+ * 1. Normal Field Validator
+ *    ตรวจข้อมูลทั่วไปที่เป็น Required Field
+ *
+ * 2. Fee Group Validator
+ *    ตรวจข้อมูลในกลุ่มค่าธรรมเนียม
+ *
+ * หน้าที่หลัก:
  * 1. ค้นหาตำแหน่ง Header โดยรองรับ Alias
- * 2. ดึง Cell จากชื่อ Header
- * 3. ใส่สีและข้อความตามผลการตรวจสอบ
- * ------------------------------------------------------------------
+ * 2. สร้าง Header Alias ตามจำนวน Fee Group ที่พบจริง
+ * 3. ดึง Cell จากชื่อ Header
+ * 4. ใส่สีและข้อความตามผลการตรวจสอบ
+ * ------------------------------------------------------------
  */
 
 import ExcelJS from "exceljs";
@@ -27,67 +32,87 @@ import {
 } from "../shared/excel-style.util";
 
 import {
-  getFeeTypeCount,
+  detectFeeTypeCount,
 } from "../../../config/testdata-helper";
-
-/**
- * สร้าง Alias ของ Header สำหรับ Test Data
- *
- * Alias ประกอบด้วย
- * - Alias กลาง เช่น Txn Date และ Transaction Date
- * - Alias ของ Fee Header ตามจำนวน Fee Type
- *
- * ค่านี้จะถูกสร้างครั้งเดียวตอนเริ่มโหลดไฟล์นี้
- */
-const TEST_DATA_HEADER_ALIASES =
-  createHeaderAliases(
-    getFeeTypeCount(),
-  );
 
 /**
  * ค้นหา Array Index ของ Column จากชื่อ Header
  *
- * รองรับการค้นหาผ่าน Alias เช่น
- * Expected Header: "Txn Date"
- * Actual Header:   "Transaction Date"
+ * รองรับการค้นหาผ่าน Alias
+ *
+ * ตัวอย่าง:
+ *
+ * Expected Header:
+ * "Txn Date"
+ *
+ * Actual Header:
+ * "Transaction Date"
+ *
+ * ฟังก์ชันจะมองว่า Header ทั้งสองชื่อนี้ตรงกัน
+ *
+ * สำหรับ Fee Group:
+ * จำนวน Alias จะถูกสร้างตามหมายเลข Fee Group สูงสุด
+ * ที่ตรวจพบจาก Header ใน Test Data จริง
  *
  * @returns
- * - 0 ขึ้นไป เมื่อพบ Header
- * - -1 เมื่อไม่พบ Header
+ * 0 ขึ้นไป = พบ Header
+ * -1        = ไม่พบ Header
  */
 export const findHeaderColumnIndex = (
   headers: string[],
   expectedHeader: string,
 ): number => {
+  /**
+   * ตรวจจำนวน Fee Group จาก Header จริง
+   *
+   * ตัวอย่าง:
+   * หาก Header มี Fee Type 1 ถึง Fee Type 5
+   * จะได้ feeTypeCount เท่ากับ 5
+   */
+  const feeTypeCount =
+    detectFeeTypeCount(
+      headers,
+    );
+
+  /**
+   * สร้าง Alias ตามจำนวน Fee Group ที่ตรวจพบ
+   *
+   * ไม่สร้าง Alias แบบคงที่ตอนเปิดโปรแกรม
+   * เพราะแต่ละไฟล์อาจมีจำนวน Fee Group ไม่เท่ากัน
+   */
+  const aliases =
+    createHeaderAliases(
+      feeTypeCount,
+    );
+
   return findMatchingHeaderIndex(
     headers,
     expectedHeader,
-    TEST_DATA_HEADER_ALIASES,
+    aliases,
   );
 };
 
 /**
  * ดึง Cell ข้อมูลจากชื่อ Expected Header
  *
- * ขั้นตอน
+ * ขั้นตอน:
  * 1. ค้นหา Array Index ของ Header
  * 2. ถ้าไม่พบ Header ให้คืน undefined
- * 3. ถ้าพบ ให้นำ Index + 1 ไปดึง Excel Cell
+ * 3. ถ้าพบ Header ให้นำ Index + 1 ไปดึง Excel Cell
  *
- * ต้องบวก 1 เพราะ
- * - Array เริ่มจาก Index 0
- * - ExcelJS เริ่ม Column จากหมายเลข 1
+ * ต้องบวก 1 เพราะ:
+ * - Array เริ่มนับ Index จาก 0
+ * - ExcelJS เริ่มนับ Column จาก 1
  *
  * @returns
- * - ExcelJS.Cell เมื่อพบ Header
- * - undefined เมื่อไม่พบ Header
+ * ExcelJS.Cell = พบ Header
+ * undefined    = ไม่พบ Header
  */
 export const getCellByHeader = (
   row: ExcelJS.Row,
   headers: string[],
   expectedHeader: string,
 ): ExcelJS.Cell | undefined => {
-  // ค้นหาตำแหน่ง Header ภายใน Array
   const headerIndex =
     findHeaderColumnIndex(
       headers,
@@ -95,38 +120,43 @@ export const getCellByHeader = (
     );
 
   /**
-   * ถ้า headerIndex เป็น -1 แสดงว่าไม่พบ Header
-   *
-   * ถ้าพบ Header ให้นำ Index + 1
-   * ไปดึง Cell จากแถวที่กำลังตรวจสอบ
+   * หาก headerIndex เป็น -1
+   * แสดงว่าไม่พบ Header ในไฟล์
    */
-  return headerIndex === -1
-    ? undefined
-    : row.getCell(
-        headerIndex + 1,
-      );
+  if (headerIndex === -1) {
+    return undefined;
+  }
+
+  /**
+   * บวก 1 เพื่อแปลง Array Index
+   * ให้เป็นหมายเลข Column ของ ExcelJS
+   */
+  return row.getCell(
+    headerIndex + 1,
+  );
 };
 
 /**
  * กำหนดให้ Cell เป็น Required Field ที่ว่าง
  *
- * ผลลัพธ์
+ * ผลลัพธ์:
  * - พื้นหลังสีแดง
  * - ใส่ข้อความ "โปรดกรอกข้อมูล"
  *
- * หมายเหตุ
- * คำสั่ง cell.value จะเขียนข้อความทับค่าเดิมใน Cell
+ * ใช้เมื่อ:
+ * Field เป็น Required แต่ไม่มีข้อมูล
+ *
+ * หมายเหตุ:
+ * cell.value จะเขียนข้อความลงใน Cell
  */
 export const markRequiredCell = (
   cell: ExcelJS.Cell,
 ): void => {
-  // ใส่สีแดง
   applyFill(
     cell,
     COLORS.RED,
   );
 
-  // ใส่ข้อความ "โปรดกรอกข้อมูล"
   cell.value =
     REQUIRED_MESSAGE;
 };
@@ -134,26 +164,25 @@ export const markRequiredCell = (
 /**
  * กำหนดให้ Cell ต้องตรวจสอบเพิ่มเติม
  *
- * ใช้เฉพาะ Fee Group Case 3:
- * มี Fee Amount แต่ไม่มี Fee Type และ Fee Charge Account
- *
- * ผลลัพธ์
+ * ผลลัพธ์:
  * - พื้นหลังสีเหลือง
  * - ใส่ข้อความ "โปรดตรวจสอบข้อมูล"
  *
- * หมายเหตุ
- * คำสั่ง cell.value จะเขียนข้อความทับค่าเดิมใน Cell
+ * ตัวอย่างกรณีใช้งาน:
+ * มี Fee Amount แต่ข้อมูลสำคัญบางช่อง
+ * ภายใน Fee Group ไม่ครบ
+ *
+ * หมายเหตุ:
+ * cell.value จะเขียนข้อความลงใน Cell
  */
 export const markCheckCell = (
   cell: ExcelJS.Cell,
 ): void => {
-  // ใส่สีเหลือง
   applyFill(
     cell,
     COLORS.YELLOW,
   );
 
-  // ใส่ข้อความ "โปรดตรวจสอบข้อมูล"
   cell.value =
     CHECK_MESSAGE;
 };
@@ -161,14 +190,13 @@ export const markCheckCell = (
 /**
  * กำหนดให้ Cell มีข้อมูลหรือผ่านการตรวจสอบ
  *
- * ผลลัพธ์
+ * ผลลัพธ์:
  * - พื้นหลังสีเขียวอ่อน
  * - ไม่แก้ไขค่าข้อมูลเดิมใน Cell
  */
 export const markSuccessCell = (
   cell: ExcelJS.Cell,
 ): void => {
-  // ใส่สีเขียวอ่อนและคงค่าเดิมไว้
   applyFill(
     cell,
     COLORS.FIELD_GREEN,

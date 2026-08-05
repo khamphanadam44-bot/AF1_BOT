@@ -9,15 +9,17 @@
  * อีกต่อไปหลังเปลี่ยนมาใช้ findByExactReference แต่ยังคงไว้เผื่อ report อื่นในอนาคต
  * ที่อาจไม่มี Transaction ID ให้ lookup ตรง ๆ แบบ DS_LTX)
  *
- * TODO: AmountComparator ยังอยู่ที่ DS_LTX/amount-compare.ts
- * (เนื้อหา Generic เหมือนกัน แต่ยังไม่ได้ย้ายในรอบนี้) — ทำให้ไฟล์นี้ยัง Import
- * ข้ามไปที่ DS_LTX/ อยู่ 1 จุด พิจารณาย้าย amount-compare.ts มา shared/ ด้วย
- * ในรอบถัดไปเพื่อให้ shared/ ไม่มี Dependency ไปยัง Report ใดเลย
+ * TODO: AmountComparator ยังอยู่ที่ DS_LTX/ltx-amount-compare.ts
+ * แม้ Logic จะสามารถใช้ร่วมกับ Report อื่นได้ แต่ยังไม่ได้ย้ายมาไว้ใน shared/
+ *
+ * ปัจจุบันไฟล์นี้จึงยังมี Dependency ไปยัง DS_LTX อยู่ 1 จุด
+ * หาก Report อื่นต้องใช้ AmountComparator ร่วมกัน
+ * ควรพิจารณาย้าย Logic นี้มาไว้ใน shared/ ในอนาคต
  * ------------------------------------------------------------------
  */
 import { normalizeValue } from "../../validators/shared/excel-cell.util";
 import type { ReconcileGroupKeyFields } from "../DS_LTX/ltx-config";
-import { AmountComparator } from "../DS_LTX/amount-compare";
+import { AmountComparator } from "../DS_LTX/ltx-amount-compare";
 import { ReconcileRecord } from "./record";
 
 export interface AmountMatchResult {
