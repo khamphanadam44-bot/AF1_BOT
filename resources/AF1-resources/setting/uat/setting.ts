@@ -79,19 +79,13 @@ export const dmsReportNames = [
 export type DmsReportName =
   (typeof dmsReportNames)[number];
 
-  
+
 /**
  * Report เริ่มต้น
  *
  * ใช้เมื่อไม่ได้เลือก Report
  * ผ่าน Terminal
  */
-export const dmsReportName: {
-  reportname: DmsReportName;
-} = {
-  reportname: "DS_PTX", 
-};
-
 /**
  * ช่วงวันที่สำหรับ Export Report
  */

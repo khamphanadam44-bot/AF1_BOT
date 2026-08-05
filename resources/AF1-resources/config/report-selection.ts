@@ -6,7 +6,8 @@
  * หน้าที่ของไฟล์นี้
  *
  * อ่านรายชื่อ Report ที่ผู้ใช้ส่งมาจาก Terminal เช่น report=DS_PTX,DS_FTX
- * จากนั้นตรวจชื่อ Report ตัดชื่อซ้ำ และใช้ Report เริ่มต้นจาก setting.ts เมื่อผู้ใช้ไม่ได้ระบุค่า
+ * จากนั้นตรวจชื่อ Report และตัดชื่อ Report ที่ซ้ำกัน
+ * หากผู้ใช้ไม่ระบุชื่อ Report ระบบจะแจ้ง Error และหยุดทำงานทันที
  *
  * ======================================================
  */
@@ -15,7 +16,6 @@ import type {
 } from "./report-config";
 
 import {
-  dmsReportName,
   dmsReportNames,
 } from "../setting/uat/setting";
 
@@ -109,6 +109,18 @@ const readReportsArgument =
  * 1. ใช้ Report จาก report
  * 2. ถ้าไม่ได้ระบุ ใช้ dmsReportName จาก setting.ts
  */
+/**
+ * คืนค่ารายชื่อ Report ที่ผู้ใช้ต้องการรัน
+ *
+ * ผู้ใช้ต้องระบุชื่อ Report ผ่านค่า report ทุกครั้ง
+ *
+ * ตัวอย่าง:
+ * report=DS_PTX
+ * report=DS_PTX,DS_FTX
+ *
+ * หากไม่ระบุชื่อ Report หรือระบุเป็นค่าว่าง
+ * ระบบจะแจ้ง Error และหยุดทำงานทันที
+ */
 export const getSelectedReports =
   (): ReportName[] => {
     const reportsArgument =
@@ -125,48 +137,68 @@ export const getSelectedReports =
     );
 
     /**
-     * ถ้ามีค่า report จาก Terminal:
+     * ตรวจกรณีผู้ใช้ไม่ได้ระบุชื่อ Report
      *
-     * 1. แยกชื่อ Report ด้วยเครื่องหมาย comma
-     * 2. ตัดช่องว่างด้านหน้าและด้านหลัง
+     * ตัวอย่างที่เข้าเงื่อนไข:
+     *
+     * npm run test:script1
+     * npm run test:script1 -- report=
+     * npm run test:script1 -- report
+     *
+     * เมื่อ throw Error แล้ว
+     * ระบบจะหยุดก่อนเปิด Browser หรือทำขั้นตอนถัดไป
+     */
+    if (
+      reportsArgument === undefined ||
+      reportsArgument.trim() === ""
+    ) {
+      throw new Error(
+        "กรุณากรอกชื่อรายงานที่ท่านต้องการ",
+      );
+    }
+
+    /**
+     * จัดรูปแบบชื่อ Report
+     *
+     * 1. แยกชื่อด้วยเครื่องหมาย comma
+     * 2. ตัดช่องว่างหน้าและหลัง
      * 3. แปลงเป็นตัวพิมพ์ใหญ่
      * 4. ตัดค่าที่เป็นข้อความว่างออก
-     *
-     * ถ้าไม่มีค่า report:
-     * ใช้ Default Report จาก setting.ts
      */
     const reportNames =
       reportsArgument
-        ? reportsArgument
-          .split(
-            ",",
-          )
-          .map(
-            (
-              reportName,
-            ) =>
-              reportName
-                .trim()
-                .toUpperCase(),
-          )
-          .filter(
-            Boolean,
-          )
-        : [
-          dmsReportName.reportname,
-        ];
+        .split(
+          ",",
+        )
+        .map(
+          (
+            reportName,
+          ) =>
+            reportName
+              .trim()
+              .toUpperCase(),
+        )
+        .filter(
+          Boolean,
+        );
 
+    /**
+     * ตรวจกรณีผู้ใช้ส่งเฉพาะเครื่องหมาย comma
+     *
+     * ตัวอย่าง:
+     * report=,,,
+     */
     if (
       reportNames.length === 0
     ) {
       throw new Error(
-        "ไม่พบ Report ที่ต้องการรัน",
+        "กรุณากรอกชื่อรายงานที่ท่านต้องการ",
       );
     }
 
     /**
      * ตรวจสอบว่าชื่อ Report
-     * อยู่ใน dmsReportNames หรือไม่
+     * อยู่ในรายการที่ระบบรองรับหรือไม่
      */
     const unsupportedReports =
       reportNames.filter(
@@ -188,40 +220,32 @@ export const getSelectedReports =
     }
 
     /**
-     * เก็บเฉพาะชื่อ Report ที่รองรับ
+     * เก็บเฉพาะชื่อ Report ที่ระบบรองรับ
      */
     const selectedReports =
       reportNames.filter(
         isSupportedReport,
       );
 
-
-      const uniqueReports = [
-  ...new Set(
-    selectedReports,
-  ),
-];
-
-console.log(
-  "SELECTED REPORTS:",
-  uniqueReports,
-);
-
-return uniqueReports;
     /**
      * ลบชื่อ Report ที่ซ้ำกัน
      *
      * ตัวอย่าง:
-     *
      * report=DS_PTX,DS_PTX,DS_FTX
      *
-     * จะได้:
-     *
+     * ผลลัพธ์:
      * DS_PTX, DS_FTX
      */
-    return [
+    const uniqueReports = [
       ...new Set(
         selectedReports,
       ),
     ];
+
+    console.log(
+      "SELECTED REPORTS:",
+      uniqueReports,
+    );
+
+    return uniqueReports;
   };
