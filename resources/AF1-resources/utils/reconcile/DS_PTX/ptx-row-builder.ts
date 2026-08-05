@@ -357,33 +357,70 @@ const getTransactionId = (
 };
 
 /**
- * ตรวจว่า Test Data เป็นแถวว่างจริงหรือไม่
+ * สร้างข้อความอ้างอิง Test Data จากเลขแถวจริงใน Excel
  *
- * ข้ามแถวเฉพาะเมื่อ:
+ * ตัวอย่าง:
+ * Excel row 6 → Test Data Row 6
+ *
+ * ข้อความนี้ใช้แสดงใน Column Test Script No.
+ * เพื่อให้ Script 4 ย้อนกลับไปหา Test Data แถวเดิมได้
+ */
+const buildTestDataRowReference = (
+  rowNumber: number,
+): string => {
+  return `Test Data Row ${rowNumber}`;
+};
+
+/**
+ * สร้าง Matching Key ภายใน
+ * สำหรับกรณีที่ไม่มี Transaction ID
+ *
+ * Matching Key นี้ใช้แยก Expected Row ภายใน Script 3
+ * ไม่ได้นำไปเดาจับคู่กับ Transaction ใน DS_PTX Report
+ *
+ * ตัวอย่างกรณีมี Fee:
+ * TEST_DATA_ROW_6_FEE_01
+ * TEST_DATA_ROW_6_FEE_02
+ *
+ * ตัวอย่างกรณีไม่มี Fee:
+ * TEST_DATA_ROW_6_NO_FEE
+ */
+const buildInternalMatchingKey = (
+  rowNumber: number,
+  runningNumber: number,
+  hasFee: boolean,
+): string => {
+  if (
+    !hasFee
+  ) {
+    return `TEST_DATA_ROW_${rowNumber}_NO_FEE`;
+  }
+
+  return (
+    `TEST_DATA_ROW_${rowNumber}_FEE_` +
+    `${formatRunningNumber(runningNumber)}`
+  );
+};
+
+/**
+ * ตรวจว่า Test Data แถวนี้ว่างทุกช่องจริงหรือไม่
+ *
+ * Logic เดิมข้ามแถวทันทีเมื่อ:
  * - Test No. ว่าง
  * - Transaction ID ว่าง
  *
- * และทั้งสองช่องว่างพร้อมกันเท่านั้น
+ * ทำให้แถวที่ยังมี Fee หรือข้อมูลอื่นถูกข้ามไปด้วย
  *
- * หากมีข้อมูลในช่องใดช่องหนึ่ง
- * ระบบยังต้องประมวลผล Test Case นั้นต่อ
+ * Logic ใหม่จะข้ามเฉพาะแถวที่ไม่มีข้อมูลทุกช่องจริง ๆ
  */
-const isActualBlankTestDataRow = (
+const isCompletelyBlankTestDataRow = (
   rowData: TestDataRow,
 ): boolean => {
-  const testScriptNo =
-    getTestScriptNo(
-      rowData,
-    );
-
-  const transactionId =
-    getTransactionId(
-      rowData,
-    );
-
-  return (
-    testScriptNo === "" &&
-    transactionId === ""
+  return Object.values(
+    rowData,
+  ).every(
+    (value) =>
+      isBlank(value),
   );
 };
 
@@ -408,6 +445,13 @@ const isActualBlankTestDataRow = (
  * @param hasFee
  * ระบุว่า Expected Row นี้มี Fee หรือไม่
  */
+/**
+ * สร้าง Expected Row หนึ่งรายการ
+ *
+ * กำหนดทั้ง:
+ * - ค่าที่แสดงใน Test Script No.
+ * - Matching Key ที่ใช้ภายใน Script 3
+ */
 const createExpectedRow = (
   rowNumber: number,
   sourceRow: TestDataRow,
@@ -416,31 +460,68 @@ const createExpectedRow = (
   feeAmount: unknown,
   hasFee: boolean,
 ): ExpectedRow => {
+  /**
+   * อ่าน Transaction ID
+   */
   const transactionId =
     getTransactionId(
       sourceRow,
     );
 
-  const testScriptNo =
+  /**
+   * อ่าน Test No.
+   */
+  const originalTestScriptNo =
     getTestScriptNo(
       sourceRow,
     );
 
   /**
-   * รายการที่มี Fee:
-   * ใช้ Matching Key จริงเพื่อจับคู่กับ Report
+   * เลือกค่าที่ใช้แสดงใน Column Test Script No.
    *
-   * รายการที่ไม่มี Fee:
-   * ใช้ Internal Key เพื่อให้ Compare Engine
-   * สามารถสร้างผล SKIP ได้
+   * ลำดับ:
+   * 1. Test No.
+   * 2. Transaction ID/ Reconcile ID
+   * 3. Test Data Row Number
+   */
+  const testScriptNo =
+    originalTestScriptNo !== ""
+      ? originalTestScriptNo
+      : transactionId !== ""
+        ? transactionId
+        : buildTestDataRowReference(
+            rowNumber,
+          );
+
+  /**
+   * เลือก Matching Key
+   *
+   * กรณีที่ 1:
+   * มี Transaction ID และมี Fee
+   * → สร้าง Matching Key ปกติของ PTX
+   *
+   * กรณีที่ 2:
+   * มี Transaction ID แต่ไม่มี Fee
+   * → สร้าง NO_FEE_ROW
+   *
+   * กรณีที่ 3:
+   * ไม่มี Transaction ID
+   * → สร้าง Internal Matching Key จากเลขแถว Test Data
    */
   const matchingKey =
+    transactionId !== "" &&
     hasFee
       ? buildMatchingKey(
           transactionId,
           runningNumber,
         )
-      : `NO_FEE_ROW_${rowNumber}`;
+      : transactionId !== ""
+        ? `NO_FEE_ROW_${rowNumber}`
+        : buildInternalMatchingKey(
+            rowNumber,
+            runningNumber,
+            hasFee,
+          );
 
   return {
     rowNumber,
@@ -459,7 +540,9 @@ const createExpectedRow = (
       ),
 
     hasFee,
-    data: sourceRow,
+
+    data:
+      sourceRow,
   };
 };
 
@@ -496,7 +579,7 @@ export const buildExpectedRows = (
   /**
    * ตรวจหมายเลข Fee Group สูงสุด
    * จาก Header ที่พบจริงใน Test Data
-   *
+   *,
    * ตัวอย่าง:
    * หากพบ Fee Type 1 ถึง Fee Type 5
    * feeTypeCount จะมีค่าเป็น 5
@@ -539,16 +622,18 @@ export const buildExpectedRows = (
       ) as TestDataRow;
 
     /**
-     * ข้ามแถวที่ไม่มีทั้ง Test No.
-     * และ Transaction ID
-     */
-    if (
-      isActualBlankTestDataRow(
-        rowData,
-      )
-    ) {
-      continue;
-    }
+ * ข้ามเฉพาะ Test Data แถวที่ว่างทุกช่องจริง ๆ
+ *
+ * หาก Test No. และ Transaction ID ว่าง
+ * แต่ยังมี Fee หรือข้อมูลอื่น ระบบจะประมวลผลต่อ
+ */
+if (
+  isCompletelyBlankTestDataRow(
+    rowData,
+  )
+) {
+  continue;
+}
 
     let hasAnyFee =
       false;

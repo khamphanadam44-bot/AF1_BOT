@@ -10,11 +10,16 @@
  * 4. สร้าง Expected Row จาก Test Data
  * 5. สร้าง Actual Row จาก AF1 Report
  *
- * หน้าที่หลักของไฟล์นี้:
- * - สร้าง Expected Row จาก Test Data
- * - สร้าง Actual Row จาก Report DS_FTX
- * - อ่านและ Normalize Matching Key
- * - แปลงข้อมูล Excel Row เป็น Object
+ * กรณี Test No. ว่าง:
+ * - ถ้ามี Transaction ID ให้ใช้ Transaction ID แสดงใน Test Script No.
+ * - ถ้าไม่มีทั้ง Test No. และ Transaction ID ให้ใช้
+ *   "Test Data Row N" เพื่อให้ Script 4 ค้นหา Test Data ต้นทางได้
+ *
+ * หมายเหตุ:
+ * - Test Data Row N ใช้สำหรับอ้างอิงกลับไปยัง Test Data เท่านั้น
+ * - ไม่ได้นำเลขแถวไปจับคู่กับ Report DS_FTX
+ * - การจับคู่กับ Report ยังคงใช้ Transaction ID/ Reconcile ID
+ *   เทียบกับ Ref. TX No.
  * ------------------------------------------------------------------
  */
 
@@ -63,7 +68,8 @@ const normalizeText = (
 
 /**
  * Normalize Matching Key
- * โดยไม่เปลี่ยนตัวพิมพ์เล็กหรือพิมพ์ใหญ่
+ *
+ * ไม่เปลี่ยนตัวพิมพ์เล็กหรือพิมพ์ใหญ่
  * และไม่ลบช่องว่างภายในข้อความ
  */
 const normalizeMatchingKey = (
@@ -95,7 +101,38 @@ const buildReportMatchingKey = (
 };
 
 /**
+ * สร้างค่าที่ใช้แสดงใน Column Test Script No.
+ *
+ * ลำดับความสำคัญ:
+ * 1. Test No.
+ * 2. Transaction ID/ Reconcile ID
+ * 3. Test Data Row N
+ *
+ * ค่า Test Data Row N ใช้เพื่อให้ Script 4
+ * สามารถย้อนกลับไปยังแถว Test Data ต้นทางได้
+ */
+const buildTestScriptNo = (
+  testNo: unknown,
+  transactionId: string,
+  rowNumber: number,
+): string => {
+  const normalizedTestNo =
+    normalizeText(testNo);
+
+  if (normalizedTestNo !== "") {
+    return normalizedTestNo;
+  }
+
+  if (transactionId !== "") {
+    return transactionId;
+  }
+
+  return `Test Data Row ${rowNumber}`;
+};
+
+/**
  * แปลง Excel Row เป็น Object
+ *
  * Column ที่ไม่มี Header จะไม่ถูกนำมาเก็บ
  */
 const mapRowToObject = (
@@ -127,6 +164,7 @@ const mapRowToObject = (
 
 /**
  * อ่านชื่อ Header โดยรักษาตำแหน่ง Column เดิม
+ *
  * Header ที่ว่างจะถูกเก็บเป็นข้อความว่าง
  */
 const readHeaders = (
@@ -163,7 +201,10 @@ const readHeaders = (
   return headers;
 };
 
-/** ตรวจว่า Object ของแถวมีข้อมูลอย่างน้อยหนึ่ง Field หรือไม่ */
+/**
+ * ตรวจว่า Object ของแถว
+ * มีข้อมูลอย่างน้อยหนึ่ง Field หรือไม่
+ */
 const hasRowData = (
   data: Record<string, unknown>,
 ): boolean => {
@@ -194,9 +235,16 @@ export const getReportHeaders = (
  * สร้าง Expected Row จาก Test Data
  *
  * กติกา:
- * - แถวว่างจะถูกข้าม
- * - แถวที่มีข้อมูลแต่ Matching Key ว่างยังถูกเก็บไว้
- * - Compare Engine จะเป็นผู้ตัดสินผลของ Matching Key ที่ว่าง
+ * - แถวที่ไม่มีข้อมูลทุกช่องจะถูกข้าม
+ * - แถวที่มีข้อมูล แต่ Transaction ID ว่าง
+ *   จะยังถูกนำมาประมวลผล
+ * - ถ้า Test No. ว่าง แต่ Transaction ID มีค่า
+ *   จะใช้ Transaction ID แสดงใน Test Script No.
+ * - ถ้า Test No. และ Transaction ID ว่างทั้งคู่
+ *   จะใช้ "Test Data Row N" แสดงใน Test Script No.
+ * - Matching Key ยังคงเป็น Transaction ID เท่านั้น
+ * - Compare Engine จะสร้างผล FAIL แบบควบคุมได้
+ *   เมื่อ Transaction ID ว่าง โดยไม่หยุด Script 3
  */
 export const buildExpectedRows = (
   worksheet: ExcelJS.Worksheet,
@@ -234,20 +282,44 @@ export const buildExpectedRows = (
         headers,
       ) as TestDataRow;
 
+    /**
+     * ข้ามเฉพาะแถวที่ไม่มีข้อมูลทุกช่อง
+     *
+     * ถ้าแถวมีข้อมูล แต่ Test No. หรือ
+     * Transaction ID ว่าง จะยังไม่ข้าม
+     */
     if (!hasRowData(data)) {
       continue;
     }
 
-    const testScriptNo =
-      normalizeText(
-        data[
-          TEST_SCRIPT_NO_HEADER
-        ],
-      );
-
+    /**
+     * Matching Key สำหรับจับคู่กับ Report
+     *
+     * ฝั่ง Test Data:
+     * Transaction ID/ Reconcile ID
+     *
+     * ฝั่ง Report:
+     * Ref. TX No.
+     */
     const matchingKey =
       buildTestDataMatchingKey(
         data,
+      );
+
+    /**
+     * ค่าที่ใช้แสดงใน Test Script No.
+     *
+     * 1. Test No.
+     * 2. Transaction ID
+     * 3. Test Data Row N
+     */
+    const testScriptNo =
+      buildTestScriptNo(
+        data[
+          TEST_SCRIPT_NO_HEADER
+        ],
+        matchingKey,
+        rowNumber,
       );
 
     expectedRows.push({

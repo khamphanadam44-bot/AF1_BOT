@@ -223,7 +223,7 @@ const findCompareHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
 
   throw new Error(
     "Compare result header not found. Required headers: " +
-      '"Test Script No.", either "Test Result" or "Result", and "Remark".',
+    '"Test Script No.", either "Test Result" or "Result", and "Remark".',
   );
 };
 
@@ -698,7 +698,7 @@ const findKpiValueCell = (
   if (!headerCell) {
     throw new Error(
       `KPI header not found in worksheet "${worksheet.name}": ` +
-        headerAliases.join(" / "),
+      headerAliases.join(" / "),
     );
   }
 
@@ -784,20 +784,25 @@ const findMatchingTestDataRow = (
   if (testNoCandidates.length > 1) {
     throw new Error(
       `[${config.reportCode}] Ambiguous Original Test Data: ` +
-        `Test No. "${lookupValue}" matched ` +
-        `${testNoCandidates.length} rows.`,
+      `Test No. "${lookupValue}" matched ` +
+      `${testNoCandidates.length} rows.`,
     );
   }
 
   /**
-   * วิธีที่ 2:
-   * ถ้าค่าเป็น "Test Data Row N หรือ Row N"
-   * ให้ดึงเลข N แล้วค้นจากเลขแถว Excel
+   * อ่านเลขแถวจาก Row Reference
+   *
+   * รองรับ:
+   * - Row 6
+   * - Test Data Row 6
+   * - TEST_DATA_ROW_6
+   * - TEST_DATA_ROW_6_FEE_01
+   * - TEST_DATA_ROW_6_NO_FEE
    */
   const rowNumberMatch =
-  /^(?:TEST\s+DATA\s+)?ROW\s*[:#-]?\s*(\d+)$/i.exec(
-    lookupValue,
-  );
+    /^(?:TEST[\s_-]*DATA[\s_-]*)?ROW[\s_:#-]*(\d+)(?:[\s_-].*)?$/i.exec(
+      lookupValue,
+    );
 
   if (rowNumberMatch) {
     const sourceRowNumber = Number(rowNumberMatch[1]);
@@ -811,7 +816,7 @@ const findMatchingTestDataRow = (
 
     throw new Error(
       `[${config.reportCode}] Original Test Data row not found: ` +
-        `Row Number = ${sourceRowNumber}.`,
+      `Row Number = ${sourceRowNumber}.`,
     );
   }
 
@@ -832,15 +837,15 @@ const findMatchingTestDataRow = (
   if (transactionIdCandidates.length > 1) {
     throw new Error(
       `[${config.reportCode}] Ambiguous Original Test Data: ` +
-        `Transaction ID "${lookupValue}" matched ` +
-        `${transactionIdCandidates.length} rows.`,
+      `Transaction ID "${lookupValue}" matched ` +
+      `${transactionIdCandidates.length} rows.`,
     );
   }
 
   throw new Error(
     `[${config.reportCode}] Original Test Data not found: ` +
-      `Test No., Transaction ID or Row Reference = ` +
-      `"${lookupValue}".`,
+    `Test No., Transaction ID or Row Reference = ` +
+    `"${lookupValue}".`,
   );
 };
 
