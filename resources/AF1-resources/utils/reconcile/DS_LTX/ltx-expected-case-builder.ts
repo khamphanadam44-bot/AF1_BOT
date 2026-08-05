@@ -67,8 +67,8 @@ export class LtxExpectedCaseBuilder
   constructor(
     private readonly amountComparator:
       AmountComparator =
-        new AmountComparator(),
-  ) {}
+      new AmountComparator(),
+  ) { }
 
   /**
    * ตัด Suffix "-Return" ออกจาก Test No.
@@ -155,7 +155,7 @@ export class LtxExpectedCaseBuilder
       let feeIndex = 1;
 
       feeIndex <=
-        feeTypeCount;
+      feeTypeCount;
 
       feeIndex += 1
     ) {
@@ -307,9 +307,9 @@ export class LtxExpectedCaseBuilder
             ) ||
             (
               drAmountFallback !==
-                null &&
+              null &&
               drAmountFallback >
-                0.01
+              0.01
             );
 
           /**
