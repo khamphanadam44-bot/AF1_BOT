@@ -98,28 +98,28 @@ export const isResidentThbToFcdExclusionCase = (
   const residentStatus =
     normalizeRuleValue(
       rowData[
-        "From Customer (Resident/Non Resident)"
+      "From Customer (Resident/Non Resident)"
       ],
     );
 
   const fromCurrency =
     normalizeRuleValue(
       rowData[
-        "From Currency (CCY)"
+      "From Currency (CCY)"
       ],
     );
 
   const toAccountType =
     normalizeRuleValue(
       rowData[
-        "To Account Type (Beneficiary)"
+      "To Account Type (Beneficiary)"
       ],
     );
 
   const toCurrency =
     normalizeRuleValue(
       rowData[
-        "To Currency (CCY)"
+      "To Currency (CCY)"
       ],
     );
 
@@ -211,19 +211,45 @@ const compareText = (
  * เปรียบเทียบวันที่
  * ============================================================================
  *
- * ตอนนี้ใช้ Trim ก่อน
- * อนาคตจะรองรับ yyyy-MM-dd / dd/MM/yyyy
+ * Normalize Expected และ Actual
+ * ให้อยู่ในรูปแบบ YYYY-MM-DD ก่อนเปรียบเทียบ
+ *
+ * รองรับ:
+ * - ExcelJS Date Object
+ * - DD/MM/YYYY
+ * - DD-MM-YYYY
+ * - YYYY-MM-DD
+ * - YYYY/MM/DD
+ * - Excel Serial Number
+ *
+ * หากค่าใดค่าหนึ่งไม่สามารถแปลงเป็นวันที่ได้
+ * จะคืนค่า false และไม่นำ Candidate แถวนั้นมาใช้
  */
 const compareDate = (
   expected: unknown,
   actual: unknown,
 ): boolean => {
+  const normalizedExpectedDate =
+    normalizeDate(
+      expected,
+    );
 
-  return compareText(
-    expected,
-    actual,
+  const normalizedActualDate =
+    normalizeDate(
+      actual,
+    );
+
+  if (
+    !normalizedExpectedDate ||
+    !normalizedActualDate
+  ) {
+    return false;
+  }
+
+  return (
+    normalizedExpectedDate ===
+    normalizedActualDate
   );
-
 };
 
 /**
@@ -292,8 +318,16 @@ const compareAmount = (
  * ============================================================================
  * เลือกวิธีเปรียบเทียบค่าตามประเภทข้อมูล
  * ============================================================================
+ *
+ * ใช้ร่วมกันระหว่าง:
+ * - การ Compare Field ตามปกติ
+ * - Composite Fallback Matching
+ *
+ * การ Export ฟังก์ชันนี้ช่วยให้ ptx-reconcile.ts
+ * ใช้กติกา TEXT, DATE, NUMBER และ AMOUNT
+ * ชุดเดียวกับ ptx-rules.ts โดยไม่เขียน Logic ซ้ำ
  */
-const compareValue = (
+export const compareValue = (
 
   expected: unknown,
 
@@ -814,13 +848,13 @@ const compareDsPtxTransactionDate = (
   const normalizedDataSetDate =
     normalizeDate(
       actual.data[
-        "Data Set Date"
+      "Data Set Date"
       ],
     );
 
   const referenceTransactionNumber =
     actual.data[
-      "Reference Transaction Number"
+    "Reference Transaction Number"
     ] ??
     actual.matchingKey;
 
@@ -851,7 +885,7 @@ const compareDsPtxTransactionDate = (
   if (
     normalizedDataSetDate &&
     normalizedTxnDate ===
-      normalizedDataSetDate
+    normalizedDataSetDate
   ) {
 
     return {
@@ -872,7 +906,7 @@ const compareDsPtxTransactionDate = (
   if (
     referenceTxnDate &&
     normalizedTxnDate ===
-      referenceTxnDate
+    referenceTxnDate
   ) {
 
     return {
@@ -930,7 +964,7 @@ export const compareCoreFields = (
 
     const actualValue =
       actual.data[
-        header
+      header
       ];
 
     const rule =
@@ -967,7 +1001,7 @@ export const compareCoreFields = (
     if (
       reportName === "DS_PTX" &&
       header ===
-        "Receive Payment Transaction Date"
+      "Receive Payment Transaction Date"
     ) {
 
       const dateResult =
@@ -1064,7 +1098,7 @@ export const compareCustomerFields = (
 
     const actualValue =
       actual.data[
-        header
+      header
       ];
 
     const rule =
