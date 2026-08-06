@@ -61,6 +61,16 @@ export const mainLocator = {
     "//td[contains(text(), 'DS_FTU Transaction')]",
 
   /**
+   * Locator เฉพาะของ DF_FXU
+   *
+   * ชื่อที่แสดงบนหน้าเว็บคือ:
+   * DF_FXU Transaction
+   */
+  dfFxuReport:
+    "//td[text()='DF_FXU Transaction']",
+
+
+  /**
    * ช่อง Date From
    */
   dateFromTxt:
