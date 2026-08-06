@@ -46,7 +46,7 @@ import {
 } from "../resources/AF1-resources/config/report-helper";
 
 import {
-  testDataPath,
+  getTestDataPath,
 } from "../resources/AF1-resources/setting/uat/setting";
 
 import {
@@ -387,6 +387,15 @@ describe(
             "Validate Test Data For Report :",
             selectedReport,
           );
+
+          /**
+           * ค้นหา Test Data จาก Share Path
+           * ตามชื่อ Report ที่กำลังตรวจ
+           */
+          const testDataPath =
+            getTestDataPath(
+              selectedReport,
+            );
 
           console.log(
             "Test Data File :",
