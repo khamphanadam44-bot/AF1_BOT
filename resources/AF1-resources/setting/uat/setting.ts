@@ -4,9 +4,14 @@
  * ------------------------------------------------------------
  */
 
+
 import {
-  TEST_DATA_INPUT_PATH,
+  getTestDataInputDir,
 } from "../../config/paths.config";
+
+import {
+  getSingleExcelFile,
+} from "../../utils/file-system.util";
 
 /**
  * อ่าน Environment Variable แบบบังคับ
@@ -94,10 +99,48 @@ export const datereport = {
   dateto: "27/11/2025",
 };
 
-/**
- * Path ของไฟล์ Test Data กลาง
+  /**
+ * ค้นหา Test Data ตามชื่อ Report ที่กำลัง Run
  *
- * ทุก Report ใช้ Test Data ไฟล์เดียวกัน
+ * ขั้นตอน:
+ * 1. อ่าน AF1_SHAREPATH จากไฟล์ .env
+ * 2. สร้าง Path โฟลเดอร์ตามชื่อ Report
+ * 3. ค้นหาไฟล์ Excel เพียง 1 ไฟล์ในโฟลเดอร์
+ *
+ * ตัวอย่าง:
+ * report=DS_PTX
+ *
+ * ระบบจะค้นหาภายใน:
+ * AF1_SHAREPATH/af1_test_data/DS_PTX
+ *
+ * ชื่อไฟล์ Excel เป็นชื่ออะไรก็ได้
  */
-export const testDataPath =
-  TEST_DATA_INPUT_PATH;
+export const getTestDataPath = (
+  reportCode: string,
+): string => {
+  /**
+   * อ่าน Share Path จากไฟล์ .env
+   */
+  const sharePath =
+    requireEnv(
+      "AF1_SHAREPATH",
+    );
+
+  /**
+   * สร้าง Path ของโฟลเดอร์ Test Data
+   * โดยใช้ชื่อ Report ที่ได้รับเข้ามา
+   */
+  const testDataDirectory =
+    getTestDataInputDir(
+      sharePath,
+      reportCode,
+    );
+
+  /**
+   * ค้นหา Excel เพียง 1 ไฟล์
+   * ภายในโฟลเดอร์ของ Report
+   */
+  return getSingleExcelFile(
+    testDataDirectory,
+  );
+};

@@ -25,7 +25,7 @@ import {
 } from "../resources/AF1-resources/config/report-selection";
 
 import {
-  testDataPath,
+  getTestDataPath,
 } from "../resources/AF1-resources/setting/uat/setting";
 
 /**
@@ -75,9 +75,7 @@ import {
 const SCRIPT_TIMEOUT =
   300000;
 
-/**
- * ทำงานสำหรับ DS_PTX
- */
+
 /**
  * ทำงานสำหรับ DS_PTX
  *
@@ -88,16 +86,36 @@ const SCRIPT_TIMEOUT =
 const runDsPtxCompare = async (
   reportName: string,
 ): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
   await reconcilePtxReport(
     reportName,
-    testDataPath,
+    testDataFilePath,
   );
 };
 
 /**
  * ทำงานสำหรับ DS_FTX
  */
-const runDsFtxCompare = async (): Promise<void> => {
+const runDsFtxCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
   /**
    * prepareFtxCompareFilePaths() จะ:
    *
@@ -109,7 +127,7 @@ const runDsFtxCompare = async (): Promise<void> => {
   const filePaths =
     prepareFtxCompareFilePaths(
       process.cwd(),
-      testDataPath,
+      testDataFilePath,
     );
 
   /**
@@ -122,7 +140,7 @@ const runDsFtxCompare = async (): Promise<void> => {
   /**
    * เรียกตัวควบคุมหลักของ DS_FTX
    *
-   * ค่าที่ส่งเข้าไปในฟังก์ชัน (Parameter):
+   * ค่าที่ส่งเข้าไปในฟังก์ชัน:
    * 1. Report File
    * 2. Test Data File
    * 3. Output File
@@ -137,19 +155,41 @@ const runDsFtxCompare = async (): Promise<void> => {
 /**
  * ทำงานสำหรับ DS_LTX
  */
-const runDsLtxCompare = async (): Promise<void> => {
+const runDsLtxCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
   await reconcileDsLtx(
-    "DS_LTX",
-    testDataPath,
+    reportName,
+    testDataFilePath,
   );
 };
 
 /**
  * ทำงานสำหรับ DS_FTU
  */
-const runDsFtuCompare = async (): Promise<void> => {
+const runDsFtuCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
   await reconcileFtuReport(
-    testDataPath,
+    testDataFilePath,
   );
 };
 
@@ -174,7 +214,9 @@ const runCompareByReport = async (
     reportName ===
     "DS_FTX"
   ) {
-    await runDsFtxCompare();
+    await runDsFtxCompare(
+      reportName,
+    );
 
     return;
   }
@@ -183,7 +225,9 @@ const runCompareByReport = async (
     reportName ===
     "DS_LTX"
   ) {
-    await runDsLtxCompare();
+    await runDsLtxCompare(
+      reportName,
+    );
 
     return;
   }
@@ -192,7 +236,9 @@ const runCompareByReport = async (
     reportName ===
     "DS_FTU"
   ) {
-    await runDsFtuCompare();
+    await runDsFtuCompare(
+      reportName,
+    );
 
     return;
   }

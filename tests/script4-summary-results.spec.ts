@@ -22,11 +22,17 @@
  * ------------------------------------------------------------------
  */
 
+import "dotenv/config";
+
 import path from "path";
 
 import {
   getSelectedReports,
 } from "../resources/AF1-resources/config/report-selection";
+
+import {
+  getTestDataPath,
+} from "../resources/AF1-resources/setting/uat/setting";
 
 import {
   createRunId,
@@ -35,7 +41,6 @@ import {
   getLatestCompareResultPath,
   getSummaryResultOutputPath,
   getSummaryTemplatePath,
-  ORIGINAL_TEST_DATA_PATH,
 } from "../resources/AF1-resources/utils/summary/summary-file-helper";
 
 import {
@@ -108,6 +113,17 @@ describe(
           const startedAt =
             new Date();
 
+          /**
+          * ค้นหา Original Test Data จาก Share Path
+          * ตามชื่อ Report ที่กำลังสร้าง Summary
+          *
+          * ภายในโฟลเดอร์ต้องมี Excel เพียง 1 ไฟล์
+          * โดยชื่อไฟล์เป็นชื่ออะไรก็ได้
+          */
+          const originalTestDataPath =
+            getTestDataPath(
+              reportName,
+            );
           /**
            * ขั้นตอนที่ 1:
            * หาไฟล์ต้นทางทั้งหมดที่ Script 4 ต้องใช้
@@ -186,7 +202,7 @@ describe(
             templatePath,
             outputPath,
             compareResultPath,
-            ORIGINAL_TEST_DATA_PATH,
+            originalTestDataPath,
             checkedReportPath,
             checkedTestDataPath,
             compareRows,
@@ -250,7 +266,7 @@ describe(
           );
           console.log(
             "Original Test Data:",
-            ORIGINAL_TEST_DATA_PATH,
+            originalTestDataPath,
           );
           console.log(
             "Checked Report    :",

@@ -187,7 +187,7 @@ describe(
 
             console.log(
               "Test Data Rows :",
-              exportResult.testData.length,
+              exportResult.reportData.length,
             );
           } finally {
             /**

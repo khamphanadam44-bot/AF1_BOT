@@ -63,17 +63,6 @@ const SUMMARY_REPORT_ROOT_FOLDER = path.resolve(
   "Summary-report",
 );
 
-/**
- * Original Test Data กลางของทุก Report
- *
- * Script 4 ใช้ไฟล์นี้สร้างข้อมูลฝั่ง "Test Script Data"
- * ในชีท Summary หลักของทั้ง DS_PTX และ DS_FTX
- */
-export const ORIGINAL_TEST_DATA_PATH = path.resolve(
-  process.cwd(),
-  "test_data",
-  "Test_Data_Downstream-for pilot.xlsx",
-);
 
 /**
  * แปลงชื่อ Report ให้อยู่ในรูปแบบมาตรฐาน
