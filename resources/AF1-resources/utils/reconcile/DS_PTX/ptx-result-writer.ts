@@ -20,16 +20,11 @@
 import ExcelJS from "exceljs";
 
 import {
-  ActualRow,
-  CompareResult,
-  ExpectedRow,
-  GroupedCompareResult,
+    ActualRow,
+    CompareResult,
+    ExpectedRow,
+    GroupedCompareResult,
 } from "./ptx-types";
-
-import {
-  isResidentThbToFcdExclusionCase,
-  RESIDENT_THB_TO_FCD_REMARK,
-} from "./ptx-rules";
 
 
 /**
@@ -374,7 +369,7 @@ const hasTestDataMapping = (
 
     const mappingValue =
         TEST_DATA_MAPPING_HEADERS[
-            mappingHeaderIndex
+        mappingHeaderIndex
         ];
 
     return (
@@ -1222,19 +1217,6 @@ export const writeCompareResult = async (
 
     }
 
-    const actualRowMap =
-        new Map<string, ActualRow>();
-
-    for (
-        const actualRow of actualRows
-    ) {
-
-        actualRowMap.set(
-            actualRow.matchingKey,
-            actualRow,
-        );
-
-    }
 
     /**
      * จัดกลุ่มผลการเปรียบเทียบ
@@ -1247,33 +1229,78 @@ export const writeCompareResult = async (
         );
 
     /**
-     * Map สำหรับค้นหาผล Compare ทุก Test Data Row
-     * ที่ใช้ Matching Key เดียวกัน
-     */
-    const groupedResultMap =
+ * Map สำหรับค้นหาผล Compare
+ * ด้วยตัวตนของ Expected Row
+ *
+ * ใช้กับ:
+ * - Exact Matching Key
+ * - Composite Fallback Internal Key
+ * - Expected Row ที่ไม่พบ Report
+ * - Expected Row ที่เป็น Ambiguous
+ */
+    const groupedResultByExpectedIdentity =
         new Map<
             string,
+            GroupedCompareResult
+        >();
+
+    /**
+     * Map สำหรับเชื่อมผล Compare
+     * กลับไปยัง Report Row จริง
+     *
+     * ใช้ reportRowNumber แทน matchingKey
+     * เพราะ Composite Fallback ใช้ Internal Key
+     * ซึ่งไม่ตรงกับ Matching Key ใน Report
+     */
+    const groupedResultMapByReportRowNumber =
+        new Map<
+            number,
             GroupedCompareResult[]
         >();
 
     for (
         const group of groupedResults
     ) {
-
-        const groups =
-            groupedResultMap.get(
+        const expectedIdentity =
+            buildExpectedIdentity(
+                group.testDataRowNumber,
                 group.matchingKey,
-            ) ?? [];
+            );
 
-        groups.push(
+        groupedResultByExpectedIdentity.set(
+            expectedIdentity,
             group,
         );
 
-        groupedResultMap.set(
-            group.matchingKey,
-            groups,
+        /**
+         * reportRowNumber เท่ากับ 0 หมายถึง:
+         * - ไม่พบ Report Row
+         * - Ambiguous
+         * - No Fee
+         * - Exclusion ที่ไม่พบ Report
+         *
+         * Case เหล่านี้จะถูกเขียนภายหลัง
+         * ในส่วน Expected Row ที่ไม่มี Report Mapping
+         */
+        if (
+            group.reportRowNumber <= 0
+        ) {
+            continue;
+        }
+
+        const reportRowGroups =
+            groupedResultMapByReportRowNumber.get(
+                group.reportRowNumber,
+            ) ?? [];
+
+        reportRowGroups.push(
+            group,
         );
 
+        groupedResultMapByReportRowNumber.set(
+            group.reportRowNumber,
+            reportRowGroups,
+        );
     }
 
     /**
@@ -1292,13 +1319,13 @@ export const writeCompareResult = async (
             ) => {
 
                 const groupA =
-                    groupedResultMap.get(
-                        rowA.matchingKey,
+                    groupedResultMapByReportRowNumber.get(
+                        rowA.rowNumber,
                     )?.[0];
 
                 const groupB =
-                    groupedResultMap.get(
-                        rowB.matchingKey,
+                    groupedResultMapByReportRowNumber.get(
+                        rowB.rowNumber,
                     )?.[0];
 
                 const getSortOrder = (
@@ -1375,11 +1402,17 @@ export const writeCompareResult = async (
         const actualRow of sortedActualRows
     ) {
 
+        /**
+ * ค้นหาผล Compare จาก Report Row Number
+ *
+ * รองรับทั้ง:
+ * - Exact Matching
+ * - Composite Fallback Matching
+ */
         const groups =
-            groupedResultMap.get(
-                actualRow.matchingKey,
+            groupedResultMapByReportRowNumber.get(
+                actualRow.rowNumber,
             ) ?? [];
-
         /**
          * Report Row ที่ Map กับ Test Data ไม่เจอ
          *
@@ -1397,11 +1430,11 @@ export const writeCompareResult = async (
                 null
             > = [
 
-                null,
-                null,
-                null,
+                    null,
+                    null,
+                    null,
 
-            ];
+                ];
 
             for (
                 const reportHeader of DS_PTX_REPORT_HEADERS
@@ -1410,7 +1443,7 @@ export const writeCompareResult = async (
                 rowValues.push(
                     normalizeExcelValue(
                         actualRow.data[
-                            reportHeader
+                        reportHeader
                         ],
                     ),
                 );
@@ -1438,395 +1471,423 @@ export const writeCompareResult = async (
             const group of groups
         ) {
 
-        const expectedRow =
-            expectedRowMap.get(
-                buildExpectedIdentity(
-                    group.testDataRowNumber,
-                    group.matchingKey,
-                ),
-            );
+            const expectedRow =
+                expectedRowMap.get(
+                    buildExpectedIdentity(
+                        group.testDataRowNumber,
+                        group.matchingKey,
+                    ),
+                );
 
-        const groupStatus =
-            getGroupStatus(
-                group,
-            );
+            const groupStatus =
+                getGroupStatus(
+                    group,
+                );
 
-        const groupRemark =
-            getGroupRemark(
-                group,
-            );
+            const groupRemark =
+                getGroupRemark(
+                    group,
+                );
 
-        const passedFields =
-            getPassedFields(
-                group,
-            );
+            const passedFields =
+                getPassedFields(
+                    group,
+                );
 
-        const failedFields =
-            getFailedFields(
-                group,
-            );
+            const failedFields =
+                getFailedFields(
+                    group,
+                );
 
-        const rowValues: Array<
-            string |
-            number |
-            boolean |
-            null
-        > = [
+            const rowValues: Array<
+                string |
+                number |
+                boolean |
+                null
+            > = [
 
-            expectedRow?.testScriptNo || null,
-            groupStatus,
-            groupRemark,
+                    expectedRow?.testScriptNo || null,
+                    groupStatus,
+                    groupRemark,
 
-        ];
+                ];
 
-        for (
-            const reportHeader of DS_PTX_REPORT_HEADERS
-        ) {
+            for (
+                const reportHeader of DS_PTX_REPORT_HEADERS
+            ) {
 
-            rowValues.push(
-                normalizeExcelValue(
-                    actualRow.data[
+                rowValues.push(
+                    normalizeExcelValue(
+                        actualRow.data[
                         reportHeader
-                    ],
-                ),
-            );
-
-        }
-
-        const row =
-            worksheet.addRow(
-                rowValues,
-            );
-
-        applyDataRowStyle(
-            row,
-        );
-
-        /**
-         * Test Script No.
-         *
-         * PASS = เขียว
-         * FAIL = แดง
-         * SKIP = เหลือง
-         */
-        applyTestScriptNoStyle(
-            row.getCell(1),
-            groupStatus,
-        );
-
-        /**
-         * Result
-         */
-        applyResultStyle(
-            row.getCell(2),
-            groupStatus,
-        );
-
-        /**
-         * Remark ของ Case FAIL = สีแดง
-         */
-        if (
-            groupStatus === "FAIL" &&
-            groupRemark
-        ) {
-
-            applyFailedFieldStyle(
-                row.getCell(3),
-            );
-
-            row.getCell(3).alignment = {
-
-                horizontal:
-                    "left",
-
-                vertical:
-                    "top",
-
-                wrapText:
-                    true,
-
-            };
-
-            const remarkLineCount =
-                groupRemark.split(
-                    "\n",
-                ).length;
-
-            row.height =
-                Math.max(
-                    22,
-                    remarkLineCount * 30,
+                        ],
+                    ),
                 );
 
-        }
+            }
 
-        /**
-         * กรณีผลรวมเป็น PASS
-         *
-         * Highlight สีเขียวเฉพาะ Field ที่ Compare แล้ว PASS
-         */
-        if (
-            groupStatus === "PASS"
-        ) {
-
-            const referenceHeaderIndex =
-                DS_PTX_REPORT_HEADERS.indexOf(
-                    "Reference Transaction Number",
+            const row =
+                worksheet.addRow(
+                    rowValues,
                 );
 
+            applyDataRowStyle(
+                row,
+            );
+
+            /**
+             * Test Script No.
+             *
+             * PASS = เขียว
+             * FAIL = แดง
+             * SKIP = เหลือง
+             */
+            applyTestScriptNoStyle(
+                row.getCell(1),
+                groupStatus,
+            );
+
+            /**
+             * Result
+             */
+            applyResultStyle(
+                row.getCell(2),
+                groupStatus,
+            );
+
+            /**
+             * Remark ของ Case FAIL = สีแดง
+             */
             if (
-                referenceHeaderIndex !== -1
+                groupStatus === "FAIL" &&
+                groupRemark
             ) {
 
-                applyPassedFieldStyle(
-                    row.getCell(
-                        referenceHeaderIndex + 4,
-                    ),
-                );
-
-            }
-
-            for (
-                const passedField of passedFields
-            ) {
-
-                const reportHeaderIndex =
-                    DS_PTX_REPORT_HEADERS.indexOf(
-                        passedField,
-                    );
-
-                if (
-                    reportHeaderIndex === -1
-                ) {
-
-                    continue;
-
-                }
-
-                applyPassedFieldStyle(
-                    row.getCell(
-                        reportHeaderIndex + 4,
-                    ),
-                );
-
-            }
-
-        }
-
-        /**
-         * กรณีผลรวมเป็น FAIL
-         *
-         * - Field ที่ถูก = สีเขียว
-         * - Field ที่ผิด = สีแดง
-         * - Test Script No., Result และ Remark = สีแดง
-         * - Field ที่ไม่ได้ Compare = ไม่ลงสี
-         */
-        if (
-            groupStatus === "FAIL"
-        ) {
-
-            /**
-             * Matching Key ที่หาเจอใน Report ถือว่าผ่าน
-             *
-             * ถ้า Matching Key ผิดจริง
-             * failedFields จะลงสีแดงทับภายหลัง
-             */
-            const referenceHeaderIndex =
-                DS_PTX_REPORT_HEADERS.indexOf(
-                    "Reference Transaction Number",
-                );
-
-            if (
-                referenceHeaderIndex !== -1
-            ) {
-
-                applyPassedFieldStyle(
-                    row.getCell(
-                        referenceHeaderIndex + 4,
-                    ),
-                );
-
-            }
-
-            /**
-             * Field ที่ Compare แล้ว PASS = สีเขียว
-             */
-            for (
-                const passedField of passedFields
-            ) {
-
-                const reportHeaderIndex =
-                    DS_PTX_REPORT_HEADERS.indexOf(
-                        passedField,
-                    );
-
-                if (
-                    reportHeaderIndex === -1
-                ) {
-
-                    continue;
-
-                }
-
-                applyPassedFieldStyle(
-                    row.getCell(
-                        reportHeaderIndex + 4,
-                    ),
-                );
-
-            }
-
-            /**
-             * Field ที่ FAIL
-             *
-             * - Field ที่ไม่มี Mapping = สีเหลือง
-             * - Field ที่มี Mapping = สีแดง
-             *
-             * ทำหลังสีเขียว เพื่อให้สี FAIL ทับ
-             */
-            for (
-                const failedField of failedFields
-            ) {
-
-                const reportHeaderIndex =
-                    DS_PTX_REPORT_HEADERS.indexOf(
-                        failedField,
-                    );
-
-                if (
-                    reportHeaderIndex === -1
-                ) {
-
-                    continue;
-
-                }
-
-                const failedCell =
-                    row.getCell(
-                        reportHeaderIndex + 4,
-                    );
-
-                /**
-                 * Field ที่ไม่มี Mapping ใน Row 1
-                 * ถ้าค่าไม่ตรงกันให้เป็นสีเหลือง
-                 */
-                if (
-                    !hasTestDataMapping(
-                        failedField,
-                    )
-                ) {
-
-                    failedCell.fill = {
-
-                        type:
-                            "pattern",
-
-                        pattern:
-                            "solid",
-
-                        fgColor: {
-
-                            argb:
-                                COLORS.WRONG_FILL,
-
-                        },
-
-                    };
-
-                    failedCell.font = {
-
-                        color: {
-
-                            argb:
-                                COLORS.WRONG_TEXT,
-
-                        },
-
-                    };
-
-                    continue;
-
-                }
-
-                /**
-                 * Field ที่มี Mapping และค่าไม่ตรงกัน
-                 * ให้เป็นสีแดง
-                 */
                 applyFailedFieldStyle(
-                    failedCell,
+                    row.getCell(3),
                 );
+
+                row.getCell(3).alignment = {
+
+                    horizontal:
+                        "left",
+
+                    vertical:
+                        "top",
+
+                    wrapText:
+                        true,
+
+                };
+
+                const remarkLineCount =
+                    groupRemark.split(
+                        "\n",
+                    ).length;
+
+                row.height =
+                    Math.max(
+                        22,
+                        remarkLineCount * 30,
+                    );
 
             }
 
-        }
+            /**
+             * กรณีผลรวมเป็น PASS
+             *
+             * Highlight สีเขียวเฉพาะ Field ที่ Compare แล้ว PASS
+             */
+            if (
+                groupStatus === "PASS"
+            ) {
+
+                const referenceHeaderIndex =
+                    DS_PTX_REPORT_HEADERS.indexOf(
+                        "Reference Transaction Number",
+                    );
+
+                if (
+                    referenceHeaderIndex !== -1
+                ) {
+
+                    applyPassedFieldStyle(
+                        row.getCell(
+                            referenceHeaderIndex + 4,
+                        ),
+                    );
+
+                }
+
+                for (
+                    const passedField of passedFields
+                ) {
+
+                    const reportHeaderIndex =
+                        DS_PTX_REPORT_HEADERS.indexOf(
+                            passedField,
+                        );
+
+                    if (
+                        reportHeaderIndex === -1
+                    ) {
+
+                        continue;
+
+                    }
+
+                    applyPassedFieldStyle(
+                        row.getCell(
+                            reportHeaderIndex + 4,
+                        ),
+                    );
+
+                }
+
+            }
+
+            /**
+             * กรณีผลรวมเป็น FAIL
+             *
+             * - Field ที่ถูก = สีเขียว
+             * - Field ที่ผิด = สีแดง
+             * - Test Script No., Result และ Remark = สีแดง
+             * - Field ที่ไม่ได้ Compare = ไม่ลงสี
+             */
+            if (
+                groupStatus === "FAIL"
+            ) {
+
+                /**
+                 * Matching Key ที่หาเจอใน Report ถือว่าผ่าน
+                 *
+                 * ถ้า Matching Key ผิดจริง
+                 * failedFields จะลงสีแดงทับภายหลัง
+                 */
+                const referenceHeaderIndex =
+                    DS_PTX_REPORT_HEADERS.indexOf(
+                        "Reference Transaction Number",
+                    );
+
+                if (
+                    referenceHeaderIndex !== -1
+                ) {
+
+                    applyPassedFieldStyle(
+                        row.getCell(
+                            referenceHeaderIndex + 4,
+                        ),
+                    );
+
+                }
+
+                /**
+                 * Field ที่ Compare แล้ว PASS = สีเขียว
+                 */
+                for (
+                    const passedField of passedFields
+                ) {
+
+                    const reportHeaderIndex =
+                        DS_PTX_REPORT_HEADERS.indexOf(
+                            passedField,
+                        );
+
+                    if (
+                        reportHeaderIndex === -1
+                    ) {
+
+                        continue;
+
+                    }
+
+                    applyPassedFieldStyle(
+                        row.getCell(
+                            reportHeaderIndex + 4,
+                        ),
+                    );
+
+                }
+
+                /**
+                 * Field ที่ FAIL
+                 *
+                 * - Field ที่ไม่มี Mapping = สีเหลือง
+                 * - Field ที่มี Mapping = สีแดง
+                 *
+                 * ทำหลังสีเขียว เพื่อให้สี FAIL ทับ
+                 */
+                for (
+                    const failedField of failedFields
+                ) {
+
+                    const reportHeaderIndex =
+                        DS_PTX_REPORT_HEADERS.indexOf(
+                            failedField,
+                        );
+
+                    if (
+                        reportHeaderIndex === -1
+                    ) {
+
+                        continue;
+
+                    }
+
+                    const failedCell =
+                        row.getCell(
+                            reportHeaderIndex + 4,
+                        );
+
+                    /**
+                     * Field ที่ไม่มี Mapping ใน Row 1
+                     * ถ้าค่าไม่ตรงกันให้เป็นสีเหลือง
+                     */
+                    if (
+                        !hasTestDataMapping(
+                            failedField,
+                        )
+                    ) {
+
+                        failedCell.fill = {
+
+                            type:
+                                "pattern",
+
+                            pattern:
+                                "solid",
+
+                            fgColor: {
+
+                                argb:
+                                    COLORS.WRONG_FILL,
+
+                            },
+
+                        };
+
+                        failedCell.font = {
+
+                            color: {
+
+                                argb:
+                                    COLORS.WRONG_TEXT,
+
+                            },
+
+                        };
+
+                        continue;
+
+                    }
+
+                    /**
+                     * Field ที่มี Mapping และค่าไม่ตรงกัน
+                     * ให้เป็นสีแดง
+                     */
+                    applyFailedFieldStyle(
+                        failedCell,
+                    );
+
+                }
+
+            }
 
         }
 
     }
 
-       /**
-     * ============================================================================
-     * เพิ่ม Test Data ที่หา Matching Key ใน Report ไม่เจอ
-     * ============================================================================
-     *
-     * Case ปกติ:
-     * ไม่พบรายการใน DS_PTX = FAIL
-     *
-     * Resident + THB + FCD:
-     * ไม่พบรายการใน DS_PTX = PASS
-     */
+    /**
+  * ============================================================================
+  * เพิ่ม Expected Row ที่ไม่มี Report Mapping
+  * ============================================================================
+  *
+  * ครอบคลุม:
+  * - Exact Matching Not Found
+  * - Composite Fallback Not Found
+  * - Composite Fallback Ambiguous
+  * - No Fee
+  * - Exclusion Case ที่ไม่พบ Report
+  *
+  * Status และ Remark ใช้ผลที่สร้างจาก ptx-reconcile.ts
+  * โดย Writer จะไม่ตัดสิน Business Rule ซ้ำ
+  */
     for (
         const expectedRow of expectedRows
     ) {
-
-        const actualRow =
-            actualRowMap.get(
+        const expectedIdentity =
+            buildExpectedIdentity(
+                expectedRow.rowNumber,
                 expectedRow.matchingKey,
             );
 
-        /**
-         * หากพบ Actual Row แล้ว
-         * แสดงว่าถูกเขียนในรอบหลักไปแล้ว
-         */
-        if (
-            actualRow
-        ) {
-
-            continue;
-
-        }
-
-        /**
-         * ตรวจว่าเป็น Exclusion Case หรือไม่
-         */
-        const isExclusionCase =
-            isResidentThbToFcdExclusionCase(
-                expectedRow.data,
+        const group =
+            groupedResultByExpectedIdentity.get(
+                expectedIdentity,
             );
 
         /**
-         * Exclusion Case:
-         * ไม่พบรายการ = PASS
+         * ปกติ Expected Row ทุกแถว
+         * ต้องมี Compare Result
          *
-         * Case ปกติ:
-         * ไม่พบรายการ = FAIL
+         * หากไม่พบ Group ให้ข้ามอย่างปลอดภัย
+         * โดยไม่ทำให้การเขียนไฟล์หยุด
          */
-        const status: "PASS" | "FAIL" =
-            isExclusionCase
-                ? "PASS"
-                : "FAIL";
+        if (
+            !group
+        ) {
+            continue;
+        }
 
         /**
-         * กำหนด Remark
+         * Report Row Number มากกว่า 0
+         * หมายถึงผลถูกเขียนพร้อม Actual Row
+         * ในรอบหลักเรียบร้อยแล้ว
          */
-        const remark =
-            isExclusionCase
-                ? RESIDENT_THB_TO_FCD_REMARK
-                : (
-                    "Matching Key Not Found In DS-PTX" +
-                    ` | [TS]: ${expectedRow.matchingKey}` +
-                    " | [DS-PTX]: (blank)"
+        if (
+            group.reportRowNumber > 0
+        ) {
+            continue;
+        }
+
+        const status =
+            getGroupStatus(
+                group,
+            );
+
+        /**
+         * กรณี FAIL:
+         * รวมรายละเอียดของทุก Field ที่ผิด
+         *
+         * กรณี PASS หรือ SKIP:
+         * ใช้ Remark จาก Compare Result โดยตรง
+         */
+        const nonFailRemark =
+            Object.values(
+                group.fields,
+            )
+                .map(
+                    result =>
+                        result.remark.trim(),
+                )
+                .find(
+                    resultRemark =>
+                        resultRemark !== "",
                 );
+
+        const remark =
+            status === "FAIL"
+                ? (
+                    getGroupRemark(
+                        group,
+                    ) ??
+                    "Validation Failed"
+                )
+                : (
+                    nonFailRemark ??
+                    ""
+                );
+
 
         /**
          * เตรียมข้อมูล 3 Column แรก:
@@ -1842,11 +1903,11 @@ export const writeCompareResult = async (
             null
         > = [
 
-            expectedRow.testScriptNo || null,
-            status,
-            remark,
+                expectedRow.testScriptNo || null,
+                status,
+                remark,
 
-        ];
+            ];
 
         /**
          * เติมข้อมูลตาม Header ของ DS_PTX
@@ -1911,26 +1972,16 @@ export const writeCompareResult = async (
         );
 
         /**
-         * ลงสี Remark
-         *
-         * PASS = สีเขียว
-         * FAIL = สีแดง
-         */
-        if (
-            status === "PASS"
-        ) {
-
-            applyPassedFieldStyle(
-                row.getCell(3),
-            );
-
-        } else {
-
-            applyFailedFieldStyle(
-                row.getCell(3),
-            );
-
-        }
+ * ลงสี Remark ตาม Status
+ *
+ * PASS = สีเขียว
+ * FAIL = สีแดง
+ * SKIP = สีเหลือง
+ */
+        applyTestScriptNoStyle(
+            row.getCell(3),
+            status,
+        );
 
         row.getCell(3).alignment = {
 
@@ -1966,26 +2017,17 @@ export const writeCompareResult = async (
                 );
 
             /**
-             * ลงสี Matching Key
+                        /**
+             * ลงสี Matching Key ตาม Status
              *
              * PASS = สีเขียว
              * FAIL = สีแดง
+             * SKIP = สีเหลือง
              */
-            if (
-                status === "PASS"
-            ) {
-
-                applyPassedFieldStyle(
-                    matchingKeyCell,
-                );
-
-            } else {
-
-                applyFailedFieldStyle(
-                    matchingKeyCell,
-                );
-
-            }
+            applyTestScriptNoStyle(
+                matchingKeyCell,
+                status,
+            );
 
         }
 

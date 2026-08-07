@@ -97,6 +97,261 @@ export interface CompareFieldMapping {
 
 /**
  * ============================================================================
+ * Composite Fallback Matching Configuration
+ * ============================================================================
+ *
+ * ใช้เมื่อ Test Data ไม่มีทั้ง:
+ * - Test No.
+ * - Transaction ID/ Reconcile ID
+ *
+ * Configuration นี้มีหน้าที่บอกว่า:
+ * - ต้องอ่าน Expected Value จากที่ใด
+ * - ต้องนำไปเทียบกับ Header ใดใน DS_PTX Report
+ * - Field ใดเป็น Field บังคับ
+ * - Field ใดใช้เพิ่มความแม่นยำเมื่อ Test Data มีข้อมูล
+ *
+ * ไฟล์นี้เก็บเฉพาะ Configuration
+ * ยังไม่มีหน้าที่ค้นหา Candidate หรือตัดสินผล PASS/FAIL
+ */
+
+/**
+ * แหล่งที่มาของ Expected Value
+ *
+ * TEST_DATA:
+ * อ่านค่าจาก Header ของ Test Data โดยตรง
+ *
+ * CURRENT_FEE_AMOUNT:
+ * อ่าน Fee Amount จาก Expected Row
+ * ของ Fee Group ที่กำลังตรวจ
+ */
+export type PtxFallbackValueSource =
+  | "TEST_DATA"
+  | "CURRENT_FEE_AMOUNT";
+
+/**
+ * รูปแบบของ Field
+ * ที่ใช้ใน Composite Fallback Matching
+ */
+export interface PtxFallbackField {
+
+  /**
+   * ชื่อที่ใช้เรียก Field ภายใน Logic
+   * และใช้แสดงในข้อความอธิบายผล
+   */
+  fieldName: string;
+
+  /**
+   * แหล่งที่มาของ Expected Value
+   */
+  valueSource:
+    PtxFallbackValueSource;
+
+  /**
+   * ชื่อ Header ใน Test Data
+   *
+   * ใช้เมื่อ valueSource เป็น TEST_DATA
+   *
+   * หาก valueSource เป็น CURRENT_FEE_AMOUNT
+   * จะไม่ต้องกำหนด testDataField
+   */
+  testDataField?: string;
+
+  /**
+   * Header ใน DS_PTX Report
+   * ที่สามารถใช้ตรวจ Field นี้ได้
+   *
+   * หากมีหลาย Header:
+   * Candidate จะผ่านเมื่อค่าตรงกับ
+   * Report Header อย่างน้อยหนึ่ง Header
+   *
+   * ตัวอย่าง From CIF:
+   * - Cust Code
+   * - CMF CODE
+   */
+  reportFields: string[];
+
+  /**
+   * true:
+   * เป็น Field ขั้นต่ำที่ต้องมีและต้องตรง
+   *
+   * false:
+   * ตรวจเฉพาะเมื่อ Test Data มีข้อมูล
+   */
+  required: boolean;
+
+  /**
+   * วิธี Normalize และ Compare ค่า
+   */
+  compareType:
+    CompareType;
+
+  /**
+   * ค่าความคลาดเคลื่อนสำหรับจำนวนเงิน
+   *
+   * ตัวอย่าง:
+   * 0.01 หมายถึงยอมให้จำนวนเงิน
+   * ต่างกันได้ไม่เกิน 0.01
+   */
+  tolerance?: number;
+
+}
+
+/**
+ * Field ที่ใช้ค้นหา DS_PTX Report Row
+ * ด้วย Composite Fallback Matching
+ *
+ * Field ขั้นต่ำ:
+ * 1. Txn Date
+ * 2. From Currency (CCY)
+ * 3. Fee Amount ของ Fee Group ที่กำลังตรวจ
+ *
+ * Field เพิ่มเติมเมื่อ Test Data มีข้อมูล:
+ * 4. From CIF No. (Client/Sender)
+ *    เทียบกับ Cust Code หรือ CMF CODE
+ * 5. To CIF No. (Beneficiary)
+ *    เทียบกับ Involved Party Id
+ */
+export const PTX_FALLBACK_FIELDS:
+  PtxFallbackField[] = [
+
+    /**
+     * Field ขั้นต่ำที่ 1:
+     * วันที่ทำรายการ
+     */
+    {
+      fieldName:
+        "Transaction Date",
+
+      valueSource:
+        "TEST_DATA",
+
+      testDataField:
+        "Txn Date",
+
+      reportFields: [
+        "Receive Payment Transaction Date",
+      ],
+
+      required:
+        true,
+
+      compareType:
+        "DATE",
+    },
+
+    /**
+     * Field ขั้นต่ำที่ 2:
+     * สกุลเงินต้นทาง
+     */
+    {
+      fieldName:
+        "Currency",
+
+      valueSource:
+        "TEST_DATA",
+
+      testDataField:
+        "From Currency (CCY)",
+
+      reportFields: [
+        "Currency Id",
+      ],
+
+      required:
+        true,
+
+      compareType:
+        "TEXT",
+    },
+
+    /**
+     * Fieldขั้นต่ำที่ 3:
+     * Fee Amount ของ Fee Group
+     * ที่กำลังตรวจอยู่
+     */
+    {
+      fieldName:
+        "Fee Amount",
+
+      valueSource:
+        "CURRENT_FEE_AMOUNT",
+
+      reportFields: [
+        "Transaction Amount in Foreign Currency",
+      ],
+
+      required:
+        true,
+
+      compareType:
+        "AMOUNT",
+
+      tolerance:
+        0.01,
+    },
+
+    /**
+     * Field เพิ่มเติม:
+     * ตรวจเฉพาะเมื่อ From CIF
+     * ใน Test Data มีข้อมูล
+     *
+     * Candidate จะผ่านเมื่อค่าตรงกับ:
+     * - Cust Code
+     * หรือ
+     * - CMF CODE
+     */
+    {
+      fieldName:
+        "From CIF",
+
+      valueSource:
+        "TEST_DATA",
+
+      testDataField:
+        "From CIF No. (Client/Sender)",
+
+      reportFields: [
+        "Cust Code",
+        "CMF CODE",
+      ],
+
+      required:
+        false,
+
+      compareType:
+        "TEXT",
+    },
+
+    /**
+     * Field เพิ่มเติม:
+     * ตรวจเฉพาะเมื่อ To CIF
+     * ใน Test Data มีข้อมูล
+     */
+    {
+      fieldName:
+        "To CIF",
+
+      valueSource:
+        "TEST_DATA",
+
+      testDataField:
+        "To CIF No. (Beneficiary)",
+
+      reportFields: [
+        "Involved Party Id",
+      ],
+
+      required:
+        false,
+
+      compareType:
+        "TEXT",
+    },
+
+  ];
+
+/**
+ * ============================================================================
  * DS_PTX Field Mapping
  * ============================================================================
  */

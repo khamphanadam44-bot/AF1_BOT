@@ -351,7 +351,7 @@ const getTransactionId = (
 ): string => {
   return toText(
     rowData[
-      "Transaction ID/ Reconcile ID"
+    "Transaction ID/ Reconcile ID"
     ],
   );
 };
@@ -403,24 +403,35 @@ const buildInternalMatchingKey = (
 };
 
 /**
- * ตรวจว่า Test Data แถวนี้ว่างทุกช่องจริงหรือไม่
+ * ตรวจว่าแถวข้อมูลว่างทุกช่องจริงหรือไม่
  *
- * Logic เดิมข้ามแถวทันทีเมื่อ:
- * - Test No. ว่าง
- * - Transaction ID ว่าง
+ * ใช้ได้ทั้ง:
+ * - Test Data Row
+ * - AF1 Report Row
  *
- * ทำให้แถวที่ยังมี Fee หรือข้อมูลอื่นถูกข้ามไปด้วย
+ * คืนค่า:
+ * true  = ทุก Field เป็นค่าว่าง
+ * false = มีข้อมูลอย่างน้อยหนึ่ง Field
  *
- * Logic ใหม่จะข้ามเฉพาะแถวที่ไม่มีข้อมูลทุกช่องจริง ๆ
+ * การตรวจแบบนี้ช่วยให้ระบบ:
+ * - ไม่ข้าม Test Data ที่ไม่มี Test No. และ Transaction ID
+ *   แต่ยังมีข้อมูลสำหรับ Composite Fallback Matching
+ * - ไม่ข้าม Report Row ที่ไม่มี Matching Key
+ *   แต่ยังมีข้อมูลสำหรับ Composite Fallback Matching
  */
-const isCompletelyBlankTestDataRow = (
-  rowData: TestDataRow,
+const isCompletelyBlankRow = (
+  rowData: Record<
+    string,
+    unknown
+  >,
 ): boolean => {
   return Object.values(
     rowData,
   ).every(
     (value) =>
-      isBlank(value),
+      isBlank(
+        value,
+      ),
   );
 };
 
@@ -490,8 +501,8 @@ const createExpectedRow = (
       : transactionId !== ""
         ? transactionId
         : buildTestDataRowReference(
-            rowNumber,
-          );
+          rowNumber,
+        );
 
   /**
    * เลือก Matching Key
@@ -510,18 +521,18 @@ const createExpectedRow = (
    */
   const matchingKey =
     transactionId !== "" &&
-    hasFee
+      hasFee
       ? buildMatchingKey(
-          transactionId,
-          runningNumber,
-        )
+        transactionId,
+        runningNumber,
+      )
       : transactionId !== ""
         ? `NO_FEE_ROW_${rowNumber}`
         : buildInternalMatchingKey(
-            rowNumber,
-            runningNumber,
-            hasFee,
-          );
+          rowNumber,
+          runningNumber,
+          hasFee,
+        );
 
   return {
     rowNumber,
@@ -602,7 +613,7 @@ export const buildExpectedRows = (
       TEST_DATA_HEADER_ROW + 1;
 
     rowNumber <=
-      worksheet.rowCount;
+    worksheet.rowCount;
 
     rowNumber += 1
   ) {
@@ -622,18 +633,22 @@ export const buildExpectedRows = (
       ) as TestDataRow;
 
     /**
- * ข้ามเฉพาะ Test Data แถวที่ว่างทุกช่องจริง ๆ
- *
- * หาก Test No. และ Transaction ID ว่าง
- * แต่ยังมี Fee หรือข้อมูลอื่น ระบบจะประมวลผลต่อ
- */
-if (
-  isCompletelyBlankTestDataRow(
-    rowData,
-  )
-) {
-  continue;
-}
+    /**
+     * ข้ามเฉพาะ Test Data Row
+     * ที่ว่างทุกช่องจริง ๆ
+     *
+     * หาก Test No. และ Transaction ID ว่าง
+     * แต่ยังมี Fee หรือข้อมูลอื่น
+     * ระบบจะสร้าง Expected Row ต่อไป
+     * เพื่อรองรับ Composite Fallback Matching
+     */
+    if (
+      isCompletelyBlankRow(
+        rowData,
+      )
+    ) {
+      continue;
+    }
 
     let hasAnyFee =
       false;
@@ -646,14 +661,14 @@ if (
       let feeIndex = 1;
 
       feeIndex <=
-        feeTypeCount;
+      feeTypeCount;
 
       feeIndex += 1
     ) {
       const feeType =
         toText(
           rowData[
-            `Fee Type ${feeIndex}`
+          `Fee Type ${feeIndex}`
           ],
         );
 
@@ -676,7 +691,7 @@ if (
 
       const feeAmount =
         rowData[
-          feeAmountHeader
+        feeAmountHeader
         ];
 
       /**
@@ -745,8 +760,20 @@ if (
  * 1. อ่านหมายเลขแถว Header จาก Mapping Config
  * 2. อ่านชื่อ Matching Key Header จาก Mapping Config
  * 3. แปลงแต่ละแถวของ Report เป็น Object
- * 4. ข้ามแถวที่ไม่มี Matching Key
- * 5. เก็บ Row Number จริงสำหรับแสดงในผล Compare
+ * 4. ข้ามเฉพาะ Report Row ที่ว่างทุกช่องจริง ๆ
+ * 5. เก็บ Report Row ที่มีข้อมูลไว้
+ *    แม้ Matching Key จะเป็นค่าว่าง
+ * 6. เก็บ Row Number จริงสำหรับแสดงในผล Compare
+ *
+ * เหตุผลที่ต้องเก็บ Report Row
+ * ที่ไม่มี Matching Key:
+ *
+ * Composite Fallback Matching ไม่ได้ค้นหาด้วย
+ * Reference Transaction Number แต่ค้นหาด้วย:
+ * - Transaction Date
+ * - Currency
+ * - Fee Amount
+ * - Customer Information เมื่อมีข้อมูล
  *
  * Report ที่ส่งเข้ามาต้องมี Mapping Config
  * สำหรับ Header Row และ Matching Key
@@ -801,7 +828,7 @@ export const buildActualRows = (
       headerRowNumber + 1;
 
     rowNumber <=
-      worksheet.rowCount;
+    worksheet.rowCount;
 
     rowNumber += 1
   ) {
@@ -826,20 +853,27 @@ export const buildActualRows = (
     const matchingKey =
       toText(
         rowData[
-          matchingKeyHeader
+        matchingKeyHeader
         ],
       );
 
     /**
-     * ข้ามแถวที่ไม่มี Matching Key
-     * เพราะไม่สามารถนำไปจับคู่กับ Expected Row ได้
-     */
+ * ข้ามเฉพาะ Report Row
+ * ที่ว่างทุกช่องจริง ๆ
+ *
+ * หาก Report Row มีข้อมูล
+ * แต่ Matching Key เป็นค่าว่าง
+ * ระบบยังต้องเก็บแถวนั้นไว้
+ * เพื่อให้ Composite Fallback Matching
+ * สามารถนำไปตรวจเป็น Candidate ได้
+ */
     if (
-      matchingKey === ""
+      isCompletelyBlankRow(
+        rowData,
+      )
     ) {
       continue;
     }
-
     actualRows.push({
       rowNumber,
       matchingKey,
