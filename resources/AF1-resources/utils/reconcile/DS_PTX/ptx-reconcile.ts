@@ -33,6 +33,10 @@ import {
 } from "./ptx-row-builder";
 
 import {
+  PTX_FALLBACK_FIELDS,
+} from "./ptx-config";
+
+import {
   ActualRow,
   CompareResult,
   ExpectedRow,
@@ -41,6 +45,7 @@ import {
 import {
   compareCoreFields,
   compareCustomerFields,
+  compareValue,
   isResidentThbToFcdExclusionCase,
   RESIDENT_THB_TO_FCD_REMARK,
 } from "./ptx-rules";
@@ -256,52 +261,519 @@ const getCompareResultOutputPath = (
 };
 
 /**
+ * ชื่อ Header ที่อาจใช้เก็บ Test No.
+ *
+ * ใช้รูปแบบเดียวกับ ptx-row-builder.ts
+ * เพื่อให้การตัดสินว่าแถวใดใช้ Fallback
+ * เป็นไปตามกติกาเดียวกัน
+ */
+const PTX_TEST_NUMBER_HEADERS = [
+  "Test No.",
+  "Test Script No.",
+  "Test No",
+  "Test Script No",
+];
+
+/**
+ * ตรวจว่าค่าเป็นค่าว่างหรือไม่
+ */
+const isFallbackBlank = (
+  value: unknown,
+): boolean => {
+  return (
+    value === undefined ||
+    value === null ||
+    String(
+      value,
+    ).trim() === ""
+  );
+};
+
+/**
+ * ตรวจว่า Expected Row ต้องใช้
+ * Composite Fallback Matching หรือไม่
+ *
+ * ใช้ Fallback เฉพาะเมื่อ:
+ * 1. Expected Row มี Fee
+ * 2. Test No. ทุกชื่อ Header เป็นค่าว่าง
+ * 3. Transaction ID/ Reconcile ID เป็นค่าว่าง
+ */
+const shouldUseCompositeFallback = (
+  expectedRow: ExpectedRow,
+): boolean => {
+  if (
+    !expectedRow.hasFee
+  ) {
+    return false;
+  }
+
+  const hasTestNumber =
+    PTX_TEST_NUMBER_HEADERS.some(
+      (header) =>
+        !isFallbackBlank(
+          expectedRow.data[
+          header
+          ],
+        ),
+    );
+
+  const hasTransactionId =
+    !isFallbackBlank(
+      expectedRow.data[
+      "Transaction ID/ Reconcile ID"
+      ],
+    );
+
+  return (
+    !hasTestNumber &&
+    !hasTransactionId
+  );
+};
+
+/**
+ * อ่าน Expected Value
+ * ของ Composite Fallback Field
+ *
+ * TEST_DATA:
+ * อ่านจาก Test Data Header
+ *
+ * CURRENT_FEE_AMOUNT:
+ * อ่าน Fee Amount ของ Fee Group
+ * ที่ Expected Row กำลังตรวจ
+ */
+const getFallbackExpectedValue = (
+  expectedRow: ExpectedRow,
+  fallbackField:
+    (typeof PTX_FALLBACK_FIELDS)[number],
+): unknown => {
+  if (
+    fallbackField.valueSource ===
+    "CURRENT_FEE_AMOUNT"
+  ) {
+    return expectedRow.feeAmount;
+  }
+
+  if (
+    !fallbackField.testDataField
+  ) {
+    return undefined;
+  }
+
+  return expectedRow.data[
+    fallbackField.testDataField
+  ];
+};
+
+/**
+ * ตรวจว่า Report Row หนึ่งแถว
+ * ตรงกับ Composite Fallback Fields
+ * ของ Expected Row หรือไม่
+ */
+const isCompositeFallbackCandidate = (
+  expectedRow: ExpectedRow,
+  actualRow: ActualRow,
+): boolean => {
+  return PTX_FALLBACK_FIELDS.every(
+    (fallbackField) => {
+      const expectedValue =
+        getFallbackExpectedValue(
+          expectedRow,
+          fallbackField,
+        );
+
+      /**
+       * Field ขั้นต่ำที่ Expected ว่าง
+       * จะไม่สามารถใช้ Report Row นี้
+       * เป็น Candidate ได้
+       */
+      if (
+        isFallbackBlank(
+          expectedValue,
+        )
+      ) {
+        return (
+          !fallbackField.required
+        );
+      }
+
+      /**
+       * Report Field อาจมีมากกว่าหนึ่ง Header
+       *
+       * ตัวอย่าง From CIF:
+       * - Cust Code
+       * - CMF CODE
+       *
+       * Candidate ผ่านเมื่อค่าตรง
+       * อย่างน้อยหนึ่ง Header
+       */
+      /**
+       * อ่านค่าจาก Report Header
+       * ที่กำหนดไว้สำหรับ Fallback Field นี้
+       *
+       * ตัวอย่าง From CIF:
+       * - Cust Code
+       * - CMF CODE
+       */
+      const actualValues =
+        fallbackField
+          .reportFields
+          .map(
+            (reportField) =>
+              actualRow.data[
+              reportField
+              ],
+          );
+
+      const hasAnyActualValue =
+        actualValues.some(
+          (actualValue) =>
+            !isFallbackBlank(
+              actualValue,
+            ),
+        );
+
+      /**
+       * Field เพิ่มเติม เช่น From CIF และ To CIF
+       *
+       * หาก Test Data มีข้อมูล
+       * แต่ Report Candidate ไม่มีข้อมูล
+       * ในทุก Header ที่เกี่ยวข้อง
+       * ให้ข้าม Field เพิ่มเติมนี้
+       *
+       * Candidate จะถูกตรวจต่อด้วย Field ขั้นต่ำ:
+       * - Transaction Date
+       * - Currency
+       * - Fee Amount
+       *
+       * กฎนี้ไม่ใช้กับ Field ขั้นต่ำ
+       * เพราะ Field ขั้นต่ำต้องมีและต้องตรงเสมอ
+       */
+      if (
+        !fallbackField.required &&
+        !hasAnyActualValue
+      ) {
+        return true;
+      }
+
+      /**
+       * หาก Report Candidate มีข้อมูล
+       * ต้องมีอย่างน้อยหนึ่ง Report Header
+       * ที่ตรงกับ Expected Value
+       *
+       * ตัวอย่าง From CIF:
+       * Cust Code หรือ CMF CODE
+       * ต้องตรงอย่างน้อยหนึ่งช่อง
+       */
+      return actualValues.some(
+        (actualValue) =>
+          compareValue(
+            expectedValue,
+            actualValue,
+            fallbackField.compareType,
+            fallbackField.tolerance ?? 0,
+          ),
+      );
+    },
+  );
+};
+
+/**
+ * สงวน Report Row ที่มี Matching Key
+ * ตรงกับ Expected Row แบบ Exact Matching
+ *
+ * การสงวนทำก่อนเริ่มวน Expected Row
+ * เพื่อป้องกันไม่ให้ Fallback นำ Report Row
+ * ของ Exact Matching ที่อยู่ลำดับถัดไปไปใช้ก่อน
+ */
+const buildReservedExactReportRowNumbers = (
+  expectedRows: ExpectedRow[],
+  actualRows: ActualRow[],
+): Set<number> => {
+  const exactMatchingKeys =
+    new Set<string>();
+
+  for (
+    const expectedRow of expectedRows
+  ) {
+    const transactionId =
+      expectedRow.data[
+      "Transaction ID/ Reconcile ID"
+      ];
+
+    if (
+      expectedRow.hasFee &&
+      !isFallbackBlank(
+        transactionId,
+      )
+    ) {
+      exactMatchingKeys.add(
+        expectedRow.matchingKey,
+      );
+    }
+  }
+
+  const reservedRowNumbers =
+    new Set<number>();
+
+  for (
+    const actualRow of actualRows
+  ) {
+    if (
+      exactMatchingKeys.has(
+        actualRow.matchingKey,
+      )
+    ) {
+      reservedRowNumbers.add(
+        actualRow.rowNumber,
+      );
+    }
+  }
+
+  return reservedRowNumbers;
+};
+
+/**
+ * ค้นหา Report Candidate
+ * สำหรับ Composite Fallback Matching
+ *
+ * ไม่อนุญาตให้ใช้:
+ * - Report Row ที่สงวนให้ Exact Matching
+ * - Report Row ที่เคยถูก Fallback จับคู่แล้ว
+ */
+const findCompositeFallbackCandidates = (
+  expectedRow: ExpectedRow,
+  actualRows: ActualRow[],
+  reservedExactRowNumbers:
+    Set<number>,
+  usedFallbackRowNumbers:
+    Set<number>,
+): ActualRow[] => {
+  return actualRows.filter(
+    (actualRow) => {
+      if (
+        reservedExactRowNumbers.has(
+          actualRow.rowNumber,
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        usedFallbackRowNumbers.has(
+          actualRow.rowNumber,
+        )
+      ) {
+        return false;
+      }
+
+      return isCompositeFallbackCandidate(
+        expectedRow,
+        actualRow,
+      );
+    },
+  );
+};
+
+/**
  * Compare Expected Rows จาก Test Data
  * กับ Actual Rows จาก PTX Report
+ *
+ * ลำดับการจับคู่:
+ * 1. เตรียม Exact Matching Map
+ * 2. สงวน Report Row สำหรับ Exact Matching
+ * 3. ตรวจ Expected Row ทีละรายการ
+ * 4. ใช้ Exact Matching เมื่อมี Transaction ID
+ * 5. ใช้ Composite Fallback เมื่อไม่มีทั้ง
+ *    Test No. และ Transaction ID
+ * 6. ป้องกัน Report Row ถูก Fallback ใช้ซ้ำ
+ * 7. ส่งคู่ข้อมูลที่พบไปตรวจ Field ต่อ
  */
 const compareEngine = (
   reportName: string,
   expectedRows: ExpectedRow[],
   actualRows: ActualRow[],
 ): CompareResult[] => {
-
-  const results: CompareResult[] = [];
+  const results:
+    CompareResult[] = [];
 
   /**
-   * เตรียม Map สำหรับค้นหา Report
-   * ด้วย Matching Key
+   * เตรียม Map สำหรับ Exact Matching
+   * ด้วย Reference Transaction Number
    */
   const actualRowMap =
-    new Map<string, ActualRow>();
+    new Map<
+      string,
+      ActualRow
+    >();
 
   for (
     const actualRow of actualRows
   ) {
+    /**
+     * Matching Key ว่างไม่สามารถใช้
+     * Exact Matching ได้
+     *
+     * แต่ Actual Row ยังคงอยู่ใน actualRows
+     * เพื่อให้ Fallback นำไปตรวจได้
+     */
+    if (
+      isFallbackBlank(
+        actualRow.matchingKey,
+      )
+    ) {
+      continue;
+    }
 
     actualRowMap.set(
       actualRow.matchingKey,
       actualRow,
     );
-
   }
 
   /**
-   * ตรวจ Test Data ทีละ Expected Row
+   * สงวน Report Row ที่ต้องใช้
+   * สำหรับ Exact Matching
+   *
+   * Fallback จะไม่นำ Row เหล่านี้ไปใช้
+   */
+  const reservedExactRowNumbers =
+    buildReservedExactReportRowNumbers(
+      expectedRows,
+      actualRows,
+    );
+
+  /**
+   * เก็บ Row Number ของ Report
+   * ที่ถูก Composite Fallback ใช้แล้ว
+   *
+   * Report Row เดียวจึงไม่สามารถ
+   * ถูก Fallback จับคู่ซ้ำได้
+   */
+  const usedFallbackRowNumbers =
+    new Set<number>();
+
+  /**
+   * ตรวจ Test Data
+   * ทีละ Expected Row
    */
   for (
     const expectedRow of expectedRows
   ) {
+    const useCompositeFallback =
+      shouldUseCompositeFallback(
+        expectedRow,
+      );
 
     /**
-     * ค้นหา Matching Key ใน PTX Report
+     * เริ่มต้นด้วย Exact Matching
+     *
+     * Expected Row ที่ใช้ Fallback
+     * จะมี Internal Matching Key
+     * จึงไม่พบใน actualRowMap
      */
-    const actualRow =
+    let actualRow =
       actualRowMap.get(
         expectedRow.matchingKey,
       );
 
     /**
-     * อ่านเงื่อนไขจาก Test Data
+     * จำนวน Candidate ที่พบจาก Fallback
+     *
+     * ใช้แยกผล:
+     * 0 = Not Found
+     * 1 = Matched
+     * มากกว่า 1 = Ambiguous
+     */
+    let fallbackCandidateCount =
+      0;
+
+    if (
+      useCompositeFallback
+    ) {
+      const fallbackCandidates =
+        findCompositeFallbackCandidates(
+          expectedRow,
+          actualRows,
+          reservedExactRowNumbers,
+          usedFallbackRowNumbers,
+        );
+
+      fallbackCandidateCount =
+        fallbackCandidates.length;
+
+      /**
+       * พบมากกว่า 1 Candidate
+       *
+       * ห้ามเลือก Candidate แถวแรก
+       * ให้สร้าง FAIL: Ambiguous
+       * แล้วตรวจ Expected Row ถัดไป
+       */
+      if (
+        fallbackCandidateCount > 1
+      ) {
+        results.push({
+          matchingKey:
+            expectedRow.matchingKey,
+
+          testDataRowNumber:
+            expectedRow.rowNumber,
+
+          reportRowNumber:
+            0,
+
+          field:
+            "Composite Fallback Matching",
+
+          expected:
+            "1 matching Report Row",
+
+          actual:
+            `${fallbackCandidateCount} matching Report Rows`,
+
+          status:
+            "FAIL",
+
+          remark:
+            "Ambiguous Composite Fallback Match: " +
+            `${fallbackCandidateCount} Report Rows Found`,
+        });
+
+        continue;
+      }
+
+      /**
+       * พบ Candidate เพียง 1 แถว
+       *
+       * Mapping Report Row กับ Expected Row
+       * แล้วส่งไป Compare Field ต่อ
+       */
+      if (
+        fallbackCandidateCount === 1
+      ) {
+        actualRow =
+          fallbackCandidates[0];
+
+        /**
+         * ป้องกัน Report Row เดียว
+         * ถูก Fallback จับคู่ซ้ำ
+         */
+        usedFallbackRowNumbers.add(
+          actualRow.rowNumber,
+        );
+      } else {
+        /**
+         * ไม่พบ Candidate
+         *
+         * ยังไม่สร้าง FAIL ตรงนี้
+         * เพราะต้องตรวจ Exclusion Rule ก่อน
+         */
+        actualRow =
+          undefined;
+      }
+    }
+
+    /**
+     * อ่านเงื่อนไข Exclusion จาก Test Data
      *
      * From Customer = Resident
      * AND From Currency = THB
@@ -323,16 +795,10 @@ const compareEngine = (
     if (
       isExclusionCase
     ) {
-
-      /**
-       * ไม่พบใน Report = PASS
-       * พบใน Report = FAIL
-       */
       const reportNotFound =
         !actualRow;
 
       results.push({
-
         matchingKey:
           expectedRow.matchingKey,
 
@@ -359,16 +825,13 @@ const compareEngine = (
         remark:
           reportNotFound
             ? RESIDENT_THB_TO_FCD_REMARK
-            : `${RESIDENT_THB_TO_FCD_REMARK} แต่พบรายการใน PTX`,
-
+            : (
+              `${RESIDENT_THB_TO_FCD_REMARK} ` +
+              "แต่พบรายการใน PTX"
+            ),
       });
 
-      /**
-       * จบการตรวจ Expected Row นี้
-       * ไม่ต้องตรวจ Field อื่นต่อ
-       */
       continue;
-
     }
 
     /**
@@ -382,9 +845,7 @@ const compareEngine = (
     if (
       !expectedRow.hasFee
     ) {
-
       results.push({
-
         matchingKey:
           expectedRow.matchingKey,
 
@@ -408,28 +869,62 @@ const compareEngine = (
 
         remark:
           "No Fee Data - DS_PTX Not Applicable",
-
       });
 
       continue;
-
     }
 
     /**
      * ==========================================================
-     * กรณีปกติที่มี Fee
-     * แต่ค้นหา Matching Key ใน Report ไม่พบ
+     * Composite Fallback ไม่พบ Candidate
+     * ==========================================================
      *
-     * เนื่องจากไม่เข้าเงื่อนไขยกเว้น
-     * ผลจึงต้องเป็น FAIL
+     * ไม่ throw เพื่อให้ Script 3
+     * ตรวจ Expected Row ถัดไปต่อได้
+     */
+    if (
+      useCompositeFallback &&
+      fallbackCandidateCount === 0
+    ) {
+      results.push({
+        matchingKey:
+          expectedRow.matchingKey,
+
+        testDataRowNumber:
+          expectedRow.rowNumber,
+
+        reportRowNumber:
+          0,
+
+        field:
+          "Composite Fallback Matching",
+
+        expected:
+          "Txn Date + Currency + Fee Amount" +
+          " + Optional CIF Fields",
+
+        actual:
+          "",
+
+        status:
+          "FAIL",
+
+        remark:
+          "Composite Fallback Match Not Found",
+      });
+
+      continue;
+    }
+
+    /**
+     * ==========================================================
+     * Exact Matching ไม่พบ Matching Key
      * ==========================================================
      */
     if (
       !actualRow
     ) {
-
       results.push({
-
         matchingKey:
           expectedRow.matchingKey,
 
@@ -453,31 +948,28 @@ const compareEngine = (
 
         remark:
           "Matching Key Not Found",
-
       });
 
       continue;
-
     }
 
     /**
      * ==========================================================
-     * พบข้อมูลใน Report และเป็นกรณีปกติ
-     * ตรวจ Core Fields
+     * พบข้อมูลใน Report
+     *
+     * ใช้ได้ทั้ง:
+     * - Exact Matching
+     * - Composite Fallback Matching
+     *
+     * จากนั้นตรวจ Core Fields
      * ==========================================================
      */
     results.push(
-
       ...compareCoreFields(
-
         reportName,
-
         expectedRow,
-
         actualRow,
-
       ),
-
     );
 
     /**
@@ -485,23 +977,15 @@ const compareEngine = (
      * และ Customer Fields
      */
     results.push(
-
       ...compareCustomerFields(
-
         reportName,
-
         expectedRow,
-
         actualRow,
-
       ),
-
     );
-
   }
 
   return results;
-
 };
 
 /**
