@@ -10,12 +10,23 @@
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
+<<<<<<< HEAD
+ * - DF_OLB
+=======
+>>>>>>> 9def6946be8f6da7b43a9674af58a59a711abced
  *
  * ตัวอย่าง:
  * npm run test:script3 -- report=DS_PTX
  * npm run test:script3 -- report=DS_FTX
  * npm run test:script3 -- report=DS_LTX
+<<<<<<< HEAD
+ * npm run test:script3 -- report=DS_FTU
+ * npm run test:script3 -- report=DF_FXU
+ * npm run test:script3 -- report=DF_OLB
+ * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB
+=======
  * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU
+>>>>>>> 9def6946be8f6da7b43a9674af58a59a711abced
  * ============================================================================
  */
 
@@ -59,11 +70,9 @@ import {
   printFtxCompareFilePaths,
 } from "../resources/AF1-resources/utils/reconcile/DS_FTX/ftx-file-helper";
 
-/**
- * ============================================================
- * DS_LTX
- * ============================================================
- */
+import {
+  reconcileOlbReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_OLB/olb-reconcile";
 
 import {
   reconcileReport as reconcileDsLtx,
@@ -241,7 +250,23 @@ const runDfFxuCompare = async (
    * 4. ตรวจ Core Fields
    * 5. เขียน Reconcile Result
    */
-  await reconcileFxuReport(
+    await reconcileFxuReport(
+      testDataFilePath,
+  );
+};
+
+ /**
+ * ทำงานสำหรับ DF_OLB
+ */
+const runDfOlbCompare = async (
+  reportName: string,
+): Promise<void> => {
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
+  await reconcileOlbReport(
     testDataFilePath,
   );
 };
@@ -312,13 +337,29 @@ const runCompareByReport = async (
 
     return;
   }
+  
+  /**
+   * DF_FXU
+  */
+ 
+  if (
+    reportName ===
+    "DF_OLB"
+  ) {
+    await runDfOlbCompare(
+      reportName,
+    );
+    
+    return;
+  } 
 
   throw new Error(
 
  
     [
       `Script 3 ยังไม่รองรับ Report: ${reportName}`,
-            "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU",
+            "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU,DF_OLB",
+     
     ].join(
       "\n",
     ),
@@ -397,7 +438,7 @@ describe(
 
           console.log(
             "================================",
-          );
+           );
         },
       );
     }
