@@ -48,7 +48,8 @@ type SupportedSummaryReport =
   | "DS_FTX"
   | "DS_LTX"
   | "DS_FTU"
-  | "DF_FXU";
+  | "DF_FXU"
+  | "DF_OLB";
 
 type SummaryReportConfig = {
   reportCode: SupportedSummaryReport;
@@ -202,6 +203,30 @@ const SUMMARY_REPORT_CONFIG: Record<
       "DF_FXU",
     ],
   },
+
+   /**
+   * DF_OLB
+   * ====================================================
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   *
+   * โครงสร้าง Summary Template:
+   * - Column B-H เป็นผลการตรวจสอบและข้อมูล DF_OLB
+   * - Column I เป็นช่องว่างคั่นกลาง
+   * - Column J เป็นต้นไปเป็นข้อมูล Test Data
+   */
+
+  DF_OLB: {
+    reportCode: "DF_OLB",
+    summarySheetName: "DF_OLB_Summary Result",
+    reconcileSheetName: "DF_OLB_Reconcile",
+    reportSheetName: "DF_OLB",
+    title: "DF-OLB AUTOMATION VERIFICATION SUMMARY",
+    hasDynamicFeeColumns: false,
+    compareLastColumn: 8,
+    testDataFirstColumn: 10,
+    mergeRepeatedTestDataRows: false,
+    reportSourceSheetNames: ["DF_OLB"],
+  },  
 };
 
 const normalizeText = (value: unknown): string =>
@@ -230,7 +255,8 @@ const normalizeReportName = (reportName: string): SupportedSummaryReport => {
     normalizedReportName === "DS_FTX" ||
     normalizedReportName === "DS_LTX" ||
     normalizedReportName === "DS_FTU" ||
-    normalizedReportName === "DF_FXU"
+    normalizedReportName === "DF_FXU" ||
+    normalizedReportName === "DF_OLB"
   ) {
     return normalizedReportName;
   }
