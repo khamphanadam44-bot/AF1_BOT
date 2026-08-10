@@ -40,7 +40,15 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
 
 type DataRecord = Record<string, unknown>;
 
-type SupportedSummaryReport = "DS_PTX" | "DS_FTX" | "DS_LTX" | "DS_FTU";
+/**
+ * Report ที่รองรับการสร้าง Automation Summary
+ */
+type SupportedSummaryReport =
+  | "DS_PTX"
+  | "DS_FTX"
+  | "DS_LTX"
+  | "DS_FTU"
+  | "DF_FXU";
 
 type SummaryReportConfig = {
   reportCode: SupportedSummaryReport;
@@ -107,6 +115,66 @@ const SUMMARY_REPORT_CONFIG: Record<
     mergeRepeatedTestDataRows: false,
     reportSourceSheetNames: ["DS_FTU Transaction", "DS_FTU"],
   },
+
+    /**
+   * ====================================================
+   * DF_FXU
+   * ====================================================
+   *
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   *
+   * Summary Template:
+   * - Column B-I เป็นข้อมูลผล Reconcile
+   * - Column J เป็นช่องว่างคั่นกลาง
+   * - Column K เป็นต้นไปเป็นข้อมูล Test Data
+   */
+  DF_FXU: {
+    reportCode: "DF_FXU",
+
+    summarySheetName:
+      "DF_FXU_Summary Result",
+
+    reconcileSheetName:
+      "DF_FXU_Reconcile",
+
+    reportSheetName:
+      "DF_FXU",
+
+    title:
+      "DF-FXU AUTOMATION VERIFICATION SUMMARY",
+
+    /**
+     * DF_FXU ไม่มี Fee Group
+     */
+    hasDynamicFeeColumns:
+      false,
+
+    /**
+     * Column สุดท้ายของข้อมูลฝั่ง Reconcile คือ Column I
+     */
+    compareLastColumn:
+      9,
+
+    /**
+     * ข้อมูล Test Data เริ่มที่ Column K
+     */
+    testDataFirstColumn:
+      11,
+
+    /**
+     * Test Case ของ DF_FXU แสดงแยกหนึ่งแถวต่อหนึ่งรายการ
+     */
+    mergeRepeatedTestDataRows:
+      false,
+
+    /**
+     * ชื่อ Worksheet ที่รองรับจากไฟล์ Export จริง
+     */
+    reportSourceSheetNames: [
+      "DF_FXU Transaction",
+      "DF_FXU",
+    ],
+  },
 };
 
 const normalizeText = (value: unknown): string =>
@@ -134,7 +202,8 @@ const normalizeReportName = (reportName: string): SupportedSummaryReport => {
     normalizedReportName === "DS_PTX" ||
     normalizedReportName === "DS_FTX" ||
     normalizedReportName === "DS_LTX" ||
-    normalizedReportName === "DS_FTU"
+    normalizedReportName === "DS_FTU" ||
+    normalizedReportName === "DF_FXU"
   ) {
     return normalizedReportName;
   }
@@ -342,14 +411,23 @@ export const readCompareResultRows = async (
   const testScriptColumn = getRequiredColumn(headerMap, ["Test Script No."]);
   const resultColumn = getRequiredColumn(headerMap, ["Test Result", "Result"]);
   const remarkColumn = getRequiredColumn(headerMap, ["Remark"]);
-  const matchingKeyColumn = getOptionalColumn(headerMap, [
-    "Reference Transaction Number",
-    "Ref. TX No.",
-    "Ref TX No",
-    "Reference TX No.",
-    "Arr Number",
-    "Matching Key",
-  ]);
+  /**
+   * Matching Key ของแต่ละ Report
+   *
+   * DF_FXU ใช้ Arrangement Number
+   */
+  const matchingKeyColumn = getOptionalColumn(
+    headerMap,
+    [
+      "Reference Transaction Number",
+      "Ref. TX No.",
+      "Ref TX No",
+      "Reference TX No.",
+      "Arr Number",
+      "Arrangement Number",
+      "Matching Key",
+    ],
+  );
 
   const rows: CompareResultRow[] = [];
 

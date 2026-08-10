@@ -19,7 +19,7 @@
  * - ตรวจจำนวน Fee Group จาก Header จริง
  * - ตรวจข้อมูลภายใน Fee Group
  *
- * DS_FTX และ DS_FTU:
+ * DS_FTX, DS_FTU และ DF_FXU:
  * - ไม่มีการตรวจ Fee Group
  * - จำนวน Fee Group เป็น 0
  *
@@ -89,6 +89,7 @@ import {
  * - DS_LTX
  * - DS_FTX
  * - DS_FTU
+ * - DF_FXU
  *
  * @returns
  * Path ของไฟล์ผลลัพธ์
@@ -216,7 +217,7 @@ export const validateTestData = async (
    * DS_PTX และ DS_LTX:
    * - ตรวจหมายเลข Fee Group สูงสุดจาก Header จริง
    *
-   * DS_FTX และ DS_FTU:
+   * DS_FTX, DS_FTU และ DF_FXU:
    * - คืนค่า 0
    */
   const feeTypeCount =
@@ -231,7 +232,7 @@ export const validateTestData = async (
    * DS_PTX และ DS_LTX:
    * - รวม Fee Header ตามจำนวนที่ตรวจพบจริง
    *
-   * DS_FTX และ DS_FTU:
+   * DS_FTX, DS_FTU และ DF_FXU:
    * - ไม่มี Fee Header
    */
   const requiredHeaders =

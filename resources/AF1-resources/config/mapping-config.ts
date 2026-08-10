@@ -248,29 +248,110 @@ DS_PTX: {
 
   },
 
-  // ======================================================
+    // ======================================================
   // Report: DF_FXU
   // ======================================================
   DF_FXU: {
 
-    // Header ของ Report อยู่ที่แถวที่ 1
+    /**
+     * Header ของ DF_FXU Report อยู่ที่แถวที่ 1
+     *
+     * Worksheet ที่พบในไฟล์จริง:
+     * DF_FXU Transaction
+     */
     headerRowNumber: 1,
 
-    // ตอนนี้ยังไม่มีชื่อ Header สำรอง
+    /**
+     * ชื่อ Header สำรอง
+     *
+     * ตอนนี้ Header ในไฟล์ DF_FXU ตัวอย่าง
+     * ตรงกับชื่อใน Requirement จึงยังไม่มี Alias
+     */
     aliases: {},
 
-    // ยังไม่ได้เพิ่ม Header Mapping ของ DF_FXU ใน Config ชุดนี้
+    /**
+     * Header ของ DF_FXU Report
+     * แบ่งกลุ่มตามหน้าที่ของ Script 3
+     */
     requiredHeaders: {
 
-      matchingKey: [],
+      /**
+       * Matching Key หลัก
+       *
+       * Test Data:
+       * Transaction ID/ Reconcile ID
+       *
+       * DF_FXU Report:
+       * Arrangement Number
+       */
+      matchingKey: [
+        "Arrangement Number",
+      ],
 
-      core: [],
+      /**
+       * Core Field
+       *
+       * Data Set Date:
+       * - ตรวจเทียบกับ Txn Date
+       * - ใช้เป็นข้อมูลสนับสนุนการจับคู่
+       *
+       * USD Equivalent Amount:
+       * - ตรวจเทียบกับ Settled Amount (CCY)
+       * - ใช้ตรวจ Threshold 1,000,000 USD
+       *
+       * Arrangement Type:
+       * - Requirement กำหนดค่า 018101
+       *
+       * Leg Type:
+       * - รองรับ 182001 และ 182002
+       *
+       * Leg Type Name:
+       * - ต้องสัมพันธ์กับ Leg Type
+       */
+      core: [
+        "Data Set Date",
+        "USD Equivalent Amount",
+        "Arrangement Type",
+        "Leg Type",
+        "Leg Type Name",
+      ],
 
+      /**
+       * Requirement ยังไม่ได้กำหนด Customer Field
+       * ที่ใช้ตัดสิน PASS หรือ FAIL สำหรับ DF_FXU
+       */
       customer: [],
 
+      /**
+       * ไม่มี Conditional Field ฝั่ง DF_FXU Report
+       * ที่ระบุชื่อ Header ชัดเจนใน Requirement
+       *
+       * Payment Intermediary และ Return/Reversal
+       * จะประเมินจากข้อมูลใน Test Data ภายใน Business Rule
+       */
       conditions: [],
 
-      reference: [],
+      /**
+       * Reference Field
+       *
+       * เป็นข้อมูลประกอบที่แสดงใน Report
+       * แต่ Requirement ยังไม่ได้กำหนดวิธีนำค่ามา
+       * เปรียบเทียบเพื่อใช้ตัดสิน PASS หรือ FAIL
+       *
+       * Fi Arrangement Type Name:
+       * - Script 2 ยังคงตรวจว่า Header ต้องมี
+       * - Script 3 ยังไม่นำค่ามาตัดสินจนกว่าจะมี Expected Value
+       */
+      reference: [
+        "DEPT CODE",
+        "Cust Code",
+        "CMF CODE",
+        "Cust Name",
+        "Fi Arrangement Type Name",
+        "Currency ID",
+        "Currency ID Name",
+        "Original Amount",
+      ],
 
     },
 

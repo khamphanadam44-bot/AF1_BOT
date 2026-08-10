@@ -10,16 +10,23 @@
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
+<<<<<<< HEAD
  * - DF_OLB
+=======
+>>>>>>> 9def6946be8f6da7b43a9674af58a59a711abced
  *
  * ตัวอย่าง:
  * npm run test:script3 -- report=DS_PTX
  * npm run test:script3 -- report=DS_FTX
  * npm run test:script3 -- report=DS_LTX
+<<<<<<< HEAD
  * npm run test:script3 -- report=DS_FTU
  * npm run test:script3 -- report=DF_FXU
  * npm run test:script3 -- report=DF_OLB
  * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB
+=======
+ * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU
+>>>>>>> 9def6946be8f6da7b43a9674af58a59a711abced
  * ============================================================================
  */
 
@@ -75,7 +82,24 @@ import {
   reconcileFtuReport,
 } from "../resources/AF1-resources/utils/reconcile/DS_FTU/ftu-reconcile";
 
-
+/**
+ * ============================================================
+ * DF_FXU
+ * ============================================================
+ *
+ * DF_FXU ใช้ fxu-reconcile.ts
+ * เป็นตัวควบคุมหลักของ Script 3
+ *
+ * Flow:
+ * - ตรวจ Presence Rule
+ * - Exact Matching
+ * - Fallback Matching
+ * - ตรวจ Core Fields
+ * - สร้าง DF_FXU Reconcile Result
+ */
+import {
+  reconcileFxuReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_FXU/fxu-reconcile";
 
 const SCRIPT_TIMEOUT =
   300000;
@@ -286,7 +310,7 @@ const runCompareByReport = async (
     return;
   }
 
-  if (
+    if (
     reportName ===
     "DS_FTU"
   ) {
@@ -330,6 +354,8 @@ const runCompareByReport = async (
   } 
 
   throw new Error(
+
+ 
     [
       `Script 3 ยังไม่รองรับ Report: ${reportName}`,
             "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU,DF_OLB",
