@@ -133,7 +133,14 @@ export const REPORT_CONFIG = {
 
     aliases: {},
 
-    requiredHeaders: [],
+    requiredHeaders: [
+      "Data Set Date",
+      "Arrangement Number",
+      "Arrangement Type",
+      "Fi Arrangement Type Name",
+      "Leg Type",
+      "Leg Type Name",
+      "USD Equivalent Amount",],
 
   },
 
