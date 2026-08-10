@@ -275,7 +275,43 @@ export const TESTDATA_CONFIG = {
       feeGroup: [],
     },
   },
+
+  // ====================================================
+// DF_FXU
+// ====================================================
+DF_FXU: {
+  headerRowNumber: 5,
+
+    requiredHeaders: {
+    matchingKey: [
+      "Transaction ID/ Reconcile ID",
+    ],
+
+      core: [
+        "From Currency (CCY)",
+        "To Currency (CCY)",
+        "Settled Currency (CCY)",
+        "Settled Amount (CCY)",
+        "Txn Date",
+        "From Customer Type Code",
+        "From Customer Type Description",
+      ],
+
+        customer: [],
+
+          conditional: [],
+
+            reference: [
+              "Test No.",
+            ],
+
+              feeGroup: [],
+    },
+},
+
 } as const;
+
+
 
 /**
  * Report Code ที่รองรับใน Test Data Config

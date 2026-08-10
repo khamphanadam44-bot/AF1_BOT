@@ -9,12 +9,13 @@
  * - DS_PTX
  * - DS_FTX
  * - DS_FTU
+ * - DF_FXU
  *
  * ตัวอย่าง:
  * npm run test:script3 -- report=DS_PTX
  * npm run test:script3 -- report=DS_FTX
  * npm run test:script3 -- report=DS_LTX
- * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU
+ * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU
  * ============================================================================
  */
 
@@ -71,6 +72,25 @@ import {
 import {
   reconcileFtuReport,
 } from "../resources/AF1-resources/utils/reconcile/DS_FTU/ftu-reconcile";
+
+/**
+ * ============================================================
+ * DF_FXU
+ * ============================================================
+ *
+ * DF_FXU ใช้ fxu-reconcile.ts
+ * เป็นตัวควบคุมหลักของ Script 3
+ *
+ * Flow:
+ * - ตรวจ Presence Rule
+ * - Exact Matching
+ * - Fallback Matching
+ * - ตรวจ Core Fields
+ * - สร้าง DF_FXU Reconcile Result
+ */
+import {
+  reconcileFxuReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_FXU/fxu-reconcile";
 
 const SCRIPT_TIMEOUT =
   300000;
@@ -194,6 +214,39 @@ const runDsFtuCompare = async (
 };
 
 /**
+ * ทำงานสำหรับ DF_FXU
+ */
+const runDfFxuCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ DF_FXU
+   * จาก AF1 Share Path
+   *
+   * ตัวอย่าง Folder:
+   * AF1_SHAREPATH/DF_FXU
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
+  /**
+   * เรียก DF_FXU Reconcile Service
+   *
+   * ภายใน Service จะ:
+   * 1. หา Checked DF_FXU Report ล่าสุด
+   * 2. อ่าน Test Data
+   * 3. ทำ Exact/Fallback Matching
+   * 4. ตรวจ Core Fields
+   * 5. เขียน Reconcile Result
+   */
+  await reconcileFxuReport(
+    testDataFilePath,
+  );
+};
+
+/**
  * เลือก Logic ตาม Report
  */
 const runCompareByReport = async (
@@ -232,7 +285,7 @@ const runCompareByReport = async (
     return;
   }
 
-  if (
+    if (
     reportName ===
     "DS_FTU"
   ) {
@@ -243,10 +296,29 @@ const runCompareByReport = async (
     return;
   }
 
+  /**
+   * DF_FXU:
+   *
+   * FX Trading Transaction
+   * Under 1,000,000 USD Summary
+   */
+  if (
+    reportName ===
+    "DF_FXU"
+  ) {
+    await runDfFxuCompare(
+      reportName,
+    );
+
+    return;
+  }
+
   throw new Error(
+
+ 
     [
       `Script 3 ยังไม่รองรับ Report: ${reportName}`,
-      "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU",
+            "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU",
     ].join(
       "\n",
     ),

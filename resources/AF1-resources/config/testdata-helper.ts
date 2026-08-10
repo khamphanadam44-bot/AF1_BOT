@@ -12,7 +12,7 @@
  * DS_PTX และ DS_LTX:
  * - ตรวจจับจำนวน Fee Group จาก Header ใน Test Data
  *
- * DS_FTX และ DS_FTU:
+ * DS_FTX, DS_FTU และ DF_FXU:
  * - ไม่มีการตรวจ Fee Group
  * - คืนจำนวน Fee Group เป็น 0
  * ------------------------------------------------------------
@@ -34,6 +34,7 @@ import type {
  * DS_LTX → TESTDATA_CONFIG.DS_LTX
  * DS_FTX → TESTDATA_CONFIG.DS_FTX
  * DS_FTU → TESTDATA_CONFIG.DS_FTU
+ * DF_FXU → TESTDATA_CONFIG.DF_FXU
  */
 const getTestDataReportConfig = (
   reportCode: TestDataReportCode,
@@ -87,7 +88,7 @@ export function getRequiredTestDataHeaders(
    * DS_PTX และ DS_LTX:
    * feeGroup เป็นฟังก์ชันสำหรับสร้าง Header
    *
-   * DS_FTX และ DS_FTU:
+   * DS_FTX, DS_FTU และ DF_FXU:
    * feeGroup เป็น Array ว่าง
    */
   const feeHeaders =
@@ -276,7 +277,7 @@ export function detectFeeTypeCount(
  * DS_PTX และ DS_LTX:
  * - ตรวจจำนวนจาก Header ใน Test Data จริง
  *
- * DS_FTX และ DS_FTU:
+ * DS_FTX, DS_FTU และ DF_FXU:
  * - ไม่มี Fee Group
  * - คืนค่า 0 เสมอ
  */
@@ -296,6 +297,7 @@ export function getFeeTypeCount(
    * ปัจจุบันคือ:
    * - DS_FTX
    * - DS_FTU
+   * - DF_FXU
    */
   if (
     typeof reportConfig.requiredHeaders.feeGroup !==
