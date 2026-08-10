@@ -143,7 +143,22 @@ export const REPORT_CONFIG = {
 
     aliases: {},
 
-    requiredHeaders: [],
+    requiredHeaders: [
+      "Data Set Date",
+      "FI Arrangement Number",
+      "Cust Code",
+      "CMF CODE",
+      "Cust Name",
+      "Arrangement Contract Date",
+      "Effective Date",
+      "Maturity Date",
+      "Primary Involved Party Name",
+      "Currency Id",
+      "Currency Id Name",
+      "THB Outstanding Amount",
+      "Transaction Objective Type",
+      "Transaction Objective Type Name"
+    ],
 
   },
 
