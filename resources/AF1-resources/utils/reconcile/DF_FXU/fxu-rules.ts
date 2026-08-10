@@ -623,9 +623,49 @@ export class FxuRuleEvaluator {
           false,
       };
     }
-
     /**
-     * เป็น FX Conversion และยอดต่ำกว่า 1,000,000 USD
+     * Cross Currency และยอดต่ำกว่า 1,000,000 USD
+     *
+     * Requirement ระบุว่าต้องใช้ Settlement Currency
+     * และ Payment Intermediary เช่น NIUM
+     * ช่วยตัดสินว่าใครเป็นผู้ทำ FX Conversion
+     *
+     * ขณะนี้ยังไม่มี Use Case ที่ยืนยันครบถ้วน
+     * จึงยังไม่สามารถตัดสินว่ารายการ
+     * ต้องพบหรือไม่ต้องพบใน DF_FXU
+     */
+    if (
+      direction ===
+      "CROSS_CURRENCY"
+    ) {
+      return {
+        direction,
+        expectation:
+          "CANNOT_DECIDE",
+
+        usdEquivalentAmount,
+
+        expectedLegType,
+        expectedLegTypeName,
+
+        validationErrors: [],
+
+        passRemark:
+          "",
+
+        failRemark:
+          "Cross Currency: ยังไม่สามารถตัดสินได้ เนื่องจาก " +
+          "Requirement ของ Settlement Currency และ " +
+          "Payment Intermediary เช่น NIUM ยังไม่ครบถ้วน",
+
+        requiresReview:
+          true,
+      };
+    }
+    /**
+    /**
+     * เป็น FX Conversion ที่มีขา THB
+     * และยอดต่ำกว่า 1,000,000 USD
      * จึงต้องพบใน DF_FXU
      */
     return {
@@ -653,12 +693,13 @@ export class FxuRuleEvaluator {
         `${formatAmount(FXU_USD_THRESHOLD)} USD`,
 
       /**
-       * CROSS_CURRENCY ยังไม่สามารถระบุ Leg Type ได้
-       * เพราะต้องใช้ Settlement/Intermediary Use Case เพิ่มเติม
+       * Cross Currency ถูกแยกไปตัดสินก่อนหน้านี้แล้ว
+       *
+       * จุดนี้เหลือเฉพาะ FX Conversion ที่มีขา THB
+       * และสามารถตัดสิน Leg Type ได้
        */
       requiresReview:
-        direction ===
-        "CROSS_CURRENCY",
+        false,
     };
   }
 }

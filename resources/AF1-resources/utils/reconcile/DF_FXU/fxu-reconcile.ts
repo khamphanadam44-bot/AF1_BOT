@@ -1246,17 +1246,19 @@ export class FxuReconcileService {
         }
 
         /**
+                /**
+                /**
          * Cross Currency:
          *
          * Source Currency และ Destination Currency ต่างกัน
          * แต่ไม่มีขา THB
          *
-         * Requirement ระบุว่าต้องพิจารณา
-         * Settlement และ Intermediary เช่น NIUM
+         * Requirement ระบุว่าต้องใช้ Settlement Currency
+         * และ Payment Intermediary เช่น NIUM
+         * ช่วยตัดสินว่าใครเป็นผู้ทำ FX Conversion
          *
-         * ขณะนี้ยังไม่มี Field และ Logic ครบ
-         * จึงให้รายการต้องมีตาม Amount Rule ก่อน
-         * พร้อม Flag ให้ Review เพิ่มเติม
+         * ขณะนี้ Requirement ยังไม่มี Use Case ที่ยืนยัน
+         * จึงห้ามสรุปว่ารายการต้องพบหรือไม่ต้องพบใน DF_FXU
          */
         if (
             direction ===
@@ -1266,10 +1268,12 @@ export class FxuReconcileService {
                 direction,
 
                 expectation:
-                    "MUST_EXIST",
+                    "CANNOT_DECIDE",
 
                 reasons: [
-                    "Cross Currency: รอตรวจ Settlement/Intermediary Rule เพิ่มเติม",
+                    "Cross Currency: ยังไม่สามารถตัดสินได้ เนื่องจาก " +
+                    "Requirement ของ Settlement Currency และ " +
+                    "Payment Intermediary เช่น NIUM ยังไม่ครบถ้วน",
                 ],
 
                 requiresReview:
@@ -1277,6 +1281,7 @@ export class FxuReconcileService {
             };
         }
 
+        
         /**
          * BUY_FCY หรือ SELL_FCY
          * และ Amount ต่ำกว่า 1,000,000 USD
