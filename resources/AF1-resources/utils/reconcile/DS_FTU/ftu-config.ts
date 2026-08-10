@@ -24,12 +24,26 @@ export const FTU_TEST_DATA_HEADER_ROW =
   getReportRuntimeConfig(FTU_REPORT_CODE).testDataHeaderRowNumber;
 
 export const FTU_THB_CURRENCY_CODE = "THB";
+export const FTU_USD_CURRENCY_CODE = "USD";
 export const FTU_USD_THRESHOLD = 50_000;
+export const FTU_AMOUNT_TOLERANCE = 0.01;
+export const FTU_COUNTRY_CODE_LENGTH = 2;
+export const FTU_AMOUNT_THRESHOLD_LABEL = "FTU Amount Threshold";
+
+export const FTU_DIRECTIONS = {
+  buyForeignCurrency: "BUY_FCY",
+  sellForeignCurrency: "SELL_FCY",
+  unknown: "UNKNOWN_DIRECTION",
+  noThbLeg: "NO_THB_LEG",
+} as const;
+
+export type FtuDirection =
+  (typeof FTU_DIRECTIONS)[keyof typeof FTU_DIRECTIONS];
 
 export const FTU_LEG_TYPES = {
   buyForeignCurrency: "182001",
   sellForeignCurrency: "182002",
-};
+} as const;
 
 export const FTU_REPORT_FIELDS = {
   arrangementNumber: "Arr Number",
@@ -40,7 +54,7 @@ export const FTU_REPORT_FIELDS = {
   legType: "Leg Type",
   beneficiaryCountry: "Country Id of Beneficiary Involved Party",
   foreignCurrencyAmount: "Foreign Currency Amount",
-};
+} as const;
 
 export const FTU_TEST_DATA_FIELDS = {
   testNo: "Test No.",
@@ -53,33 +67,37 @@ export const FTU_TEST_DATA_FIELDS = {
   settledCurrency: "Settled Currency (CCY)",
 };
 
+export const FTU_REQUIRED_TEST_DATA_HEADERS = [
+  FTU_TEST_DATA_FIELDS.testNo,
+  FTU_TEST_DATA_FIELDS.transactionId,
+  FTU_TEST_DATA_FIELDS.transactionDate,
+  FTU_TEST_DATA_FIELDS.fromCurrency,
+  FTU_TEST_DATA_FIELDS.toCurrency,
+  FTU_TEST_DATA_FIELDS.purposeCode,
+  FTU_TEST_DATA_FIELDS.settledCurrency,
+  FTU_TEST_DATA_FIELDS.settledAmount,
+] as const;
+
 export const FTU_REMARKS = {
   buyForeignCurrency: "Buy Foreign Currency — ต้องพบใน DS_FTU",
   sellForeignCurrency: "Sell Foreign Currency — ต้องพบใน DS_FTU",
-   /** แสดงเมื่อมีอย่างน้อยหนึ่ง Field ที่ต้อง Review */
+  /** แสดงเมื่อมีอย่างน้อยหนึ่ง Field ที่ต้อง Review */
   pleaseReview: "Please review",
   noThbLegExpectedAbsence: "ธุรกรรมไม่มีขา THB — ไม่ควรพบใน DS_FTU",
   noThbLegUnexpectedPresence: "ธุรกรรมไม่มีขา THB แต่พบใน DS_FTU โดยไม่ควรพบ",
+  fallbackDirectionUnavailable:
+    "Fallback Matching ทำไม่ได้ เพราะ From/To Currency ไม่ครบ",
+  expectedAbsenceVerificationUnavailable:
+    "ไม่สามารถยืนยัน Expected Absence ด้วย Fallback ได้ครบถ้วน",
+  expectedAbsenceReportNotFound: "ไม่พบรายการใน Report ตามที่คาดหวัง",
+  noThbLegReportNotFound: "ไม่พบรายการใน DS_FTU ตามที่คาดหวัง",
+} as const;
 
-  thresholdExpectedAbsence: (usdAmount: number) =>
-    `มูลค่า ${usdAmount.toLocaleString("en-US", {
-      maximumFractionDigits: 2,
-    })} USD >= 50,000 USD — ไม่ควรพบใน DS_FTU`,
-
-  thresholdUnexpectedPresence: (usdAmount: number) =>
-    `มูลค่า ${usdAmount.toLocaleString("en-US", {
-      maximumFractionDigits: 2,
-    })} USD >= 50,000 USD แต่พบใน DS_FTU โดยไม่ควรพบ`,
-};
 /**
- * TODO: FTX Exception
- *
- * Requirement ยังมีเงื่อนไขที่ต้องตรวจร่วมกับ DS_FTX
- * แต่ Field และ Logic ยังไม่ครบถ้วน
- * จึงยังไม่เปิดใช้งาน Rule นี้
-  
-  ftxExceptionExpectedAbsence: (reason: string) =>
-    `เข้าเงื่อนไข FTX Exception (${reason}) — ไม่ควรพบใน DS_FTU`,
-  ftxExceptionUnexpectedPresence: (reason: string) =>
-    `เข้าเงื่อนไข FTX Exception (${reason}) แต่พบใน DS_FTU โดยไม่ควรพบ`,
-  */
+ * Normalize ที่เป็นกติกาเฉพาะของ DS_FTU
+ * ใช้ร่วมกันระหว่าง Matcher และ Analyzer
+ */
+export const normalizeFtuText = (value: unknown): string =>
+  String(value ?? "")
+    .trim()
+    .toUpperCase();

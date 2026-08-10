@@ -1,33 +1,15 @@
 /**
- * olb-parse.util.ts
+ * Utility กลางสำหรับแปลงค่าที่ใช้ใน Reconcile หลาย Report
  * ------------------------------------------------------------------
- * ฟังก์ชัน Normalize สำหรับ DF_OLB
- * - Text/Identifier
+ * รวม Logic ที่ DS_LTX, DS_FTU และ DF_OLB ใช้เหมือนกัน
+ * เพื่อไม่ให้เกิด Copy-Paste:
  * - Amount
  * - Date
- * - วันที่ YYMMDD ที่ฝังอยู่ใน FI Arrangement Number ตำแหน่ง 7-12
+ * - วันที่ YYMMDD ที่ฝังใน Arrangement Number ตำแหน่ง 7-12
+ *
+ * ไฟล์นี้ทำเฉพาะการแปลงค่า ไม่เก็บ Business Rule ของ Report ใด Report หนึ่ง
  * ------------------------------------------------------------------
  */
-
-/** Normalize ข้อความทั่วไปสำหรับเปรียบเทียบแบบไม่สนตัวพิมพ์และช่องว่างซ้ำ */
-export const normalizeText = (value: unknown): string =>
-  String(value ?? "")
-    .replace(/\u00A0/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase();
-
-/** Normalize รหัสตัวเลข เช่น CIF โดยตัดเลขศูนย์นำหน้า */
-export const normalizeId = (value: unknown): string => {
-  const normalized = normalizeText(value);
-
-  if (!/^\d+$/.test(normalized)) {
-    return normalized;
-  }
-
-  const withoutLeadingZero = normalized.replace(/^0+(?=\d)/, "");
-  return withoutLeadingZero === "" ? "0" : withoutLeadingZero;
-};
 
 /** แปลง Amount เป็น number โดยไม่สน comma; ว่าง/ไม่ใช่ตัวเลขคืน null */
 export const parseAmount = (value: unknown): number | null => {
@@ -60,9 +42,16 @@ const createUtcDate = (
 };
 
 /**
- * อ่านวันที่จากรูปแบบที่ใช้ใน Test Data/AF1
- * รองรับ dd/MM/yyyy, dd-MM-yyyy, yyyy/MM/dd, yyyy-MM-dd
- * และ Date string ที่ ExcelJS แปลงมาจาก Date Object
+ * อ่านวันที่จาก Test Data/AF1
+ * รองรับเฉพาะ:
+ * - Date Object ที่ ExcelJS อ่านจาก Cell รูปแบบวันที่
+ * - dd/MM/yyyy
+ * - dd-MM-yyyy
+ * - yyyy/MM/dd
+ * - yyyy-MM-dd
+ *
+ * ไม่ใช้ Date.parse() เพราะอาจตีความข้อความวันที่ตาม Runtime/Timezone
+ * ไม่เหมือนกันในแต่ละเครื่อง
  */
 export const parseDate = (value: unknown): Date | null => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -98,22 +87,10 @@ export const parseDate = (value: unknown): Date | null => {
     );
   }
 
-  const parsedTimestamp = Date.parse(text);
-
-  if (Number.isNaN(parsedTimestamp)) {
-    return null;
-  }
-
-  const parsedDate = new Date(parsedTimestamp);
-
-  return createUtcDate(
-    parsedDate.getFullYear(),
-    parsedDate.getMonth() + 1,
-    parsedDate.getDate(),
-  );
+  return null;
 };
 
-/** อ่านวันที่ตำแหน่ง 7-12 ของ FI Arrangement Number ในรูปแบบ YYMMDD */
+/** อ่านวันที่ตำแหน่ง 7-12 ของ Arrangement Number ในรูปแบบ YYMMDD */
 export const extractDateFromArrangementNumber = (
   arrangementNumber: unknown,
 ): Date | null => {
@@ -142,6 +119,33 @@ export const isSameDate = (left: Date, right: Date): boolean =>
   left.getUTCMonth() === right.getUTCMonth() &&
   left.getUTCDate() === right.getUTCDate();
 
+/**
+ * เปรียบเทียบวันที่ตามลำดับกลางของ LTX, FTU และ OLB
+ * 1. เทียบกับ Date Field ของ Report
+ * 2. ถ้าไม่ตรง ให้เทียบวันที่ YYMMDD ตำแหน่ง 7-12 ของ Arrangement/Reference Number
+ *
+ * ผู้เรียกเป็นผู้เลือก Column และตัดสินผล PASS/FAIL/REVIEW ของ Report เอง
+ */
+export const isDateMatchWithArrangementFallback = (
+  expectedDate: Date,
+  reportDateValue: unknown,
+  arrangementNumber: unknown,
+): boolean => {
+  const reportDate = parseDate(reportDateValue);
+
+  if (reportDate && isSameDate(expectedDate, reportDate)) {
+    return true;
+  }
+
+  const arrangementDate =
+    extractDateFromArrangementNumber(arrangementNumber);
+
+  return Boolean(
+    arrangementDate && isSameDate(expectedDate, arrangementDate),
+  );
+};
+
+/** แปลง Date เป็น YYYY-MM-DD สำหรับ Remark */
 export const formatDate = (value: Date | null): string => {
   if (!value) {
     return "Invalid date";
