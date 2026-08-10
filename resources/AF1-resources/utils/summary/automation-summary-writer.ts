@@ -128,8 +128,31 @@ const SUMMARY_REPORT_CONFIG: Record<
    * - Column J เป็นช่องว่างคั่นกลาง
    * - Column K เป็นต้นไปเป็นข้อมูล Test Data
    */
+    /**
+   * ====================================================
+   * DF_FXU
+   * ====================================================
+   *
+   * DF_FXU ไม่มี Fee Group
+   * และไม่มีการรวม Test Data หลายแถว
+   *
+   * โครงสร้าง Summary Template:
+   *
+   * - Column B-C:
+   *   ผลการตรวจสอบและเหตุผล
+   *
+   * - Column D-J:
+   *   ข้อมูลจาก DF_FXU Reconcile
+   *
+   * - Column K:
+   *   ช่องว่างคั่นกลาง
+   *
+   * - Column L-T:
+   *   ข้อมูลจาก Test Data
+   */
   DF_FXU: {
-    reportCode: "DF_FXU",
+    reportCode:
+      "DF_FXU",
 
     summarySheetName:
       "DF_FXU_Summary Result",
@@ -150,25 +173,29 @@ const SUMMARY_REPORT_CONFIG: Record<
       false,
 
     /**
-     * Column สุดท้ายของข้อมูลฝั่ง Reconcile คือ Column I
+     * Column สุดท้ายของข้อมูล
+     * ฝั่ง Reconcile คือ Column J
      */
     compareLastColumn:
-      9,
+      10,
 
     /**
-     * ข้อมูล Test Data เริ่มที่ Column K
+     * ข้อมูล Test Data
+     * เริ่มที่ Column L
      */
     testDataFirstColumn:
-      11,
+      12,
 
     /**
-     * Test Case ของ DF_FXU แสดงแยกหนึ่งแถวต่อหนึ่งรายการ
+     * Test Case ของ DF_FXU
+     * แสดงแยกหนึ่งแถวต่อหนึ่งรายการ
      */
     mergeRepeatedTestDataRows:
       false,
 
     /**
-     * ชื่อ Worksheet ที่รองรับจากไฟล์ Export จริง
+     * ชื่อ Worksheet ที่รองรับ
+     * จากไฟล์ Export จริง
      */
     reportSourceSheetNames: [
       "DF_FXU Transaction",
@@ -955,9 +982,16 @@ const applyStatusStyle = (cell: ExcelJS.Cell, status: SummaryStatus): void => {
 };
 
 const getCompareValue = (
-  header: string,
-  compareRow: CompareResultRow,
+  header:
+    string,
+
+  compareRow:
+    CompareResultRow,
+
+  config:
+    SummaryReportConfig,
 ): unknown => {
+
   const normalized = normalizeHeader(header);
 
   if (normalized === "test result") {
@@ -969,7 +1003,35 @@ const getCompareValue = (
       return compareRow.remark;
     }
 
-    if (compareRow.status === "PASS") {
+        if (
+      compareRow.status ===
+      "PASS"
+    ) {
+      /**
+       * DF_FXU:
+       *
+       * PASS ปกติไม่ต้องแสดง Reason
+       *
+       * PASS ที่ต้องแสดงเหตุผล เช่น:
+       * - วันที่ไม่ตรงกับ Data Set Date
+       *   แต่ตรงกับวันที่ใน Ref
+       *
+       * - รายการไม่ต้องรายงานใน DF_FXU
+       *
+       * กรณีเหล่านี้จะมีค่าอยู่ใน
+       * compareRow.remark และถูก Return
+       * ก่อนเข้ามาถึงเงื่อนไขนี้แล้ว
+       */
+      if (
+        config.reportCode ===
+        "DF_FXU"
+      ) {
+        return "";
+      }
+
+      /**
+       * Report อื่นยังใช้พฤติกรรมเดิม
+       */
       return "Validation passed.";
     }
 
@@ -1003,6 +1065,19 @@ const getCompareValue = (
 };
 
 const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
+    /**
+   * DF_FXU Template ใหม่ใช้ Test No.
+   *
+   * ยังคงรองรับ Test Script No.
+   * ของ Template Report เดิม
+   */
+  "test no.": [
+    "Test No.",
+    "Test No",
+    "Test Script No.",
+    "Test Script No",
+  ],
+
   "test script no.": [
     "Test No.",
     "Test No",
@@ -1015,6 +1090,21 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "Test Scenario",
   ],
   "txn date": ["Txn Date", "Transaction Date"],
+    /**
+   * รองรับทั้งรูปแบบที่มีและไม่มีช่องว่าง
+   * ก่อนเครื่องหมาย /
+   */
+  "transaction id/ reconcile id": [
+    "Transaction ID/ Reconcile ID",
+    "Transaction ID / Reconcile ID",
+    "Reference Transaction Number",
+  ],
+
+  "transaction id / reconcile id": [
+    "Transaction ID/ Reconcile ID",
+    "Transaction ID / Reconcile ID",
+    "Reference Transaction Number",
+  ],
   "reference transaction number": [
     "Transaction ID/ Reconcile ID",
     "Transaction ID / Reconcile ID",
@@ -1030,6 +1120,17 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "From Account (A/C Client/Sender)",
   ],
   "from currency (ccy)": ["From Currency (CCY)"],
+    "to currency (ccy)": [
+    "To Currency (CCY)",
+  ],
+  
+  "from customer type code": [
+    "From Customer Type Code",
+  ],
+
+  "from customer type description": [
+    "From Customer Type Description",
+  ],
   "from debit amount": ["From Debit Amount", "From Debit Amount "],
   "from transfer amount": ["From Transfer Amount"],
   "from customer (resident/non resident)": [
@@ -1534,23 +1635,82 @@ const ensureDynamicFeeColumns = (
   titleCell.style = titleStyle;
 };
 
-const findTemplateHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
-  const maxRowToCheck = Math.min(30, worksheet.rowCount);
+/**
+ * ค้นหาแถว Header ของ Summary Details
+ *
+ * Header ที่ใช้ยืนยัน:
+ * - Test Result
+ * - Reason
+ * - Test No. หรือ Test Script No.
+ *
+ * DF_FXU Template ใหม่ใช้ Test No.
+ * ส่วน Template ของ Report เดิมบางตัว
+ * ยังใช้ Test Script No.
+ *
+ * จึงต้องรองรับทั้งสองรูปแบบ
+ * เพื่อไม่ให้กระทบ Report อื่น
+ */
+const findTemplateHeaderRowNumber = (
+  worksheet:
+    ExcelJS.Worksheet,
+): number => {
+  const maxRowToCheck =
+    Math.min(
+      30,
+      worksheet.rowCount,
+    );
 
-  for (let rowNumber = 1; rowNumber <= maxRowToCheck; rowNumber += 1) {
-    const headerMap = buildHeaderMap(worksheet, rowNumber);
+  for (
+    let rowNumber = 1;
+    rowNumber <= maxRowToCheck;
+    rowNumber += 1
+  ) {
+    const headerMap =
+      buildHeaderMap(
+        worksheet,
+        rowNumber,
+      );
+
+    /**
+     * รองรับชื่อ Header:
+     *
+     * - Test No.
+     * - Test No
+     * - Test Script No.
+     * - Test Script No
+     */
+    const hasTestNumberHeader =
+      headerMap.has(
+        "test no.",
+      ) ||
+      headerMap.has(
+        "test no",
+      ) ||
+      headerMap.has(
+        "test script no.",
+      ) ||
+      headerMap.has(
+        "test script no",
+      );
 
     if (
-      headerMap.has("test result") &&
-      headerMap.has("reason") &&
-      headerMap.has("test script no.")
+      headerMap.has(
+        "test result",
+      ) &&
+      headerMap.has(
+        "reason",
+      ) &&
+      hasTestNumberHeader
     ) {
       return rowNumber;
     }
   }
 
   throw new Error(
-    `Summary detail header row not found in worksheet: ${worksheet.name}`,
+    `Summary detail header row not found in worksheet: ` +
+    `${worksheet.name}. Required headers: ` +
+    `"Test Result", "Reason", and either ` +
+    `"Test No." or "Test Script No.".`,
   );
 };
 /** Merge ฝั่ง Test Data เมื่อ LTX หลาย Reconcile Row ใช้ Test Data แถวเดียวกัน */
@@ -1702,10 +1862,12 @@ export const writeReportAutomationSummary = async (
       const outputCell = outputRow.getCell(columnNumber);
 
       if (columnNumber <= config.compareLastColumn) {
-        outputCell.value = getCompareValue(
-          header,
-          compareRow,
-        ) as ExcelJS.CellValue;
+                outputCell.value =
+          getCompareValue(
+            header,
+            compareRow,
+            config,
+          ) as ExcelJS.CellValue;
       } else if (columnNumber >= config.testDataFirstColumn) {
         outputCell.value = getTestDataValue(
           header,
