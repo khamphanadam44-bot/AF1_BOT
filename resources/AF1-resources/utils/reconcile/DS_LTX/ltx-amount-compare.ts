@@ -1,7 +1,8 @@
 /**
  * AmountComparator
  * ------------------------------------------------------------------
- * เปรียบเทียบตัวเลขแบบมี tolerance ตาม Requirement: abs(expected - actual) <= 0.01
+ * แปลง รวม และเปรียบเทียบ Amount
+ * โดยใช้ DEFAULT_AMOUNT_TOLERANCE จาก ltx-config
  * ------------------------------------------------------------------
  */
 import { DEFAULT_AMOUNT_TOLERANCE } from "./ltx-config";
@@ -24,7 +25,10 @@ export class AmountComparator {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
-  /** รวมยอดจาก array ของ string (ใช้กับ Fee Amount Type 1-5) ข้ามค่าที่แปลงไม่ได้ */
+ /**
+ * รวมยอด Fee Amount ทุกกลุ่มที่ Builder ตรวจพบจาก Header
+ * โดยข้ามค่าที่ว่างหรือแปลงเป็นตัวเลขไม่ได้
+ */
   sum(values: string[]): number {
     return values.reduce((total, value) => {
       const parsed = this.parse(value);

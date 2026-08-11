@@ -6,11 +6,25 @@
  * ใช้ร่วมกันทั้ง CoreFieldValidator และ ConditionalFieldValidator
  * ------------------------------------------------------------------
  */
-import { ReconcileFieldRule } from "./ltx-config";
+import type { ReconcileFieldRule } from "./ltx-config";
 import { AmountComparator } from "./ltx-amount-compare";
 import { ReconcileRecord } from "../shared/record";
 import { formatCompareRemark, formatFixedValueRemark } from "../shared/remark";
-import { FieldCheckResult, ReconcileStatus } from "./ltx-types";
+import {
+  isDateMatchWithArrangementFallback,
+  parseDate,
+} from "../shared/reconcile-parse.util";
+
+/** สถานะผลเปรียบเทียบของ Field หนึ่งรายการ */
+export type ReconcileStatus = "PASS" | "FAIL" | "REVIEW";
+
+/** ผลเปรียบเทียบ Field หนึ่งรายการของคู่ Test Data และ AF1 Report */
+export interface FieldCheckResult {
+  fieldHeader: string;
+  isMatch: boolean;
+  status: ReconcileStatus;
+  remark: string;
+}
 
 export class FieldComparer {
   constructor(
@@ -40,7 +54,7 @@ export class FieldComparer {
    * Format ตาม Requirement:
    *   [TS] : <TestDataField> = "<value>" | [AF1-<ReportLabel>] : <ReportField> = "<value>"
    *
-   
+
    */
   private buildReviewRemark(
     reportCode: string,
@@ -137,29 +151,20 @@ export class FieldComparer {
     expected: string,
     actual: string,
   ): FieldCheckResult {
-    // รอบที่ 1: เปรียบเทียบแบบตรง ๆ ก่อน ถ้าตรงกัน = Pass ทันที
-    if (actual.trim() !== "" && actual.trim() === expected.trim()) {
+    const expectedDate = parseDate(expected);
+    const referenceNumber = reportRecord.get(
+      "Reference Transaction Number",
+    );
+
+    if (
+      expectedDate &&
+      isDateMatchWithArrangementFallback(
+        expectedDate,
+        actual,
+        referenceNumber,
+      )
+    ) {
       return this.toFieldCheckResult(rule.reportField, "PASS", "");
-    }
-
-    // รอบที่ 2: ถ้าไม่ตรง ไปดึง Reference Transaction Number ของ Report แถวนั้นมาดู
-    // ตัวอย่างค่า: "KMA3012511270000000030506DR"
-    const refTxnNo = reportRecord.get("Reference Transaction Number");
-
-    if (refTxnNo && refTxnNo.length >= 12) {
-      // ดึงตำแหน่งที่ 7-12 (index เริ่มนับที่ 0 จึงตัดตั้งแต่ 6 ถึง 12)
-      const datePart = refTxnNo.substring(6, 12); // เช่น "251127"
-
-      const yy = datePart.substring(0, 2);
-      const mm = datePart.substring(2, 4);
-      const dd = datePart.substring(4, 6);
-
-      // ประกอบใหม่เป็น Format: dd/mm/yyyy -> "27/11/2025"
-      const extractedDate = `${dd}/${mm}/20${yy}`;
-
-      if (extractedDate === expected.trim()) {
-        return this.toFieldCheckResult(rule.reportField, "PASS", "");
-      }
     }
 
     // เทียบทั้ง 2 รอบแล้วยังไม่ตรง -> ต้องตรวจสอบเพิ่มเติม (REVIEW)
