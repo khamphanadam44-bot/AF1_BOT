@@ -6,7 +6,7 @@
  * หน้าที่ของไฟล์นี้
  *
  * ควบคุมลำดับงาน Export Report ตั้งแต่เปิดเมนู เลือก Report ใส่ช่วงวันที่ และดาวน์โหลดไฟล์
- * หลังดาวน์โหลดเสร็จจะอ่านทั้ง Report และ Test Data แล้วส่ง Path กับข้อมูลกลับไปให้ Script 1
+ * หลังดาวน์โหลดเสร็จจะอ่าน Report แล้วส่ง Path กับข้อมูลกลับไปให้ Script 1
  *
  * หมายเหตุ:
  * ไฟล์นี้อธิบายหน้าที่ของ Code เท่านั้น การแก้ Comment ไม่มีผลต่อการทำงานของระบบ
@@ -24,14 +24,10 @@ import {
   readExcel,
 } from "../utils/excel-reader";
 
-import {
-  testDataPath,
-} from "../setting/uat/setting";
 
 export type ExportResult = {
   savePath: string;
   reportData: unknown[];
-  testData: unknown[];
 };
 
 export class ExportFeature {
@@ -90,15 +86,10 @@ export class ExportFeature {
         savePath,
       );
 
-    const testData =
-      await readExcel(
-        testDataPath,
-      );
-
     return {
       savePath,
       reportData,
-      testData,
+     
     };
   }
 }

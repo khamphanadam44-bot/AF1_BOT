@@ -189,11 +189,54 @@ export const getTestDataResultBasename = (
 };
 
 /**
- * ไฟล์ Test Data ต้นฉบับ
+ * คืน Path โฟลเดอร์ Test Data ตามชื่อ Report
  *
- * ทุก Report ใช้ Test Data ไฟล์เดียวกัน
+ * โครงสร้าง:
+ * AF1_SHAREPATH/af1_test_data/<REPORT>
+ *
+ * ตัวอย่าง:
+ * AF1_SHAREPATH/af1_test_data/DS_PTX
+ * AF1_SHAREPATH/af1_test_data/DS_FTX
+ *
+ * ฟังก์ชันนี้สร้างเฉพาะ Path ของโฟลเดอร์
+ * ยังไม่ได้ค้นหาไฟล์ Excel ภายในโฟลเดอร์
  */
-export const TEST_DATA_INPUT_PATH = path.join(
-  "test_data",
-  "Test_Data_Downstream-for pilot.xlsx",
-);
+export const getTestDataInputDir = (
+  sharePath: string,
+  reportCode: string,
+): string => {
+  /**
+   * ตัดช่องว่างหน้าและหลังของ Share Path
+   */
+  const normalizedSharePath =
+    String(
+      sharePath ?? "",
+    ).trim();
+
+  /**
+   * ป้องกันกรณีไม่ได้กำหนด Share Path
+   */
+  if (
+    !normalizedSharePath
+  ) {
+    throw new Error(
+      "AF1_SHAREPATH is empty.",
+    );
+  }
+
+  /**
+   * สร้าง Path โดยใช้ชื่อ Report
+   * ที่รับเข้ามาจาก Terminal
+   *
+   * ไม่มีการ Hard code ชื่อ Report
+   */
+  return path.join(
+    normalizedSharePath,
+    "af1_test_data",
+    normalizeReportCode(
+      reportCode,
+    ),
+  );
+};
+
+

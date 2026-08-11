@@ -4,9 +4,14 @@
  * ------------------------------------------------------------
  */
 
+
 import {
-  TEST_DATA_INPUT_PATH,
+  getTestDataInputDir,
 } from "../../config/paths.config";
+
+import {
+  getSingleExcelFile,
+} from "../../utils/file-system.util";
 
 /**
  * อ่าน Environment Variable แบบบังคับ
@@ -79,30 +84,115 @@ export const dmsReportNames = [
 export type DmsReportName =
   (typeof dmsReportNames)[number];
 
+
 /**
  * Report เริ่มต้น
  *
  * ใช้เมื่อไม่ได้เลือก Report
  * ผ่าน Terminal
  */
-export const dmsReportName: {
-  reportname: DmsReportName;
-} = {
-  reportname: "DS_PTX", 
+/**
+ * รูปแบบช่วงวันที่ที่ใช้ Export Report
+ */
+export type ReportDateRange = {
+  readonly dateset: string;
+  readonly dateto: string;
 };
 
 /**
- * ช่วงวันที่สำหรับ Export Report
+ * ช่วงวันที่เริ่มต้นของ Report ทั่วไป
+ *
+ * Report ที่ไม่ได้กำหนดช่วงวันที่แยกไว้
+ * จะใช้ช่วงวันที่ชุดนี้
  */
-export const datereport = {
+export const datereport: ReportDateRange = {
   dateset: "25/11/2025",
   dateto: "27/11/2025",
 };
 
 /**
- * Path ของไฟล์ Test Data กลาง
+ * ช่วงวันที่เฉพาะของแต่ละ Report
  *
- * ทุก Report ใช้ Test Data ไฟล์เดียวกัน
+ * DF_FXM:
+ * ใช้ข้อมูลตั้งแต่วันที่ 26/02/2026
+ * ถึงวันที่ 27/02/2026 เท่านั้น
  */
-export const testDataPath =
-  TEST_DATA_INPUT_PATH;
+const REPORT_DATE_RANGE: Partial<
+  Record<
+    DmsReportName,
+    ReportDateRange
+  >
+> = {
+  DF_FXM: {
+    dateset: "26/02/2026",
+    dateto: "27/02/2026",
+  },
+};
+
+/**
+ * คืนช่วงวันที่สำหรับ Report ที่กำลัง Export
+ *
+ * ลำดับการเลือก:
+ * 1. ถ้า Report มีช่วงวันที่เฉพาะ ให้ใช้ช่วงวันที่นั้น
+ * 2. ถ้าไม่มี ให้ใช้ช่วงวันที่เริ่มต้นจาก datereport
+ *
+ * ตัวอย่าง:
+ * DF_FXM → 26/02/2026 ถึง 27/02/2026
+ * DF_FXU → ใช้ช่วงวันที่เริ่มต้น
+ */
+export const getReportDateRange = (
+  reportName: DmsReportName,
+): ReportDateRange => {
+  return (
+    REPORT_DATE_RANGE[
+      reportName
+    ] ??
+    datereport
+  );
+};
+
+  /**
+ * ค้นหา Test Data ตามชื่อ Report ที่กำลัง Run
+ *
+ * ขั้นตอน:
+ * 1. อ่าน AF1_SHAREPATH จากไฟล์ .env
+ * 2. สร้าง Path โฟลเดอร์ตามชื่อ Report
+ * 3. ค้นหาไฟล์ Excel เพียง 1 ไฟล์ในโฟลเดอร์
+ *
+ * ตัวอย่าง:
+ * report=DS_PTX
+ *
+ * ระบบจะค้นหาภายใน:
+ * AF1_SHAREPATH/af1_test_data/DS_PTX
+ *
+ * ชื่อไฟล์ Excel เป็นชื่ออะไรก็ได้
+ */
+export const getTestDataPath = (
+  reportCode: string,
+): string => {
+  /**
+   * อ่าน Share Path จากไฟล์ .env
+   */
+  const sharePath =
+    requireEnv(
+      "AF1_SHAREPATH",
+    );
+
+  /**
+   * สร้าง Path ของโฟลเดอร์ Test Data
+   * โดยใช้ชื่อ Report ที่ได้รับเข้ามา
+   */
+  const testDataDirectory =
+    getTestDataInputDir(
+      sharePath,
+      reportCode,
+    );
+
+  /**
+   * ค้นหา Excel เพียง 1 ไฟล์
+   * ภายในโฟลเดอร์ของ Report
+   */
+  return getSingleExcelFile(
+    testDataDirectory,
+  );
+};

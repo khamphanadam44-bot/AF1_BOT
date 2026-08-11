@@ -22,11 +22,17 @@
  * ------------------------------------------------------------------
  */
 
+import "dotenv/config";
+
 import path from "path";
 
 import {
   getSelectedReports,
 } from "../resources/AF1-resources/config/report-selection";
+
+import {
+  getTestDataPath,
+} from "../resources/AF1-resources/setting/uat/setting";
 
 import {
   createRunId,
@@ -35,17 +41,12 @@ import {
   getLatestCompareResultPath,
   getSummaryResultOutputPath,
   getSummaryTemplatePath,
-  ORIGINAL_TEST_DATA_PATH,
 } from "../resources/AF1-resources/utils/summary/summary-file-helper";
 
 import {
   readCompareResultRows,
   writeReportAutomationSummary,
 } from "../resources/AF1-resources/utils/summary/automation-summary-writer";
-
-import {
-  generateSummaryReport,
-} from "../resources/AF1-resources/utils/validators/summary/summary.service";
 
 /**
  * แปลงวันที่เป็นรูปแบบ yyyy-MM-dd
@@ -109,30 +110,20 @@ describe(
       it(
         `Create ${reportName} Automation Summary`,
         async () => {
-          /**
-           * DS_LTX และ DS_FTU มีรูปแบบ Reconcile Result และ Template
-           * ต่างจาก DS_PTX/DS_FTX จึงใช้ Summary Service ของ LTX
-           */
-          if (
-            reportName === "DS_LTX" ||
-            reportName === "DS_FTU"
-          ) {
-            const summaryResult =
-              await generateSummaryReport(
-                reportName,
-              );
-
-            console.log(
-              "Output File       :",
-              summaryResult.summaryFilePath,
-            );
-
-            return;
-          }
-
           const startedAt =
             new Date();
 
+          /**
+          * ค้นหา Original Test Data จาก Share Path
+          * ตามชื่อ Report ที่กำลังสร้าง Summary
+          *
+          * ภายในโฟลเดอร์ต้องมี Excel เพียง 1 ไฟล์
+          * โดยชื่อไฟล์เป็นชื่ออะไรก็ได้
+          */
+          const originalTestDataPath =
+            getTestDataPath(
+              reportName,
+            );
           /**
            * ขั้นตอนที่ 1:
            * หาไฟล์ต้นทางทั้งหมดที่ Script 4 ต้องใช้
@@ -163,8 +154,7 @@ describe(
             );
 
           /**
-           * ขั้นตอนที่ 2:
-           * อ่านผล Compare จาก Script 3
+           * ขั้นตอนที่ 2: อ่านผล Compare จาก Script 3
            */
           const compareRows =
             await readCompareResultRows(
@@ -212,7 +202,7 @@ describe(
             templatePath,
             outputPath,
             compareResultPath,
-            ORIGINAL_TEST_DATA_PATH,
+            originalTestDataPath,
             checkedReportPath,
             checkedTestDataPath,
             compareRows,
@@ -250,8 +240,7 @@ describe(
           );
 
           /**
-           * ขั้นตอนที่ 5:
-           * แสดงผลการทำงานใน Terminal
+           * ขั้นตอนที่ 5: แสดงผลการทำงานใน Terminal
            */
           console.log("");
           console.log(
@@ -277,7 +266,7 @@ describe(
           );
           console.log(
             "Original Test Data:",
-            ORIGINAL_TEST_DATA_PATH,
+            originalTestDataPath,
           );
           console.log(
             "Checked Report    :",

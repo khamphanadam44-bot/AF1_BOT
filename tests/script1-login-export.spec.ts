@@ -28,7 +28,7 @@ import {
 } from "../resources/AF1-resources/features/export.feature";
 
 import {
-  datereport,
+  getReportDateRange,
   webSetting,
 } from "../resources/AF1-resources/setting/uat/setting";
 
@@ -162,13 +162,39 @@ describe(
             );
 
             /**
-             * ส่งออก Report (Export Report)
+ * อ่านช่วงวันที่ตาม Report ที่กำลัง Export
+ *
+ * DF_FXM:
+ * - Date From = 26/02/2026
+ * - Date To   = 27/02/2026
+ *
+ * Report อื่น:
+ * - ใช้ช่วงวันที่เริ่มต้นจาก setting.ts
+ */
+            const reportDateRange =
+              getReportDateRange(
+                selectedReport,
+              );
+
+            console.log(
+              "Export Date From :",
+              reportDateRange.dateset,
+            );
+
+            console.log(
+              "Export Date To   :",
+              reportDateRange.dateto,
+            );
+
+            /**
+             * ส่งออก Report ด้วยช่วงวันที่
+             * ที่กำหนดไว้สำหรับ Report นั้น
              */
             const exportResult =
               await exportFeature.exportPass(
                 selectedReport,
-                datereport.dateset,
-                datereport.dateto,
+                reportDateRange.dateset,
+                reportDateRange.dateto,
               );
 
             console.log(
@@ -187,7 +213,7 @@ describe(
 
             console.log(
               "Test Data Rows :",
-              exportResult.testData.length,
+              exportResult.reportData.length,
             );
           } finally {
             /**

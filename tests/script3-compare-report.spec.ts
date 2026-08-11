@@ -9,12 +9,19 @@
  * - DS_PTX
  * - DS_FTX
  * - DS_FTU
+ * - DF_FXU
+ * - DF_OLB
+ * - DF_FXM
  *
  * ตัวอย่าง:
  * npm run test:script3 -- report=DS_PTX
  * npm run test:script3 -- report=DS_FTX
  * npm run test:script3 -- report=DS_LTX
- * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU
+ * npm run test:script3 -- report=DS_FTU
+ * npm run test:script3 -- report=DF_FXU
+ * npm run test:script3 -- report=DF_OLB
+ * npm run test:script3 -- report=DF_FXM
+ * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB,DF_FXM
  * ============================================================================
  */
 
@@ -25,46 +32,42 @@ import {
 } from "../resources/AF1-resources/config/report-selection";
 
 import {
-  testDataPath,
+  getTestDataPath,
 } from "../resources/AF1-resources/setting/uat/setting";
 
 /**
  * ============================================================
  * DS_PTX
  * ============================================================
+ *
+ * DS_PTX ใช้ ptx-reconcile.ts
+ * เป็น Entry Point หลักของ Script 3
  */
 
 import {
-  compareReportWithTestData as compareDsPtx,
-} from "../resources/AF1-resources/utils/reconcile/DS_PTX/compare-validator";
-
-import {
-  getLatestReportPath as getLatestDsPtxReportPath,
-} from "../resources/AF1-resources/utils/reconcile/DS_PTX/compare-file-helper";
-
+  reconcilePtxReport,
+} from "../resources/AF1-resources/utils/reconcile/DS_PTX/ptx-reconcile";
 /**
  * ============================================================
  * DS_FTX
  * ============================================================
  *
- * DS_FTX ใช้ Reconciler เป็นตัวควบคุมหลัก
- * ไม่ได้เรียก compare-validator.ts โดยตรง
+ * DS_FTX ใช้ ftx-reconcile.ts เป็นตัวควบคุมหลัก
+ * โดยรวม Flow การจับคู่ การตรวจสอบ
+ * และการเปรียบเทียบข้อมูลไว้ภายใน Reconciler
  */
-
 import {
   reconcileDsFtx,
-} from "../resources/AF1-resources/utils/reconcile/DS_FTX/ds-ftx-reconciler";
+} from "../resources/AF1-resources/utils/reconcile/DS_FTX/ftx-reconcile";
 
 import {
   prepareFtxCompareFilePaths,
   printFtxCompareFilePaths,
-} from "../resources/AF1-resources/utils/reconcile/DS_FTX/compare-file-helper";
+} from "../resources/AF1-resources/utils/reconcile/DS_FTX/ftx-file-helper";
 
-/**
- * ============================================================
- * DS_LTX
- * ============================================================
- */
+import {
+  reconcileOlbReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_OLB/olb-reconcile";
 
 import {
   reconcileReport as reconcileDsLtx,
@@ -74,61 +77,73 @@ import {
   reconcileFtuReport,
 } from "../resources/AF1-resources/utils/reconcile/DS_FTU/ftu-reconcile";
 
+/**
+ * ============================================================
+ * DF_FXU
+ * ============================================================
+ *
+ * DF_FXU ใช้ fxu-reconcile.ts
+ * เป็นตัวควบคุมหลักของ Script 3
+ *
+ * Flow:
+ * - ตรวจ Presence Rule
+ * - Exact Matching
+ * - Fallback Matching
+ * - ตรวจ Core Fields
+ * - สร้าง DF_FXU Reconcile Result
+ */
+import {
+  reconcileFxuReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_FXU/fxu-reconcile";
+
+import {
+  reconcileFXMReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_FXM/fxm-reconcile";
+
 const SCRIPT_TIMEOUT =
   300000;
 
+
 /**
  * ทำงานสำหรับ DS_PTX
+ *
+ * รายละเอียดการหา Checked Report
+ * และการสร้าง Output Path
+ * จะถูกจัดการใน ptx-reconcile.ts
  */
 const runDsPtxCompare = async (
   reportName: string,
 ): Promise<void> => {
   /**
-   * หา Checked Report DS_PTX ล่าสุด
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
    */
-  const reportPath =
-    getLatestDsPtxReportPath(
+  const testDataFilePath =
+    getTestDataPath(
       reportName,
     );
 
-  console.log(
-    "REPORT PATH",
-  );
-
-  console.log(
-    reportPath,
-  );
-
-  console.log(
-    "================================",
-  );
-
-  console.log(
-    "TEST DATA PATH",
-  );
-
-  console.log(
-    testDataPath,
-  );
-
-  console.log(
-    "================================",
-  );
-
-  /**
-   * เรียก Logic เดิมของ DS_PTX
-   */
-  await compareDsPtx(
+  await reconcilePtxReport(
     reportName,
-    reportPath,
-    testDataPath,
+    testDataFilePath,
   );
 };
 
 /**
  * ทำงานสำหรับ DS_FTX
  */
-const runDsFtxCompare = async (): Promise<void> => {
+const runDsFtxCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
   /**
    * prepareFtxCompareFilePaths() จะ:
    *
@@ -140,7 +155,7 @@ const runDsFtxCompare = async (): Promise<void> => {
   const filePaths =
     prepareFtxCompareFilePaths(
       process.cwd(),
-      testDataPath,
+      testDataFilePath,
     );
 
   /**
@@ -153,7 +168,7 @@ const runDsFtxCompare = async (): Promise<void> => {
   /**
    * เรียกตัวควบคุมหลักของ DS_FTX
    *
-   * ค่าที่ส่งเข้าไปในฟังก์ชัน (Parameter):
+   * ค่าที่ส่งเข้าไปในฟังก์ชัน:
    * 1. Report File
    * 2. Test Data File
    * 3. Output File
@@ -168,25 +183,125 @@ const runDsFtxCompare = async (): Promise<void> => {
 /**
  * ทำงานสำหรับ DS_LTX
  */
-const runDsLtxCompare = async (): Promise<void> => {
+const runDsLtxCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
   await reconcileDsLtx(
-    "DS_LTX",
-    testDataPath,
+    reportName,
+    testDataFilePath,
   );
 };
 
 /**
  * ทำงานสำหรับ DS_FTU
  */
-const runDsFtuCompare = async (): Promise<void> => {
+const runDsFtuCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ Report
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
   await reconcileFtuReport(
-    testDataPath,
+    testDataFilePath,
   );
 };
 
 /**
- * เลือก Logic ตาม Report
+ * ทำงานสำหรับ DF_FXU
  */
+const runDfFxuCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ DF_FXU
+   * จาก AF1 Share Path
+   *
+   * ตัวอย่าง Folder:
+   * AF1_SHAREPATH/DF_FXU
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
+  /**
+   * เรียก DF_FXU Reconcile Service
+   *
+   * ภายใน Service จะ:
+   * 1. หา Checked DF_FXU Report ล่าสุด
+   * 2. อ่าน Test Data
+   * 3. ทำ Exact/Fallback Matching
+   * 4. ตรวจ Core Fields
+   * 5. เขียน Reconcile Result
+   */
+    await reconcileFxuReport(
+      testDataFilePath,
+  );
+};
+
+ /**
+ * ทำงานสำหรับ DF_OLB
+ */
+const runDfOlbCompare = async (
+  reportName: string,
+): Promise<void> => {
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
+  await reconcileOlbReport(
+    testDataFilePath,
+  );
+};
+
+
+/**
+ * ทำงานสำหรับ DF_FXM
+ *
+ * DF_FXM ใช้ Test Data จาก:
+ * AF1_SHAREPATH/af1_test_data/DF_FXM
+ *
+ * Business Rule หลัก:
+ * - FX Conversion
+ * - USD Equivalent Amount ตั้งแต่
+ *   1,000,000 USD ขึ้นไป
+ */
+const runDfFxmCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ DF_FXM
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
+  /**
+   * เรียก DF_FXM Reconcile Service
+   */
+  await reconcileFXMReport(
+    testDataFilePath,
+  );
+};
+
 const runCompareByReport = async (
   reportName: string,
 ): Promise<void> => {
@@ -205,7 +320,9 @@ const runCompareByReport = async (
     reportName ===
     "DS_FTX"
   ) {
-    await runDsFtxCompare();
+    await runDsFtxCompare(
+      reportName,
+    );
 
     return;
   }
@@ -214,7 +331,9 @@ const runCompareByReport = async (
     reportName ===
     "DS_LTX"
   ) {
-    await runDsLtxCompare();
+    await runDsLtxCompare(
+      reportName,
+    );
 
     return;
   }
@@ -223,7 +342,42 @@ const runCompareByReport = async (
     reportName ===
     "DS_FTU"
   ) {
-    await runDsFtuCompare();
+    await runDsFtuCompare(
+      reportName,
+    );
+
+    return;
+  }
+
+  if (
+    reportName ===
+    "DF_FXU"
+  ) {
+    await runDfFxuCompare(
+      reportName,
+    );
+
+    return;
+  }
+
+  if (
+    reportName ===
+    "DF_OLB"
+  ) {
+    await runDfOlbCompare(
+      reportName,
+    );
+
+    return;
+  }
+
+  if (
+    reportName ===
+    "DF_FXM"
+  ) {
+    await runDfFxmCompare(
+      reportName,
+    );
 
     return;
   }
@@ -231,7 +385,7 @@ const runCompareByReport = async (
   throw new Error(
     [
       `Script 3 ยังไม่รองรับ Report: ${reportName}`,
-      "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU",
+      "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU, DF_OLB, DF_FXM",
     ].join(
       "\n",
     ),
@@ -310,7 +464,7 @@ describe(
 
           console.log(
             "================================",
-          );
+           );
         },
       );
     }

@@ -118,21 +118,35 @@ export class MainPage {
   async clickDSReport(
     reportName: string,
   ): Promise<void> {
-    /**
-     * เลือก Locator ตาม Report
-     *
-     * ถ้าเป็น DS_FTU:
-     * ใช้ dsFtuReport
-     *
-     * ถ้าเป็น Report อื่น:
-     * ใช้ reportByName
-     */
-    const reportLocator =
-      reportName === "DS_FTU"
-        ? mainLocator.dsFtuReport
-        : mainLocator.reportByName(
-            reportName,
-          );
+let reportLocator: string;
+
+/**
+ * เลือก Locator ตามชื่อ Report
+ *
+ * DS_FTU และ DF_FXU มีข้อความบนหน้าเว็บ
+ * ไม่ตรงกับชื่อ Report ที่รับจาก Terminal
+ * จึงต้องใช้ Locator เฉพาะ
+ */
+if (
+  reportName === "DS_FTU"
+) {
+  reportLocator =
+    mainLocator.dsFtuReport;
+} else if (
+  reportName === "DF_FXU"
+) {
+  reportLocator =
+    mainLocator.dfFxuReport;
+} else {
+  /**
+   * Report อื่นใช้ Locator กลาง
+   * โดยสร้างจากชื่อ Report ที่รับเข้ามา
+   */
+  reportLocator =
+    mainLocator.reportByName(
+      reportName,
+    );
+} 
 
     const report =
       this.page.locator(

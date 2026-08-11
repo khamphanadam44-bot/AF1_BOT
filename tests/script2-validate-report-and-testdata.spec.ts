@@ -46,7 +46,7 @@ import {
 } from "../resources/AF1-resources/config/report-helper";
 
 import {
-  testDataPath,
+  getTestDataPath,
 } from "../resources/AF1-resources/setting/uat/setting";
 
 import {
@@ -246,9 +246,15 @@ const validateSelectedReport =
 /**
  * ตรวจว่า Report มี Test Data Config หรือไม่
  *
- * ตอนนี้รองรับ:
+ * Report ที่มี Test Data Config:
+ * - DS_LTX
  * - DS_PTX
  * - DS_FTX
+ * - DS_FTU
+ * - DF_FXU
+ *
+ * หากชื่อ Report มีอยู่ใน TESTDATA_CONFIG
+ * ระบบจะตรวจทั้ง Header และข้อมูลใน Test Data
  */
 const isTestDataReportCode = (
   reportCode: string,
@@ -333,12 +339,17 @@ describe(
     /**
  * เลือกเฉพาะ Report ที่มี Test Data Config
  *
- * ตอนนี้คือ:
+ * Report ที่รองรับการตรวจ Test Data:
+ * - DS_LTX
  * - DS_PTX
  * - DS_FTX
+ * - DS_FTU
+ * - DF_FXU
  *
- * Report อื่นยังคงตรวจ Report Header ได้
- * แต่จะยังไม่ตรวจ Test Data
+ * Report ที่ยังไม่มี Config:
+ * - ยังคงตรวจ Report Header ได้ตามปกติ
+ * - จะข้ามขั้นตอน Test Data Validation
+ * - จะแสดงเหตุผลว่าไม่พบ Test Data Config
  */
     const selectedTestDataReports =
       selectedReports.filter(
@@ -387,6 +398,15 @@ describe(
             "Validate Test Data For Report :",
             selectedReport,
           );
+
+          /**
+           * ค้นหา Test Data จาก Share Path
+           * ตามชื่อ Report ที่กำลังตรวจ
+           */
+          const testDataPath =
+            getTestDataPath(
+              selectedReport,
+            );
 
           console.log(
             "Test Data File :",

@@ -40,9 +40,17 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
 
 type DataRecord = Record<string, unknown>;
 
+/**
+ * Report ที่รองรับการสร้าง Automation Summary
+ */
 type SupportedSummaryReport =
   | "DS_PTX"
-  | "DS_FTX";
+  | "DS_FTX"
+  | "DS_LTX"
+  | "DS_FTU"
+  | "DF_FXU"
+  | "DF_OLB"
+  | "DF_FXM";
 
 type SummaryReportConfig = {
   reportCode: SupportedSummaryReport;
@@ -53,6 +61,8 @@ type SummaryReportConfig = {
   hasDynamicFeeColumns: boolean;
   compareLastColumn: number;
   testDataFirstColumn: number;
+  mergeRepeatedTestDataRows: boolean;
+  reportSourceSheetNames: readonly string[];
 };
 
 const SUMMARY_REPORT_CONFIG: Record<
@@ -61,31 +71,223 @@ const SUMMARY_REPORT_CONFIG: Record<
 > = {
   DS_PTX: {
     reportCode: "DS_PTX",
-    summarySheetName:
-      "DS-PTX Summary Test Results",
-    reconcileSheetName:
-      "DS_PTX_Reconcile",
-    reportSheetName:
-      "DS_PTX",
-    title:
-      "DS_PTX AUTOMATION VERIFICATION SUMMARY",
+    summarySheetName: "DS-PTX Summary Test Results",
+    reconcileSheetName: "DS_PTX_Reconcile",
+    reportSheetName: "DS_PTX",
+    title: "DS_PTX AUTOMATION VERIFICATION SUMMARY",
     hasDynamicFeeColumns: true,
     compareLastColumn: 11,
     testDataFirstColumn: 13,
+    mergeRepeatedTestDataRows: false,
+    reportSourceSheetNames: ["DS_PTX"],
   },
   DS_FTX: {
     reportCode: "DS_FTX",
-    summarySheetName:
-      "DS-FTX Summary Test Results",
-    reconcileSheetName:
-      "DS_FTX_Reconcile",
-    reportSheetName:
-      "DS_FTX",
-    title:
-      "DS_FTX AUTOMATION VERIFICATION SUMMARY",
+    summarySheetName: "DS-FTX Summary Test Results",
+    reconcileSheetName: "DS_FTX_Reconcile",
+    reportSheetName: "DS_FTX",
+    title: "DS_FTX AUTOMATION VERIFICATION SUMMARY",
     hasDynamicFeeColumns: false,
     compareLastColumn: 11,
     testDataFirstColumn: 13,
+    mergeRepeatedTestDataRows: false,
+    reportSourceSheetNames: ["DS_FTX"],
+  },
+  DS_LTX: {
+    reportCode: "DS_LTX",
+    summarySheetName: "DS_LTX_Summary Result",
+    reconcileSheetName: "DS_LTX_Reconcile",
+    reportSheetName: "DS_LTX",
+    title: "DS-LTX AUTOMATION VERIFICATION SUMMARY",
+    hasDynamicFeeColumns: true,
+    compareLastColumn: 10,
+    testDataFirstColumn: 12,
+    mergeRepeatedTestDataRows: true,
+    reportSourceSheetNames: ["DS_LTX"],
+  },
+  DS_FTU: {
+    reportCode: "DS_FTU",
+    summarySheetName: "DS_FTU_Summary Result",
+    reconcileSheetName: "DS_FTU_Reconcile",
+    reportSheetName: "DS_FTU",
+    title: "DS-FTU AUTOMATION VERIFICATION SUMMARY",
+    hasDynamicFeeColumns: false,
+    compareLastColumn: 10,
+    testDataFirstColumn: 12,
+    mergeRepeatedTestDataRows: false,
+    reportSourceSheetNames: ["DS_FTU Transaction", "DS_FTU"],
+  },
+
+    /**
+   * ====================================================
+   * DF_FXU
+   * ====================================================
+   *
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   *
+   * Summary Template:
+   * - Column B-I เป็นข้อมูลผล Reconcile
+   * - Column J เป็นช่องว่างคั่นกลาง
+   * - Column K เป็นต้นไปเป็นข้อมูล Test Data
+   */
+    /**
+   * ====================================================
+   * DF_FXU
+   * ====================================================
+   *
+   * DF_FXU ไม่มี Fee Group
+   * และไม่มีการรวม Test Data หลายแถว
+   *
+   * โครงสร้าง Summary Template:
+   *
+   * - Column B-C:
+   *   ผลการตรวจสอบและเหตุผล
+   *
+   * - Column D-J:
+   *   ข้อมูลจาก DF_FXU Reconcile
+   *
+   * - Column K:
+   *   ช่องว่างคั่นกลาง
+   *
+   * - Column L-T:
+   *   ข้อมูลจาก Test Data
+   */
+  DF_FXU: {
+    reportCode:
+      "DF_FXU",
+
+    summarySheetName:
+      "DF_FXU_Summary Result",
+
+    reconcileSheetName:
+      "DF_FXU_Reconcile",
+
+    reportSheetName:
+      "DF_FXU",
+
+    title:
+      "DF-FXU AUTOMATION VERIFICATION SUMMARY",
+
+    /**
+     * DF_FXU ไม่มี Fee Group
+     */
+    hasDynamicFeeColumns:
+      false,
+
+    /**
+     * Column สุดท้ายของข้อมูล
+     * ฝั่ง Reconcile คือ Column J
+     */
+    compareLastColumn:
+      10,
+
+    /**
+     * ข้อมูล Test Data
+     * เริ่มที่ Column L
+     */
+    testDataFirstColumn:
+      12,
+
+    /**
+     * Test Case ของ DF_FXU
+     * แสดงแยกหนึ่งแถวต่อหนึ่งรายการ
+     */
+    mergeRepeatedTestDataRows:
+      false,
+
+    /**
+     * ชื่อ Worksheet ที่รองรับ
+     * จากไฟล์ Export จริง
+     */
+    reportSourceSheetNames: [
+      "DF_FXU Transaction",
+      "DF_FXU",
+    ],
+  },
+
+     /**
+   * ====================================================
+   * DF_OLB
+   * ====================================================
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   *
+   * โครงสร้าง Summary Template:
+   * - Column B-H เป็นผลการตรวจสอบและข้อมูล DF_OLB
+   * - Column I เป็นช่องว่างคั่นกลาง
+   * - Column J เป็นต้นไปเป็นข้อมูล Test Data
+   */
+  DF_OLB: {
+    reportCode:
+      "DF_OLB",
+
+    summarySheetName:
+      "DF_OLB_Summary Result",
+
+    reconcileSheetName:
+      "DF_OLB_Reconcile",
+
+    reportSheetName:
+      "DF_OLB",
+
+    title:
+      "DF-OLB AUTOMATION VERIFICATION SUMMARY",
+
+    hasDynamicFeeColumns:
+      false,
+
+    compareLastColumn:
+      8,
+
+    testDataFirstColumn:
+      10,
+
+    mergeRepeatedTestDataRows:
+      false,
+
+    reportSourceSheetNames: [
+      "DF_OLB Transaction",
+      "DF_OLB",
+    ],
+  },
+
+  /**
+   * ====================================================
+   * DF_FXM
+   * ====================================================
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   */
+  DF_FXM: {
+    reportCode:
+      "DF_FXM",
+
+    summarySheetName:
+      "DF_FXM_Summary Result",
+
+    reconcileSheetName:
+      "DF_FXM_Reconcile",
+
+    reportSheetName:
+      "DF_FXM",
+
+    title:
+      "DF-FXM AUTOMATION VERIFICATION SUMMARY",
+
+    hasDynamicFeeColumns:
+      false,
+
+    compareLastColumn:
+      10,
+
+    testDataFirstColumn:
+      12,
+
+    mergeRepeatedTestDataRows:
+      false,
+
+    reportSourceSheetNames: [
+      "DF_FXM Transaction",
+      "DF_FXM",
+    ],
   },
 };
 
@@ -100,34 +302,40 @@ const normalizeText = (value: unknown): string =>
 const normalizeHeader = (value: unknown): string =>
   normalizeText(value).toLowerCase();
 
-const normalizeReportName = (
-  reportName: string,
-): SupportedSummaryReport => {
-  const normalizedReportName =
-    normalizeText(reportName)
-      .toUpperCase()
-      .replace(/-/g, "_");
+/** Normalize Test No. โดยไม่สนใจตัวพิมพ์เล็กและใหญ่ */
+
+const normalizeTestNo = (value: unknown): string =>
+  normalizeText(value).toUpperCase();
+
+const normalizeReportName = (reportName: string): SupportedSummaryReport => {
+  const normalizedReportName = normalizeText(reportName)
+    .toUpperCase()
+    .replace(/-/g, "_");
 
   if (
-    normalizedReportName === "DS_PTX" ||
-    normalizedReportName === "DS_FTX"
+    normalizedReportName ===
+    "DS_PTX" ||
+    normalizedReportName ===
+    "DS_FTX" ||
+    normalizedReportName ===
+    "DS_LTX" ||
+    normalizedReportName ===
+    "DS_FTU" ||
+    normalizedReportName ===
+    "DF_FXU" ||
+    normalizedReportName ===
+    "DF_OLB" ||
+    normalizedReportName ===
+    "DF_FXM"
   ) {
     return normalizedReportName;
   }
 
-  throw new Error(
-    `Unsupported Summary Report: ${reportName}`,
-  );
+  throw new Error(`Unsupported Summary Report: ${reportName}`);
 };
 
-const getSummaryReportConfig = (
-  reportName: string,
-): SummaryReportConfig =>
-  SUMMARY_REPORT_CONFIG[
-    normalizeReportName(
-      reportName,
-    )
-  ];
+const getSummaryReportConfig = (reportName: string): SummaryReportConfig =>
+  SUMMARY_REPORT_CONFIG[normalizeReportName(reportName)];
 
 const normalizeStatus = (value: unknown): SummaryStatus => {
   const status = normalizeText(value).toUpperCase();
@@ -164,9 +372,7 @@ const getCellValue = (cell: ExcelJS.Cell): unknown => {
     }
 
     if ("richText" in value && Array.isArray(value.richText)) {
-      return value.richText
-        .map((item) => item.text)
-        .join("");
+      return value.richText.map((item) => item.text).join("");
     }
   }
 
@@ -192,31 +398,28 @@ const buildHeaderMap = (
   return map;
 };
 
-const findCompareHeaderRowNumber = (
-  worksheet: ExcelJS.Worksheet,
-): number => {
+const findCompareHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
   const maxRowToCheck = Math.min(20, worksheet.rowCount);
 
   for (let rowNumber = 1; rowNumber <= maxRowToCheck; rowNumber += 1) {
     const headerMap = buildHeaderMap(worksheet, rowNumber);
 
-    if (
-      headerMap.has("test script no.") &&
-      headerMap.has("result") &&
-      headerMap.has("remark")
-    ) {
+    const hasTestScriptNo = headerMap.has("test script no.");
+    const hasResult = headerMap.has("test result") || headerMap.has("result");
+    const hasRemark = headerMap.has("remark");
+
+    if (hasTestScriptNo && hasResult && hasRemark) {
       return rowNumber;
     }
   }
 
   throw new Error(
-    'Compare result header not found. Required headers: "Test Script No.", "Result", "Remark"',
+    "Compare result header not found. Required headers: " +
+    '"Test Script No.", either "Test Result" or "Result", and "Remark".',
   );
 };
 
-const findTestDataHeaderRowNumber = (
-  worksheet: ExcelJS.Worksheet,
-): number => {
+const findTestDataHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
   const maxRowToCheck = Math.min(20, worksheet.rowCount);
 
   for (let rowNumber = 1; rowNumber <= maxRowToCheck; rowNumber += 1) {
@@ -254,9 +457,7 @@ const getRequiredColumn = (
     }
   }
 
-  throw new Error(
-    `Required header not found: ${possibleHeaders.join(" / ")}`,
-  );
+  throw new Error(`Required header not found: ${possibleHeaders.join(" / ")}`);
 };
 
 const getOptionalColumn = (
@@ -264,12 +465,7 @@ const getOptionalColumn = (
   possibleHeaders: string[],
 ): number | undefined => {
   for (const header of possibleHeaders) {
-    const columnNumber =
-      headerMap.get(
-        normalizeHeader(
-          header,
-        ),
-      );
+    const columnNumber = headerMap.get(normalizeHeader(header));
 
     if (columnNumber) {
       return columnNumber;
@@ -288,18 +484,15 @@ const worksheetRowToRecord = (
   const headerRow = worksheet.getRow(headerRowNumber);
   const dataRow = worksheet.getRow(rowNumber);
 
-  headerRow.eachCell(
-    { includeEmpty: true },
-    (headerCell, columnNumber) => {
-      const header = normalizeText(getCellValue(headerCell));
+  headerRow.eachCell({ includeEmpty: true }, (headerCell, columnNumber) => {
+    const header = normalizeText(getCellValue(headerCell));
 
-      if (header !== "") {
-        record[normalizeHeader(header)] = getCellValue(
-          dataRow.getCell(columnNumber),
-        );
-      }
-    },
-  );
+    if (header !== "") {
+      record[normalizeHeader(header)] = getCellValue(
+        dataRow.getCell(columnNumber),
+      );
+    }
+  });
 
   return record;
 };
@@ -338,22 +531,26 @@ export const readCompareResultRows = async (
   const headerRowNumber = findCompareHeaderRowNumber(worksheet);
   const headerMap = buildHeaderMap(worksheet, headerRowNumber);
 
-  const testScriptColumn = getRequiredColumn(headerMap, [
-    "Test Script No.",
-  ]);
-  const resultColumn = getRequiredColumn(headerMap, ["Result"]);
+  const testScriptColumn = getRequiredColumn(headerMap, ["Test Script No."]);
+  const resultColumn = getRequiredColumn(headerMap, ["Test Result", "Result"]);
   const remarkColumn = getRequiredColumn(headerMap, ["Remark"]);
-  const matchingKeyColumn =
-    getOptionalColumn(
-      headerMap,
-      [
-        "Reference Transaction Number",
-        "Ref. TX No.",
-        "Ref TX No",
-        "Reference TX No.",
-        "Matching Key",
-      ],
-    );
+  /**
+   * Matching Key ของแต่ละ Report
+   *
+   * DF_FXU ใช้ Arrangement Number
+   */
+  const matchingKeyColumn = getOptionalColumn(
+    headerMap,
+    [
+      "Reference Transaction Number",
+      "Ref. TX No.",
+      "Ref TX No",
+      "Reference TX No.",
+      "Arr Number",
+      "Arrangement Number",
+      "Matching Key",
+    ],
+  );
 
   const rows: CompareResultRow[] = [];
 
@@ -366,15 +563,10 @@ export const readCompareResultRows = async (
     const testScriptNo = normalizeText(
       getCellValue(row.getCell(testScriptColumn)),
     );
-    const resultValue = normalizeText(
-      getCellValue(row.getCell(resultColumn)),
-    );
+    const resultValue = normalizeText(getCellValue(row.getCell(resultColumn)));
 
+    // ข้ามเฉพาะแถวว่างที่ไม่มีทั้ง Test Script No. และ Result
     if (testScriptNo === "" && resultValue === "") {
-      continue;
-    }
-
-    if (testScriptNo === "") {
       continue;
     }
 
@@ -403,7 +595,12 @@ export const readCompareResultRows = async (
 };
 
 type CheckedTestDataResult = {
-  testDataMap: Map<string, DataRecord>;
+  testDataRowsByTestNo: Map<string, DataRecord[]>;
+
+  testDataRowsByTransactionId: Map<string, DataRecord[]>;
+
+  testDataRowsByRowNumber: Map<number, DataRecord>;
+
   maxFeeIndex: number;
 };
 
@@ -420,9 +617,7 @@ type CheckedTestDataResult = {
  * - Fee Amount 2
  * - Fee Amount 3
  */
-const getFeeIndexFromHeader = (
-  header: unknown,
-): number | undefined => {
+const getFeeIndexFromHeader = (header: unknown): number | undefined => {
   const normalized = normalizeHeader(header);
 
   const patterns = [
@@ -473,10 +668,7 @@ const getMaxFeeIndexFromHeaderMap = (
  * - Fee Currency 3 / Fee Currency Type 3
  * - Fee Amount 3 / Fee Amount Type 3
  */
-const hasFeeDataAtIndex = (
-  record: DataRecord,
-  feeIndex: number,
-): boolean => {
+const hasFeeDataAtIndex = (record: DataRecord, feeIndex: number): boolean => {
   const possibleHeaders = [
     `Fee Type ${feeIndex}`,
 
@@ -489,18 +681,13 @@ const hasFeeDataAtIndex = (
     `Fee Currency ${feeIndex}`,
     `Fee Currency Type ${feeIndex}`,
 
-    feeIndex === 1
-      ? "Fee Amount Type 1"
-      : `Fee Amount ${feeIndex}`,
+    feeIndex === 1 ? "Fee Amount Type 1" : `Fee Amount ${feeIndex}`,
 
     `Fee Amount Type ${feeIndex}`,
   ];
 
   return possibleHeaders.some((header) => {
-    const value = getRecordValue(
-      record,
-      [header],
-    );
+    const value = getRecordValue(record, [header]);
 
     return normalizeText(value) !== "";
   });
@@ -517,17 +704,9 @@ const getMaxFeeIndexFromActualData = (
 ): number => {
   let maxUsedFeeIndex = 0;
 
-  for (
-    let feeIndex = 1;
-    feeIndex <= maxFeeIndexFromHeader;
-    feeIndex += 1
-  ) {
-    const hasActualData = records.some(
-      (record) =>
-        hasFeeDataAtIndex(
-          record,
-          feeIndex,
-        ),
+  for (let feeIndex = 1; feeIndex <= maxFeeIndexFromHeader; feeIndex += 1) {
+    const hasActualData = records.some((record) =>
+      hasFeeDataAtIndex(record, feeIndex),
     );
 
     if (hasActualData) {
@@ -541,104 +720,119 @@ const getMaxFeeIndexFromActualData = (
 const readCheckedTestDataRows = async (
   originalTestDataPath: string,
 ): Promise<CheckedTestDataResult> => {
-  const workbook =
-    new ExcelJS.Workbook();
+  const workbook = new ExcelJS.Workbook();
 
-  await workbook.xlsx.readFile(
-    originalTestDataPath,
-  );
+  await workbook.xlsx.readFile(originalTestDataPath);
 
   const worksheet =
     workbook.getWorksheet("Test Data") ??
     workbook.worksheets.find(
-      (sheet) =>
-        normalizeHeader(sheet.name) !==
-        "field validation",
+      (sheet) => normalizeHeader(sheet.name) !== "field validation",
     ) ??
     workbook.worksheets[0];
 
   if (!worksheet) {
-    throw new Error(
-      `Test Data worksheet not found: ${originalTestDataPath}`,
-    );
+    throw new Error(`Test Data worksheet not found: ${originalTestDataPath}`);
   }
 
-  const headerRowNumber =
-    findTestDataHeaderRowNumber(
-      worksheet,
-    );
+  const headerRowNumber = findTestDataHeaderRowNumber(worksheet);
 
-  const headerMap =
-    buildHeaderMap(
-      worksheet,
-      headerRowNumber,
-    );
+  const headerMap = buildHeaderMap(worksheet, headerRowNumber);
 
-  const testNoColumn =
-    getRequiredColumn(
-      headerMap,
-      [
-        "Test No.",
-        "Test No",
-        "Test Script No.",
-        "Test Script No",
-      ],
-    );
+  const testNoColumn = getRequiredColumn(headerMap, [
+    "Test No.",
+    "Test No",
+    "Test Script No.",
+    //"Test Script No",
+  ]);
 
-  const testDataMap =
-    new Map<string, DataRecord>();
+  const testDataRowsByTestNo = new Map<string, DataRecord[]>();
+
+  /**
+   * ใช้กรณี Test No. ว่าง แต่มี Transaction ID
+   */
+  const testDataRowsByTransactionId = new Map<string, DataRecord[]>();
+
+  /**
+   * ใช้กรณี Test No. และ Transaction ID ว่างทั้งคู่
+   * โดยอ้างอิงจากเลขแถวจริงใน Test Data
+   */
+  const testDataRowsByRowNumber = new Map<number, DataRecord>();
 
   /*
    * เก็บ Record ทั้งหมดไว้ใช้ตรวจว่า
    * Fee แต่ละลำดับมีข้อมูลจริงหรือไม่
    */
-  const allTestDataRecords: DataRecord[] =
-    [];
+  const allTestDataRecords: DataRecord[] = [];
 
   for (
-    let rowNumber =
-      headerRowNumber + 1;
+    let rowNumber = headerRowNumber + 1;
     rowNumber <= worksheet.rowCount;
     rowNumber += 1
   ) {
-    const testScriptNo =
-      normalizeText(
-        getCellValue(
-          worksheet
-            .getRow(rowNumber)
-            .getCell(testNoColumn),
-        ),
-      );
+    const row = worksheet.getRow(rowNumber);
+    const testNo = normalizeTestNo(getCellValue(row.getCell(testNoColumn)));
 
-    if (testScriptNo === "") {
+    const record = worksheetRowToRecord(worksheet, rowNumber, headerRowNumber);
+
+    const hasData = Object.values(record).some(
+      (value) => normalizeText(value) !== "",
+    );
+
+    if (!hasData) {
       continue;
     }
 
-    const record =
-      worksheetRowToRecord(
-        worksheet,
-        rowNumber,
-        headerRowNumber,
-      );
-
     allTestDataRecords.push(record);
 
-    if (
-      !testDataMap.has(
-        testScriptNo,
-      )
-    ) {
-      testDataMap.set(
-        testScriptNo,
-        record,
-      );
+    /**
+     * เก็บ Record ตามเลขแถวจริงใน Excel
+     *
+     * ตัวอย่าง:
+     * Test Data Row 6 จะย้อนกลับมาหา Record
+     * ของ Excel row 6 ได้
+     */
+    testDataRowsByRowNumber.set(rowNumber, record);
+
+    /**
+     * เก็บตาม Test No. เฉพาะกรณีที่ Test No. มีค่า
+     *
+     * ไม่เก็บ Test No. ว่าง เพราะอาจมีหลายแถวว่าง
+     * และทำให้เกิด Ambiguous Matching
+     */
+    if (testNo !== "") {
+      const testDataRows = testDataRowsByTestNo.get(testNo) ?? [];
+
+      testDataRows.push(record);
+
+      testDataRowsByTestNo.set(testNo, testDataRows);
+    }
+
+    /**
+     * สร้างดัชนีจาก Transaction ID
+     * สำหรับกรณี Test No. ว่าง
+     */
+    const transactionId = normalizeTestNo(
+      getRecordValue(record, [
+        "Transaction ID/ Reconcile ID",
+        "Transaction ID / Reconcile ID",
+        "Transaction ID",
+        "Reconcile ID",
+      ]),
+    );
+
+    if (transactionId !== "") {
+      const transactionIdRows =
+        testDataRowsByTransactionId.get(transactionId) ?? [];
+
+      transactionIdRows.push(record);
+
+      testDataRowsByTransactionId.set(transactionId, transactionIdRows);
     }
   }
 
-  if (testDataMap.size === 0) {
-    throw new Error(
-      `No Test Data records found: ${originalTestDataPath}`,
-    );
+  if (allTestDataRecords.length === 0) {
+    throw new Error(`No Test Data records found: ${originalTestDataPath}`);
   }
 
   /*
@@ -646,10 +840,7 @@ const readCheckedTestDataRows = async (
    *
    * เช่น Original Test Data มี Header ถึง Fee 5
    */
-  const maxFeeIndexFromHeader =
-    getMaxFeeIndexFromHeaderMap(
-      headerMap,
-    );
+  const maxFeeIndexFromHeader = getMaxFeeIndexFromHeaderMap(headerMap);
 
   /*
    * จำนวน Fee สูงสุดที่มีข้อมูลจริง
@@ -658,27 +849,90 @@ const readCheckedTestDataRows = async (
    * แต่มีข้อมูลจริงถึง Fee 2
    * ผลลัพธ์จะเป็น 2
    */
-  const maxFeeIndexFromActualData =
-    getMaxFeeIndexFromActualData(
-      allTestDataRecords,
-      maxFeeIndexFromHeader,
-    );
-
-  console.log(
-    "Maximum Fee Header Index :",
+  const maxFeeIndexFromActualData = getMaxFeeIndexFromActualData(
+    allTestDataRecords,
     maxFeeIndexFromHeader,
   );
 
-  console.log(
-    "Maximum Fee Used Index   :",
-    maxFeeIndexFromActualData,
-  );
+  console.log("Maximum Fee Header Index :", maxFeeIndexFromHeader);
+
+  console.log("Maximum Fee Used Index   :", maxFeeIndexFromActualData);
 
   return {
-    testDataMap,
-    maxFeeIndex:
-      maxFeeIndexFromActualData,
+    testDataRowsByTestNo,
+    testDataRowsByTransactionId,
+    testDataRowsByRowNumber,
+    maxFeeIndex: maxFeeIndexFromActualData,
   };
+};
+
+/** หา Cell สำหรับเขียน KPI จากข้อความ Header ใน Template โดยอัตโนมัติ */
+const findKpiValueCell = (
+  worksheet: ExcelJS.Worksheet,
+  headerAliases: readonly string[],
+): ExcelJS.Cell => {
+  const normalizedAliases = headerAliases.map(normalizeHeader);
+  const maximumRow = Math.min(15, worksheet.rowCount);
+  const maximumColumn = Math.min(40, worksheet.columnCount);
+  let headerCell: ExcelJS.Cell | undefined;
+
+  for (let rowNumber = 1; rowNumber <= maximumRow; rowNumber += 1) {
+    for (
+      let columnNumber = 1;
+      columnNumber <= maximumColumn;
+      columnNumber += 1
+    ) {
+      const cell = worksheet.getCell(rowNumber, columnNumber);
+      const cellText = normalizeHeader(getCellValue(cell));
+
+      if (normalizedAliases.includes(cellText)) {
+        headerCell = cell;
+        break;
+      }
+    }
+
+    if (headerCell) {
+      break;
+    }
+  }
+
+  if (!headerCell) {
+    throw new Error(
+      `KPI header not found in worksheet "${worksheet.name}": ` +
+      headerAliases.join(" / "),
+    );
+  }
+
+  const worksheetModel = worksheet.model as ExcelJS.WorksheetModel & {
+    merges?: string[];
+  };
+  const mergedRanges = worksheetModel.merges ?? [];
+  const headerMerge = mergedRanges.find((mergedRange) => {
+    const [startAddress, endAddress = startAddress] = mergedRange
+      .replace(/\$/g, "")
+      .split(":");
+    const startCell = worksheet.getCell(startAddress);
+    const endCell = worksheet.getCell(endAddress);
+
+    return (
+      headerCell!.row >= startCell.row &&
+      headerCell!.row <= endCell.row &&
+      headerCell!.col >= startCell.col &&
+      headerCell!.col <= endCell.col
+    );
+  });
+
+  if (!headerMerge) {
+    return worksheet.getCell(headerCell.row + 1, headerCell.col);
+  }
+
+  const [startAddress, endAddress = startAddress] = headerMerge
+    .replace(/\$/g, "")
+    .split(":");
+  const startCell = worksheet.getCell(startAddress);
+  const endCell = worksheet.getCell(endAddress);
+
+  return worksheet.getCell(endCell.row + 1, startCell.col);
 };
 
 const writeSummaryInformation = (
@@ -686,8 +940,7 @@ const writeSummaryInformation = (
   info: AutomationSummaryInfo,
   config: SummaryReportConfig,
 ): void => {
-  summarySheet.getCell("B2").value =
-    config.title;
+  summarySheet.getCell("B2").value = config.title;
 
   summarySheet.getCell("C5").value = info.reportFileName;
   summarySheet.getCell("C6").value = info.executionDate;
@@ -695,15 +948,109 @@ const writeSummaryInformation = (
   summarySheet.getCell("C8").value = info.runId;
   summarySheet.getCell("C9").value = info.verifiedBy;
 
-  summarySheet.getCell("J7").value = info.totalChecked;
-  summarySheet.getCell("K7").value = info.passed;
-  summarySheet.getCell("L7").value = info.failed;
+  findKpiValueCell(summarySheet, ["TOTAL CHECKED"]).value = info.totalChecked;
+
+  findKpiValueCell(summarySheet, ["PASSED/MATCH"]).value = info.passed;
+
+  findKpiValueCell(summarySheet, ["FAILED/UNMATCH"]).value = info.failed;
 };
 
-const applyStatusStyle = (
-  cell: ExcelJS.Cell,
-  status: SummaryStatus,
-): void => {
+/**
+ * จับคู่ Reconcile Result กลับไปยัง Test Data ต้นทาง
+ *
+ * ลำดับการค้นหา:
+ * 1. Test No.
+ * 2. Test Data Row N
+ * 3. Transaction ID
+ */
+const findMatchingTestDataRow = (
+  compareRow: CompareResultRow,
+  testDataResult: CheckedTestDataResult,
+  config: SummaryReportConfig,
+): DataRecord => {
+  const lookupValue = normalizeTestNo(compareRow.testScriptNo);
+
+  /**
+   * วิธีที่ 1:
+   * ค้นจาก Test No. ตามปกติ
+   * 
+   */
+  const testNoCandidates =
+    testDataResult.testDataRowsByTestNo.get(lookupValue) ?? [];
+
+  if (testNoCandidates.length === 1) {
+    return testNoCandidates[0];
+  }
+
+  if (testNoCandidates.length > 1) {
+    throw new Error(
+      `[${config.reportCode}] Ambiguous Original Test Data: ` +
+      `Test No. "${lookupValue}" matched ` +
+      `${testNoCandidates.length} rows.`,
+    );
+  }
+
+  /**
+   * อ่านเลขแถวจาก Row Reference
+   *
+   * รองรับ:
+   * - Row 6
+   * - Test Data Row 6
+   * - TEST_DATA_ROW_6
+   * - TEST_DATA_ROW_6_FEE_01
+   * - TEST_DATA_ROW_6_NO_FEE
+   */
+  const rowNumberMatch =
+    /^(?:TEST[\s_-]*DATA[\s_-]*)?ROW[\s_:#-]*(\d+)(?:[\s_-].*)?$/i.exec(
+      lookupValue,
+    );
+
+  if (rowNumberMatch) {
+    const sourceRowNumber = Number(rowNumberMatch[1]);
+
+    const matchedByRowNumber =
+      testDataResult.testDataRowsByRowNumber.get(sourceRowNumber);
+
+    if (matchedByRowNumber) {
+      return matchedByRowNumber;
+    }
+
+    throw new Error(
+      `[${config.reportCode}] Original Test Data row not found: ` +
+      `Row Number = ${sourceRowNumber}.`,
+    );
+  }
+
+  /**
+   * วิธีที่ 3:
+   * ถ้า Test No. ว่างในต้นทาง Builder จะนำ
+   * Transaction ID มาแสดงใน Test Script No.
+   *
+   * จึงค้น Transaction ID ด้วยค่าเดียวกัน
+   */
+  const transactionIdCandidates =
+    testDataResult.testDataRowsByTransactionId.get(lookupValue) ?? [];
+
+  if (transactionIdCandidates.length === 1) {
+    return transactionIdCandidates[0];
+  }
+
+  if (transactionIdCandidates.length > 1) {
+    throw new Error(
+      `[${config.reportCode}] Ambiguous Original Test Data: ` +
+      `Transaction ID "${lookupValue}" matched ` +
+      `${transactionIdCandidates.length} rows.`,
+    );
+  }
+
+  throw new Error(
+    `[${config.reportCode}] Original Test Data not found: ` +
+    `Test No., Transaction ID or Row Reference = ` +
+    `"${lookupValue}".`,
+  );
+};
+
+const applyStatusStyle = (cell: ExcelJS.Cell, status: SummaryStatus): void => {
   const fill =
     status === "PASS"
       ? COLORS.PASS_FILL
@@ -731,9 +1078,16 @@ const applyStatusStyle = (
 };
 
 const getCompareValue = (
-  header: string,
-  compareRow: CompareResultRow,
+  header:
+    string,
+
+  compareRow:
+    CompareResultRow,
+
+  config:
+    SummaryReportConfig,
 ): unknown => {
+
   const normalized = normalizeHeader(header);
 
   if (normalized === "test result") {
@@ -745,7 +1099,35 @@ const getCompareValue = (
       return compareRow.remark;
     }
 
-    if (compareRow.status === "PASS") {
+        if (
+      compareRow.status ===
+      "PASS"
+    ) {
+      /**
+       * DF_FXU:
+       *
+       * PASS ปกติไม่ต้องแสดง Reason
+       *
+       * PASS ที่ต้องแสดงเหตุผล เช่น:
+       * - วันที่ไม่ตรงกับ Data Set Date
+       *   แต่ตรงกับวันที่ใน Ref
+       *
+       * - รายการไม่ต้องรายงานใน DF_FXU
+       *
+       * กรณีเหล่านี้จะมีค่าอยู่ใน
+       * compareRow.remark และถูก Return
+       * ก่อนเข้ามาถึงเงื่อนไขนี้แล้ว
+       */
+      if (
+        config.reportCode ===
+        "DF_FXU"
+      ) {
+        return "";
+      }
+
+      /**
+       * Report อื่นยังใช้พฤติกรรมเดิม
+       */
       return "Validation passed.";
     }
 
@@ -757,37 +1139,41 @@ const getCompareValue = (
   }
 
   if (
-    normalized ===
-      "reference transaction number" ||
-    normalized ===
-      "ref. tx no." ||
-    normalized ===
-      "ref tx no" ||
-    normalized ===
-      "reference tx no."
+    normalized === "reference transaction number" ||
+    normalized === "ref. tx no." ||
+    normalized === "ref tx no" ||
+    normalized === "reference tx no."
   ) {
-    if (
-      compareRow.matchingKey !== ""
-    ) {
+    if (compareRow.matchingKey !== "") {
       return compareRow.matchingKey;
     }
 
-    return getRecordValue(
-      compareRow.reportValues,
-      [
-        "Reference Transaction Number",
-        "Ref. TX No.",
-        "Ref TX No",
-        "Reference TX No.",
-        "Matching Key",
-      ],
-    );
+    return getRecordValue(compareRow.reportValues, [
+      "Reference Transaction Number",
+      "Ref. TX No.",
+      "Ref TX No",
+      "Reference TX No.",
+      "Matching Key",
+    ]);
   }
 
   return getRecordValue(compareRow.reportValues, [header]);
 };
 
 const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
+    /**
+   * DF_FXU Template ใหม่ใช้ Test No.
+   *
+   * ยังคงรองรับ Test Script No.
+   * ของ Template Report เดิม
+   */
+  "test no.": [
+    "Test No.",
+    "Test No",
+    "Test Script No.",
+    "Test Script No",
+  ],
+
   "test script no.": [
     "Test No.",
     "Test No",
@@ -800,14 +1186,27 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "Test Scenario",
   ],
   "txn date": ["Txn Date", "Transaction Date"],
+    /**
+   * รองรับทั้งรูปแบบที่มีและไม่มีช่องว่าง
+   * ก่อนเครื่องหมาย /
+   */
+  "transaction id/ reconcile id": [
+    "Transaction ID/ Reconcile ID",
+    "Transaction ID / Reconcile ID",
+    "Reference Transaction Number",
+  ],
+
+  "transaction id / reconcile id": [
+    "Transaction ID/ Reconcile ID",
+    "Transaction ID / Reconcile ID",
+    "Reference Transaction Number",
+  ],
   "reference transaction number": [
     "Transaction ID/ Reconcile ID",
     "Transaction ID / Reconcile ID",
     "Reference Transaction Number",
   ],
-  "from cif no. (client/sender)": [
-    "From CIF No. (Client/Sender)",
-  ],
+  "from cif no. (client/sender)": ["From CIF No. (Client/Sender)"],
   "from account ( a/c client/sender)": [
     "From Account ( A/C Client/Sender)",
     "From Account (A/C Client/Sender)",
@@ -817,20 +1216,25 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "From Account (A/C Client/Sender)",
   ],
   "from currency (ccy)": ["From Currency (CCY)"],
+    "to currency (ccy)": [
+    "To Currency (CCY)",
+  ],
+  
+  "from customer type code": [
+    "From Customer Type Code",
+  ],
+
+  "from customer type description": [
+    "From Customer Type Description",
+  ],
   "from debit amount": ["From Debit Amount", "From Debit Amount "],
   "from transfer amount": ["From Transfer Amount"],
   "from customer (resident/non resident)": [
     "From Customer (Resident/Non Resident)",
     "From Customer (Resident / Non Resident)",
   ],
-  "settled amount (ccy)": [
-    "Settled Amount (CCY)",
-    "Settled Amount",
-  ],
-  "settled currency (ccy)": [
-    "Settled Currency (CCY)",
-    "Settled Currency",
-  ],
+  "settled amount (ccy)": ["Settled Amount (CCY)", "Settled Amount"],
+  "settled currency (ccy)": ["Settled Currency (CCY)", "Settled Currency"],
 };
 
 /**
@@ -843,9 +1247,7 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
  * - Fee Amount 3
  * - Fee Amount n
  */
-const getDynamicFeeHeaderAliases = (
-  header: string,
-): string[] | undefined => {
+const getDynamicFeeHeaderAliases = (header: string): string[] | undefined => {
   const normalized = normalizeHeader(header);
 
   let matched = normalized.match(/^fee type\s+(\d+)$/);
@@ -854,9 +1256,7 @@ const getDynamicFeeHeaderAliases = (
     return [`Fee Type ${matched[1]}`];
   }
 
-  matched = normalized.match(
-    /^fee charge account no\. type\s+(\d+)$/,
-  );
+  matched = normalized.match(/^fee charge account no\. type\s+(\d+)$/);
 
   if (matched) {
     return [
@@ -865,9 +1265,7 @@ const getDynamicFeeHeaderAliases = (
     ];
   }
 
-  matched = normalized.match(
-    /^fee charge account type\s+(\d+)$/,
-  );
+  matched = normalized.match(/^fee charge account type\s+(\d+)$/);
 
   if (matched) {
     return [
@@ -879,10 +1277,7 @@ const getDynamicFeeHeaderAliases = (
   matched = normalized.match(/^fee currency(?: type)?\s+(\d+)$/);
 
   if (matched) {
-    return [
-      `Fee Currency ${matched[1]}`,
-      `Fee Currency Type ${matched[1]}`,
-    ];
+    return [`Fee Currency ${matched[1]}`, `Fee Currency Type ${matched[1]}`];
   }
 
   matched = normalized.match(/^fee amount(?: type)?\s+(\d+)$/);
@@ -891,16 +1286,10 @@ const getDynamicFeeHeaderAliases = (
     const index = Number(matched[1]);
 
     if (index === 1) {
-      return [
-        "Fee Amount Type 1",
-        "Fee Amount 1",
-      ];
+      return ["Fee Amount Type 1", "Fee Amount 1"];
     }
 
-    return [
-      `Fee Amount ${index}`,
-      `Fee Amount Type ${index}`,
-    ];
+    return [`Fee Amount ${index}`, `Fee Amount Type ${index}`];
   }
 
   return undefined;
@@ -912,24 +1301,17 @@ const getTestDataValue = (
 ): unknown => {
   const normalized = normalizeHeader(header);
   const dynamicFeeAliases = getDynamicFeeHeaderAliases(header);
-  const aliases =
-    dynamicFeeAliases ??
-    TEST_DATA_HEADER_ALIASES[normalized] ??
-    [header];
+  const aliases = dynamicFeeAliases ??
+    TEST_DATA_HEADER_ALIASES[normalized] ?? [header];
 
   return getRecordValue(testDataRow, aliases);
 };
 
-const getFeeHeaderNames = (
-  feeIndex: number,
-): string[] => [
+const getFeeHeaderNames = (feeIndex: number): string[] => [
   `Fee Type ${feeIndex}`,
   `Fee Charge Account No. Type ${feeIndex}`,
-  `Fee Charge Account Type ${feeIndex}`,
+  feeIndex === 1 ? "Fee Amount Type 1" : `Fee Amount ${feeIndex}`,
   `Fee Currency ${feeIndex}`,
-  feeIndex === 1
-    ? "Fee Amount Type 1"
-    : `Fee Amount ${feeIndex}`,
 ];
 
 const cloneCellStyle = (
@@ -1011,10 +1393,7 @@ const findSourceWorksheet = (
     /**
      * ค้นหาชื่อแบบตรงตัวก่อน
      */
-    const exactWorksheet =
-      workbook.getWorksheet(
-        sheetName,
-      );
+    const exactWorksheet = workbook.getWorksheet(sheetName);
 
     if (exactWorksheet) {
       return exactWorksheet;
@@ -1027,16 +1406,10 @@ const findSourceWorksheet = (
      * ตัวอย่าง:
      * "DS_FTX " จะถือว่าเท่ากับ "DS_FTX"
      */
-    const normalizedWorksheet =
-      workbook.worksheets.find(
-        (worksheet) =>
-          normalizeHeader(
-            worksheet.name,
-          ) ===
-          normalizeHeader(
-            sheetName,
-          ),
-      );
+    const normalizedWorksheet = workbook.worksheets.find(
+      (worksheet) =>
+        normalizeHeader(worksheet.name) === normalizeHeader(sheetName),
+    );
 
     if (normalizedWorksheet) {
       return normalizedWorksheet;
@@ -1063,40 +1436,28 @@ const findTargetWorksheet = (
   targetSheetName: string,
 ): ExcelJS.Worksheet | undefined => {
   const worksheet =
-    workbook.getWorksheet(
-      targetSheetName,
-    ) ??
+    workbook.getWorksheet(targetSheetName) ??
     workbook.worksheets.find(
       (candidateWorksheet) =>
-        normalizeHeader(
-          candidateWorksheet.name,
-        ) ===
-        normalizeHeader(
-          targetSheetName,
-        ),
+        normalizeHeader(candidateWorksheet.name) ===
+        normalizeHeader(targetSheetName),
     );
 
-  if (
-    worksheet &&
-    worksheet.name !== targetSheetName
-  ) {
+  if (worksheet && worksheet.name !== targetSheetName) {
     /**
      * ปรับชื่อชีตในไฟล์ผลลัพธ์ให้ตรงกับชื่อมาตรฐาน
      *
      * ตัวอย่าง:
      * "DS_FTX " -> "DS_FTX"
      */
-    worksheet.name =
-      targetSheetName;
+    worksheet.name = targetSheetName;
   }
 
   return worksheet;
 };
 
 /** อ่านรายการ Merge Cell จาก Worksheet */
-const getMergedCellRanges = (
-  worksheet: ExcelJS.Worksheet,
-): string[] => {
+const getMergedCellRanges = (worksheet: ExcelJS.Worksheet): string[] => {
   const worksheetModel = worksheet.model as ExcelJS.WorksheetModel & {
     merges?: string[];
   };
@@ -1105,9 +1466,7 @@ const getMergedCellRanges = (
 };
 
 /** ล้างข้อมูลเดิมของ Worksheet ปลายทาง */
-const clearTargetWorksheet = (
-  worksheet: ExcelJS.Worksheet,
-): void => {
+const clearTargetWorksheet = (worksheet: ExcelJS.Worksheet): void => {
   for (const mergedCellRange of getMergedCellRanges(worksheet)) {
     worksheet.unMergeCells(mergedCellRange);
   }
@@ -1215,11 +1574,7 @@ const copyWorksheetFromFile = async (
     preferredSourceSheetNames,
   );
 
-  const targetWorksheet =
-    findTargetWorksheet(
-      targetWorkbook,
-      targetSheetName,
-    );
+  const targetWorksheet = findTargetWorksheet(targetWorkbook, targetSheetName);
 
   if (!targetWorksheet) {
     throw new Error(
@@ -1234,10 +1589,7 @@ const copyWorksheetFromFile = async (
     targetWorksheet.mergeCells(mergedCellRange);
   }
 
-  restoreWorksheetStylesAfterMerge(
-    sourceWorksheet,
-    targetWorksheet,
-  );
+  restoreWorksheetStylesAfterMerge(sourceWorksheet, targetWorksheet);
 
   targetWorksheet.properties = {
     ...sourceWorksheet.properties,
@@ -1251,9 +1603,9 @@ const copyWorksheetFromFile = async (
     ...sourceWorksheet.headerFooter,
   };
 
-  targetWorksheet.views = sourceWorksheet.views.map(
-    (view) => ({ ...view }),
-  );
+  targetWorksheet.views = (sourceWorksheet.views ?? []).map((view) => ({
+    ...view,
+  }));
 
   console.log(
     `Copied Worksheet      : ${sourceWorksheet.name} -> ${targetSheetName}`,
@@ -1274,6 +1626,7 @@ const ensureDynamicFeeColumns = (
   worksheet: ExcelJS.Worksheet,
   headerRowNumber: number,
   maxFeeIndexFromTestData: number,
+  config: SummaryReportConfig,
 ): void => {
   if (maxFeeIndexFromTestData <= 0) {
     return;
@@ -1299,26 +1652,22 @@ const ensureDynamicFeeColumns = (
   const sourceHeaders = getFeeHeaderNames(sourceFeeIndex);
   const sourceColumns = sourceHeaders
     .map((header) => headerMap.get(normalizeHeader(header)))
-    .filter((columnNumber): columnNumber is number =>
-      columnNumber !== undefined,
+    .filter(
+      (columnNumber): columnNumber is number => columnNumber !== undefined,
     );
 
   const sourceStartColumn =
     sourceColumns.length > 0
       ? Math.min(...sourceColumns)
-      : Math.max(1, insertAfterColumn - 4);
+      : Math.max(1, insertAfterColumn - sourceHeaders.length + 1);
 
-  const columnsPerFee = 5;
-  const missingFeeCount =
-    maxFeeIndexFromTestData - maxFeeIndexInTemplate;
+  const columnsPerFee = sourceHeaders.length;
+  const missingFeeCount = maxFeeIndexFromTestData - maxFeeIndexInTemplate;
 
   worksheet.spliceColumns(
     insertAfterColumn + 1,
     0,
-    ...Array.from(
-      { length: missingFeeCount * columnsPerFee },
-      () => [],
-    ),
+    ...Array.from({ length: missingFeeCount * columnsPerFee }, () => []),
   );
 
   let targetColumn = insertAfterColumn + 1;
@@ -1337,49 +1686,184 @@ const ensureDynamicFeeColumns = (
 
       targetWorksheetColumn.width = sourceWorksheetColumn.width;
       targetWorksheetColumn.hidden = sourceWorksheetColumn.hidden;
-      targetWorksheetColumn.outlineLevel =
-        sourceWorksheetColumn.outlineLevel;
+      targetWorksheetColumn.outlineLevel = sourceWorksheetColumn.outlineLevel;
 
-      for (
-        let rowNumber = 1;
-        rowNumber <= worksheet.rowCount;
-        rowNumber += 1
-      ) {
+      for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber += 1) {
         cloneCellStyle(
           worksheet.getRow(rowNumber).getCell(sourceColumn),
           worksheet.getRow(rowNumber).getCell(targetColumn),
         );
       }
 
-      worksheet
-        .getRow(headerRowNumber)
-        .getCell(targetColumn).value = header;
+      worksheet.getRow(headerRowNumber).getCell(targetColumn).value = header;
 
       targetColumn += 1;
     });
   }
+
+  /* ขยายหัวข้อ Test Script Data ให้ครอบคลุม Fee Column ที่เพิ่มใหม่ */
+  const titleRowNumber = headerRowNumber - 1;
+  const titleCell = worksheet.getCell(
+    titleRowNumber,
+    config.testDataFirstColumn,
+  );
+  const titleAddress = titleCell.address;
+  const titleValue = titleCell.value;
+  const titleStyle = JSON.parse(
+    JSON.stringify(titleCell.style ?? {}),
+  ) as Partial<ExcelJS.Style>;
+  const existingMerge = getMergedCellRanges(worksheet).find((mergeRange) =>
+    mergeRange.startsWith(`${titleAddress}:`),
+  );
+
+  if (existingMerge) {
+    worksheet.unMergeCells(existingMerge);
+  }
+
+  worksheet.mergeCells(
+    titleRowNumber,
+    config.testDataFirstColumn,
+    titleRowNumber,
+    targetColumn - 1,
+  );
+
+  titleCell.value = titleValue;
+  titleCell.style = titleStyle;
 };
 
+/**
+ * ค้นหาแถว Header ของ Summary Details
+ *
+ * Header ที่ใช้ยืนยัน:
+ * - Test Result
+ * - Reason
+ * - Test No. หรือ Test Script No.
+ *
+ * DF_FXU Template ใหม่ใช้ Test No.
+ * ส่วน Template ของ Report เดิมบางตัว
+ * ยังใช้ Test Script No.
+ *
+ * จึงต้องรองรับทั้งสองรูปแบบ
+ * เพื่อไม่ให้กระทบ Report อื่น
+ */
 const findTemplateHeaderRowNumber = (
-  worksheet: ExcelJS.Worksheet,
+  worksheet:
+    ExcelJS.Worksheet,
 ): number => {
-  const maxRowToCheck = Math.min(30, worksheet.rowCount);
+  const maxRowToCheck =
+    Math.min(
+      30,
+      worksheet.rowCount,
+    );
 
-  for (let rowNumber = 1; rowNumber <= maxRowToCheck; rowNumber += 1) {
-    const headerMap = buildHeaderMap(worksheet, rowNumber);
+  for (
+    let rowNumber = 1;
+    rowNumber <= maxRowToCheck;
+    rowNumber += 1
+  ) {
+    const headerMap =
+      buildHeaderMap(
+        worksheet,
+        rowNumber,
+      );
+
+    /**
+     * รองรับชื่อ Header:
+     *
+     * - Test No.
+     * - Test No
+     * - Test Script No.
+     * - Test Script No
+     */
+    const hasTestNumberHeader =
+      headerMap.has(
+        "test no.",
+      ) ||
+      headerMap.has(
+        "test no",
+      ) ||
+      headerMap.has(
+        "test script no.",
+      ) ||
+      headerMap.has(
+        "test script no",
+      );
 
     if (
-      headerMap.has("test result") &&
-      headerMap.has("reason") &&
-      headerMap.has("test script no.")
+      headerMap.has(
+        "test result",
+      ) &&
+      headerMap.has(
+        "reason",
+      ) &&
+      hasTestNumberHeader
     ) {
       return rowNumber;
     }
   }
 
   throw new Error(
-    `Summary detail header row not found in worksheet: ${worksheet.name}`,
+    `Summary detail header row not found in worksheet: ` +
+    `${worksheet.name}. Required headers: ` +
+    `"Test Result", "Reason", and either ` +
+    `"Test No." or "Test Script No.".`,
   );
+};
+/** Merge ฝั่ง Test Data เมื่อ LTX หลาย Reconcile Row ใช้ Test Data แถวเดียวกัน */
+const mergeRepeatedTestDataRows = (
+  worksheet: ExcelJS.Worksheet,
+  dataStartRow: number,
+  testDataRows: Array<DataRecord | undefined>,
+  config: SummaryReportConfig,
+): void => {
+  if (!config.mergeRepeatedTestDataRows || testDataRows.length < 2) {
+    return;
+  }
+
+  const lastColumn = worksheet.columnCount;
+  let groupStartIndex = 0;
+
+  const mergeGroup = (startIndex: number, endIndex: number): void => {
+    if (endIndex <= startIndex || !testDataRows[startIndex]) {
+      return;
+    }
+
+    const startRowNumber = dataStartRow + startIndex;
+    const endRowNumber = dataStartRow + endIndex;
+
+    for (
+      let columnNumber = config.testDataFirstColumn;
+      columnNumber <= lastColumn;
+      columnNumber += 1
+    ) {
+      worksheet.mergeCells(
+        startRowNumber,
+        columnNumber,
+        endRowNumber,
+        columnNumber,
+      );
+
+      const cell = worksheet.getCell(startRowNumber, columnNumber);
+      cell.alignment = {
+        ...(cell.alignment ?? {}),
+        vertical: "middle",
+        wrapText: true,
+      };
+    }
+  };
+
+  for (let index = 1; index <= testDataRows.length; index += 1) {
+    const reachedEnd = index === testDataRows.length;
+    const usesSameTestData =
+      !reachedEnd && testDataRows[index] === testDataRows[groupStartIndex];
+
+    if (usesSameTestData) {
+      continue;
+    }
+
+    mergeGroup(groupStartIndex, index - 1);
+    groupStartIndex = index;
+  }
 };
 
 export const writeReportAutomationSummary = async (
@@ -1393,10 +1877,7 @@ export const writeReportAutomationSummary = async (
   resultRows: CompareResultRow[],
   summaryInfo: AutomationSummaryInfo,
 ): Promise<void> => {
-  const config =
-    getSummaryReportConfig(
-      reportName,
-    );
+  const config = getSummaryReportConfig(reportName);
 
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Summary template not found: ${templatePath}`);
@@ -1418,19 +1899,13 @@ export const writeReportAutomationSummary = async (
     throw new Error(`Checked Test Data not found: ${checkedTestDataPath}`);
   }
 
-  const checkedTestDataResult = await readCheckedTestDataRows(
-    originalTestDataPath,
-  );
-
-  const testDataMap = checkedTestDataResult.testDataMap;
+  const checkedTestDataResult =
+    await readCheckedTestDataRows(originalTestDataPath);
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(templatePath);
 
-  const summarySheet =
-    workbook.getWorksheet(
-      config.summarySheetName,
-    );
+  const summarySheet = workbook.getWorksheet(config.summarySheetName);
 
   if (!summarySheet) {
     throw new Error(
@@ -1438,21 +1913,16 @@ export const writeReportAutomationSummary = async (
     );
   }
 
-  writeSummaryInformation(
-    summarySheet,
-    summaryInfo,
-    config,
-  );
+  writeSummaryInformation(summarySheet, summaryInfo, config);
 
   const headerRowNumber = findTemplateHeaderRowNumber(summarySheet);
 
-  if (
-    config.hasDynamicFeeColumns
-  ) {
+  if (config.hasDynamicFeeColumns) {
     ensureDynamicFeeColumns(
       summarySheet,
       headerRowNumber,
       checkedTestDataResult.maxFeeIndex,
+      config,
     );
   }
 
@@ -1466,48 +1936,62 @@ export const writeReportAutomationSummary = async (
     );
   }
 
+  const matchedTestDataRows: Array<DataRecord | undefined> = [];
+
   resultRows.forEach((compareRow, rowIndex) => {
     const outputRow = summarySheet.getRow(dataStartRow + rowIndex);
-    const testDataRow = testDataMap.get(compareRow.testScriptNo);
-
-    headerRow.eachCell(
-      { includeEmpty: true },
-      (headerCell, columnNumber) => {
-        const header = normalizeText(getCellValue(headerCell));
-
-        if (header === "") {
-          return;
-        }
-
-        const outputCell = outputRow.getCell(columnNumber);
-
-        if (
-          columnNumber <=
-          config.compareLastColumn
-        ) {
-          outputCell.value = getCompareValue(header, compareRow) as ExcelJS.CellValue;
-        } else if (
-          columnNumber >=
-          config.testDataFirstColumn
-        ) {
-          outputCell.value = getTestDataValue(header, testDataRow) as ExcelJS.CellValue;
-        }
-
-        outputCell.border = THIN_BORDER;
-        outputCell.alignment = {
-          vertical: "top",
-          horizontal: header === "Test Result" ? "center" : "left",
-          wrapText: true,
-        };
-
-        if (normalizeHeader(header) === "test result") {
-          applyStatusStyle(outputCell, compareRow.status);
-        }
-      },
+    const testDataRow = findMatchingTestDataRow(
+      compareRow,
+      checkedTestDataResult,
+      config,
     );
+
+    matchedTestDataRows.push(testDataRow);
+
+    headerRow.eachCell({ includeEmpty: true }, (headerCell, columnNumber) => {
+      const header = normalizeText(getCellValue(headerCell));
+
+      if (header === "") {
+        return;
+      }
+
+      const outputCell = outputRow.getCell(columnNumber);
+
+      if (columnNumber <= config.compareLastColumn) {
+                outputCell.value =
+          getCompareValue(
+            header,
+            compareRow,
+            config,
+          ) as ExcelJS.CellValue;
+      } else if (columnNumber >= config.testDataFirstColumn) {
+        outputCell.value = getTestDataValue(
+          header,
+          testDataRow,
+        ) as ExcelJS.CellValue;
+      }
+
+      outputCell.border = THIN_BORDER;
+      outputCell.alignment = {
+        vertical: "top",
+        horizontal: header === "Test Result" ? "center" : "left",
+        wrapText: true,
+      };
+
+      if (normalizeHeader(header) === "test result") {
+        applyStatusStyle(outputCell, compareRow.status);
+      }
+    });
 
     outputRow.height = 36;
   });
+
+  mergeRepeatedTestDataRows(
+    summarySheet,
+    dataStartRow,
+    matchedTestDataRows,
+    config,
+  );
 
   summarySheet.views = [
     {
@@ -1553,21 +2037,14 @@ export const writeReportAutomationSummary = async (
     checkedReportPath,
     workbook,
     config.reportSheetName,
-    [
-      config.reportSheetName,
-      config.reportCode,
-    ],
+    [...config.reportSourceSheetNames],
   );
 
   /* Checked Test Data จาก Script 2 -> Test Data */
-  await copyWorksheetFromFile(
-    checkedTestDataPath,
-    workbook,
+  await copyWorksheetFromFile(checkedTestDataPath, workbook, "Test Data", [
     "Test Data",
-    ["Test Data"],
-  );
+  ]);
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   await workbook.xlsx.writeFile(outputPath);
 };
-

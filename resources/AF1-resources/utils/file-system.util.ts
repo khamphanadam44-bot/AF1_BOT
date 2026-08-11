@@ -198,6 +198,157 @@ export const getLatestFile = (
   // คืน Full Path ของไฟล์ล่าสุด
   return latestFile.fullPath;
 };
+/**
+ * ค้นหาไฟล์ Excel เพียง 1 ไฟล์
+ * ภายในโฟลเดอร์ที่กำหนด
+ *
+ * เงื่อนไข:
+ * - ชื่อไฟล์เป็นอะไรก็ได้
+ * - รองรับนามสกุล .xlsx และ .xls
+ * - รองรับทั้งตัวพิมพ์เล็กและตัวพิมพ์ใหญ่
+ * - ไม่เลือกไฟล์ชั่วคราวของ Excel ที่ขึ้นต้นด้วย ~$
+ * - ต้องมีไฟล์ Excel เพียง 1 ไฟล์เท่านั้น
+ *
+ * @param folderPath
+ * Path ของโฟลเดอร์ที่ต้องการค้นหา Test Data
+ *
+ * @returns
+ * Full Path ของไฟล์ Excel ที่พบ
+ */
+export const getSingleExcelFile = (
+  folderPath: string,
+): string => {
+  /**
+   * ตรวจสอบว่าโฟลเดอร์มีอยู่จริง
+   */
+  if (
+    !fs.existsSync(
+      folderPath,
+    )
+  ) {
+    throw new Error(
+      `Test Data folder not found: ${folderPath}`,
+    );
+  }
+
+  /**
+   * อ่านรายการทั้งหมดภายในโฟลเดอร์
+   */
+  const excelFiles =
+    fs.readdirSync(
+      folderPath,
+    )
+      /**
+       * เลือกเฉพาะรายการที่เป็นไฟล์
+       * ไม่เลือกโฟลเดอร์ย่อย
+       */
+      .filter(
+        (
+          fileName,
+        ) => {
+          const fullPath =
+            path.join(
+              folderPath,
+              fileName,
+            );
+
+          return fs
+            .statSync(
+              fullPath,
+            )
+            .isFile();
+        },
+      )
+
+      /**
+       * ตัดไฟล์ชั่วคราวของ Excel ออก
+       *
+       * ตัวอย่าง:
+       * ~$Test_Data.xlsx
+       */
+      .filter(
+        (
+          fileName,
+        ) =>
+          !fileName.startsWith(
+            "~$",
+          ),
+      )
+
+      /**
+       * เลือกเฉพาะไฟล์ Excel
+       *
+       * รองรับ:
+       * .xlsx
+       * .xls
+       * .XLSX
+       * .XLS
+       */
+      .filter(
+        (
+          fileName,
+        ) => {
+          const extension =
+            path.extname(
+              fileName,
+            )
+              .toLowerCase();
+
+          return (
+            extension === ".xlsx" ||
+            extension === ".xls"
+          );
+        },
+      );
+
+  /**
+   * ไม่พบไฟล์ Excel
+   */
+  if (
+    excelFiles.length === 0
+  ) {
+    throw new Error(
+      `ไม่พบไฟล์ Test Data ในโฟลเดอร์: ${folderPath}`,
+    );
+  }
+
+  /**
+   * พบไฟล์ Excel มากกว่า 1 ไฟล์
+   *
+   * ระบบจะไม่เลือกไฟล์ให้เอง
+   * เพื่อป้องกันการนำ Test Data ผิดไฟล์มาใช้งาน
+   */
+  if (
+    excelFiles.length > 1
+  ) {
+    throw new Error(
+      [
+        "พบไฟล์ Test Data มากกว่า 1 ไฟล์",
+        `Folder: ${folderPath}`,
+        `Files: ${excelFiles.join(", ")}`,
+        "กรุณาให้เหลือไฟล์ Excel เพียง 1 ไฟล์",
+      ].join(
+        "\n",
+      ),
+    );
+  }
+
+  /**
+   * สร้าง Full Path ของไฟล์ที่พบ
+   */
+  const testDataFilePath =
+    path.join(
+      folderPath,
+      excelFiles[0],
+    );
+
+  console.log(
+    "Test Data File :",
+    testDataFilePath,
+  );
+
+  return testDataFilePath;
+};
 
 /**
  * คัดลอกไฟล์จากตำแหน่งต้นทาง

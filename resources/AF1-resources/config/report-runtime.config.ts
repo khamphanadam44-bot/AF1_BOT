@@ -10,13 +10,9 @@
 
 import * as path from "path";
 import type { ReportCode } from "./report-config";
-import { TEST_DATA_INPUT_PATH } from "./paths.config";
 
 export interface ReportRuntimeConfig {
   readonly reportCode: ReportCode;
-
-  /** Test Data ต้นฉบับของ Report */
-  readonly testDataInputPath: string;
 
   /** ชื่อไฟล์ผล Validate Test Data ก่อนต่อ Timestamp */
   readonly testDataResultBasename: string;
@@ -38,10 +34,6 @@ const buildDefaultConfig = (
 
   return {
     reportCode,
-    testDataInputPath: path.resolve(
-      PROJECT_ROOT,
-      TEST_DATA_INPUT_PATH,
-    ),
     testDataResultBasename: `${reportCode}_TestData_Validation_Result`,
     testDataSheetName: "Test Data",
     testDataHeaderRowNumber: 5,
@@ -56,9 +48,10 @@ const buildDefaultConfig = (
 };
 
 /**
- * Config ครั้งแรกของแต่ละ Report
+ * Config การทำงานของแต่ละ Report
  *
- * ทุก Report ใช้ Test Data กลางไฟล์เดียวกัน
+ * ใช้เก็บค่าที่เกี่ยวข้องกับผล Validation
+ * และการสร้าง Summary ของแต่ละ Report
  */
 const REPORT_RUNTIME_CONFIG: Record<
   ReportCode,
