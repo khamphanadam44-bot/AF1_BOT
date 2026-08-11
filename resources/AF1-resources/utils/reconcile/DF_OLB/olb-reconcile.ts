@@ -1,16 +1,14 @@
 /**
- * ftu-reconcile.ts
+ * olb-reconcile.ts
  * ------------------------------------------------------------------
- * Entry Point ของ Script 3 สำหรับ DS_FTU
+ * Orchestrator ของ DF_OLB Script 3
  *
- * หน้าที่:
+ * Flow:
  * 1. เตรียม Workbook และอ่านข้อมูล
- * 2. ตรวจ Header ที่จำเป็น
- * 3. ส่งแต่ละ Test Case ให้ Matcher และ Analyzer
- * 4. เขียนผล Reconcile และสรุปผล
- *
- * Business Matching อยู่ใน ftu-matcher.ts
- * Business Validation อยู่ใน ftu-analyzer.ts
+ * 2. ตรวจ Header
+ * 3. ให้ Matcher หา AF1 Row
+ * 4. ให้ Analyzer สร้าง PASS/FAIL/Remark
+ * 5. เขียนและบันทึก Result Workbook
  * ------------------------------------------------------------------
  */
 
@@ -19,61 +17,75 @@ import {
   requireMappingReportName,
 } from "../../../config/mapping-helper";
 import { canonicalHeader } from "../../validators/shared/header-matcher";
-import { ReconcileExcelReader } from "../shared/excel-reader";
-import { ReconcileResultSheetWriter } from "../shared/result-writer";
-import type { ResultRow } from "../shared/result-writer";
-import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
-import { FtuAnalyzer } from "./ftu-analyzer";
+import { OlbAnalyzer } from "./olb-analyzer";
 import {
-  FTU_REPORT_CODE,
-  FTU_REPORT_HEADER_ROW,
-  FTU_REQUIRED_TEST_DATA_HEADERS,
-  FTU_TEST_DATA_HEADER_ROW,
-} from "./ftu-config";
-import { FtuMatcher } from "./ftu-matcher";
+  OLB_REPORT_CODE,
+  OLB_REPORT_FIELDS,
+  OLB_REPORT_HEADER_ROW,
+  OLB_REQUIRED_TEST_DATA_HEADERS,
+  OLB_TEST_DATA_HEADER_ROW,
+} from "./olb-config";
+import { OlbMatcher } from "./olb-matcher";
+import { normalizeOlbText } from "./olb-normalize.util";
+import { ReconcileExcelReader } from "../shared/excel-reader";
+import {
+  ReconcileResultSheetWriter,
+  ResultRow,
+} from "../shared/result-writer";
+import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
 
-export class FtuReconcileService {
+class OlbReconcileService {
   async reconcile(testDataFilePath: string): Promise<string> {
     const workbookPreparer = new ReconcileWorkbookPreparer();
     const excelReader = new ReconcileExcelReader();
     const sheetWriter = new ReconcileResultSheetWriter();
-    const matcher = new FtuMatcher();
-    const analyzer = new FtuAnalyzer();
+    const matcher = new OlbMatcher();
+    const analyzer = new OlbAnalyzer();
 
-    console.log(`\n===== RECONCILE - ${FTU_REPORT_CODE} =====`);
+    console.log(`\n===== RECONCILE - ${OLB_REPORT_CODE} =====`);
 
     const prepared = await workbookPreparer.prepare(
-      FTU_REPORT_CODE,
-      FTU_REPORT_HEADER_ROW,
+      OLB_REPORT_CODE,
+      OLB_REPORT_HEADER_ROW,
     );
     const reportData = excelReader.parseWorksheet(
       prepared.reportWorksheet,
-      FTU_REPORT_HEADER_ROW,
+      OLB_REPORT_HEADER_ROW,
     );
     const testData = await excelReader.readFile(
       testDataFilePath,
-      FTU_TEST_DATA_HEADER_ROW,
+      OLB_TEST_DATA_HEADER_ROW,
     );
 
-    this.validateHeaders(prepared.reportHeaders, testData.headers);
+    this.validateHeaders(
+      prepared.reportHeaders, 
+      testData.headers);
 
-    const reportRecordsById = matcher.indexReportRecords(reportData.records);
-    const usedReportRowNumbers = matcher.findReservedReportRows(
+    const reportRecords = reportData.records.filter(
+      (record) =>
+        normalizeOlbText(
+          record.get(OLB_REPORT_FIELDS.arrangementNumber),
+        ) !== "",
+    );
+
+    const reservedReportRowNumbers = matcher.findReservedReportRows(
       testData.records,
-      reportRecordsById,
+      reportRecords,
     );
+
+    const usedReportRowNumbers = new Set<number>();
     const annotationByRowNumber = new Map<number, ResultRow>();
     const unmatchedRows: ResultRow[] = [];
     const results: ResultRow[] = [];
 
     for (const testDataRecord of testData.records) {
-      const matchResult = matcher.findMatch(
+      const candidate = matcher.findBestCandidate(
         testDataRecord,
-        reportRecordsById,
-        reportData.records,
+        reportRecords,
         usedReportRowNumbers,
+        reservedReportRowNumbers,
       );
-      const result = analyzer.analyze(testDataRecord, matchResult);
+      const result = analyzer.analyze(testDataRecord, candidate);
 
       results.push(result);
 
@@ -82,17 +94,23 @@ export class FtuReconcileService {
         continue;
       }
 
-      annotationByRowNumber.set(result.matchedRowNumber, result);
-      usedReportRowNumbers.add(result.matchedRowNumber);
+      annotationByRowNumber.set(
+        result.matchedRowNumber,
+        result,
+      );
+      usedReportRowNumbers.add(
+        result.matchedRowNumber);
     }
 
-    sheetWriter.writeHeaderRow(prepared.resultSheet, prepared.reportHeaders);
+    sheetWriter.writeHeaderRow(
+      prepared.resultSheet, 
+      prepared.reportHeaders);
 
     const nextRowNumber = sheetWriter.writeRowsInRequestedOrder(
       prepared.resultSheet,
       prepared.reportWorksheet,
       prepared.reportHeaders,
-      FTU_REPORT_HEADER_ROW + 1,
+      OLB_REPORT_HEADER_ROW + 1,
       prepared.reportWorksheet.rowCount,
       annotationByRowNumber,
       unmatchedRows,
@@ -104,25 +122,34 @@ export class FtuReconcileService {
       nextRowNumber - 1,
     );
 
-    prepared.workbook.removeWorksheet(prepared.reportWorksheet.id);
-    await prepared.workbook.xlsx.writeFile(prepared.reconcileFilePath);
+    prepared.workbook.removeWorksheet(
+      prepared.reportWorksheet.id);
 
-    this.logSummary(prepared.reconcileFilePath, results);
+    await prepared.workbook.xlsx.writeFile(
+      prepared.reconcileFilePath);
+
+    this.logSummary(
+      prepared.reconcileFilePath, 
+      results
+    );
     return prepared.reconcileFilePath;
   }
 
-  /** ตรวจ Header ที่จำเป็นก่อนเริ่ม Reconcile */
   private validateHeaders(
     reportHeaders: string[],
     testDataHeaders: string[],
   ): void {
-    const reportName = requireMappingReportName(FTU_REPORT_CODE);
-    const requiredReportHeaders = getUniqueMappingHeaders(reportName);
+    const reportName = requireMappingReportName(OLB_REPORT_CODE);
 
-    this.assertHeaders(reportHeaders, requiredReportHeaders, "Raw Report");
+    this.assertHeaders(
+      reportHeaders,
+      getUniqueMappingHeaders(reportName),
+      "Raw Report",
+    );
+
     this.assertHeaders(
       testDataHeaders,
-      FTU_REQUIRED_TEST_DATA_HEADERS,
+      OLB_REQUIRED_TEST_DATA_HEADERS,
       "Test Data",
     );
   }
@@ -137,20 +164,21 @@ export class FtuReconcileService {
         .filter((header) => header.trim() !== "")
         .map(canonicalHeader),
     );
+
     const missingHeaders = requiredHeaders.filter(
       (header) => !actualHeaderSet.has(canonicalHeader(header)),
     );
 
     if (missingHeaders.length > 0) {
       throw new Error(
-        `[${FTU_REPORT_CODE}] ` +
-          `${sourceName} missing header(s): ` +
+        `[${OLB_REPORT_CODE}] ${sourceName} missing header(s): ` +
           missingHeaders.join(", "),
       );
     }
   }
 
-  private logSummary(outputPath: string, results: ResultRow[]): void {
+  private logSummary(outputPath: string, 
+    results: ResultRow[]): void {
     const passCount = results.filter(
       (result) => result.status === "PASS",
     ).length;
@@ -165,5 +193,7 @@ export class FtuReconcileService {
   }
 }
 
-export const reconcileFtuReport = (testDataFilePath: string): Promise<string> =>
-  new FtuReconcileService().reconcile(testDataFilePath);
+export const reconcileOlbReport = (
+  testDataFilePath: string,
+): Promise<string> => 
+  new OlbReconcileService().reconcile(testDataFilePath);

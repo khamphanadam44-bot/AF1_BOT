@@ -371,9 +371,16 @@ export const REPORT_CONFIG_mapping = {
     // ยังไม่ได้เพิ่ม Header Mapping ของ DF_OLB ใน Config ชุดนี้
     requiredHeaders: {
 
-      matchingKey: [],
+      matchingKey: [
+        "FI Arrangement Number",
+        "Arrangement Contract Date",
+        "THB Outstanding Amount",
+      ],
 
-      core: [],
+      core: [
+        "Cust Code",
+        "Cust Name",
+      ],
 
       customer: [],
 
