@@ -14,21 +14,12 @@
  * - Fee Amount 3
  * - ...
  */
-export const getFeeAmountHeader = (
-  feeNumber: number,
-): string => {
-  if (
-    !Number.isInteger(feeNumber) ||
-    feeNumber < 1
-  ) {
-    throw new Error(
-      `Invalid Fee number: ${feeNumber}`,
-    );
+export const getFeeAmountHeader = (feeNumber: number): string => {
+  if (!Number.isInteger(feeNumber) || feeNumber < 1) {
+    throw new Error(`Invalid Fee number: ${feeNumber}`);
   }
 
-  return feeNumber === 1
-    ? "Fee Amount Type 1"
-    : `Fee Amount ${feeNumber}`;
+  return feeNumber === 1 ? "Fee Amount Type 1" : `Fee Amount ${feeNumber}`;
 };
 
 /**
@@ -52,13 +43,8 @@ const createFeeHeaders = (
   feeTypeCount: number,
   includeFeeChargeType = false,
 ): string[] => {
-  if (
-    !Number.isInteger(feeTypeCount) ||
-    feeTypeCount < 0
-  ) {
-    throw new Error(
-      `Invalid Fee Type count: ${feeTypeCount}`,
-    );
+  if (!Number.isInteger(feeTypeCount) || feeTypeCount < 0) {
+    throw new Error(`Invalid Fee Type count: ${feeTypeCount}`);
   }
 
   return Array.from(
@@ -68,14 +54,10 @@ const createFeeHeaders = (
     (_, index) => {
       const feeNumber = index + 1;
 
-      const headers = [
-        `Fee Type ${feeNumber}`,
-      ];
+      const headers = [`Fee Type ${feeNumber}`];
 
       if (includeFeeChargeType) {
-        headers.push(
-          `Fee Charge Type ${feeNumber}`,
-        );
+        headers.push(`Fee Charge Type ${feeNumber}`);
       }
 
       headers.push(
@@ -99,9 +81,7 @@ export const TESTDATA_CONFIG = {
     headerRowNumber: 5,
 
     requiredHeaders: {
-      matchingKey: [
-        "Transaction ID/ Reconcile ID",
-      ],
+      matchingKey: ["Transaction ID/ Reconcile ID"],
 
       core: [
         "Test No.",
@@ -139,12 +119,8 @@ export const TESTDATA_CONFIG = {
        *
        * จำนวนกลุ่มจะรับมาจาก Header ใน Test Data จริง
        */
-      feeGroup: (
-        feeTypeCount: number,
-      ): string[] => {
-        return createFeeHeaders(
-          feeTypeCount,
-        );
+      feeGroup: (feeTypeCount: number): string[] => {
+        return createFeeHeaders(feeTypeCount);
       },
     },
   },
@@ -156,9 +132,7 @@ export const TESTDATA_CONFIG = {
     headerRowNumber: 5,
 
     requiredHeaders: {
-      matchingKey: [
-        "Transaction ID/ Reconcile ID",
-      ],
+      matchingKey: ["Transaction ID/ Reconcile ID"],
 
       core: [
         "Txn Date",
@@ -196,13 +170,8 @@ export const TESTDATA_CONFIG = {
        *
        * จำนวนกลุ่มจะรับมาจาก Header ใน Test Data จริง
        */
-      feeGroup: (
-        feeTypeCount: number,
-      ): string[] => {
-        return createFeeHeaders(
-          feeTypeCount,
-          true,
-        );
+      feeGroup: (feeTypeCount: number): string[] => {
+        return createFeeHeaders(feeTypeCount, true);
       },
     },
   },
@@ -214,9 +183,7 @@ export const TESTDATA_CONFIG = {
     headerRowNumber: 5,
 
     requiredHeaders: {
-      matchingKey: [
-        "Transaction ID/ Reconcile ID",
-      ],
+      matchingKey: ["Transaction ID/ Reconcile ID"],
 
       core: [
         "From Currency (CCY)",
@@ -249,9 +216,7 @@ export const TESTDATA_CONFIG = {
     headerRowNumber: 5,
 
     requiredHeaders: {
-      matchingKey: [
-        "Transaction ID/ Reconcile ID",
-      ],
+      matchingKey: ["Transaction ID/ Reconcile ID"],
 
       core: [
         "Test No.",
@@ -277,15 +242,13 @@ export const TESTDATA_CONFIG = {
   },
 
   // ====================================================
-// DF_FXU
-// ====================================================
-DF_FXU: {
-  headerRowNumber: 5,
+  // DF_FXU
+  // ====================================================
+  DF_FXU: {
+    headerRowNumber: 5,
 
     requiredHeaders: {
-    matchingKey: [
-      "Transaction ID/ Reconcile ID",
-    ],
+      matchingKey: ["Transaction ID/ Reconcile ID"],
 
       core: [
         "From Currency (CCY)",
@@ -297,19 +260,14 @@ DF_FXU: {
         "From Customer Type Description",
       ],
 
-        customer: [],
+      customer: [],
 
-          conditional: [],
+      conditional: [],
 
-            reference: [
-              "Test No.",
-            ],
+      reference: ["Test No."],
 
-              feeGroup: [],
+      feeGroup: [],
     },
-<<<<<<< Updated upstream
-},
-=======
   },
 
   DF_OLB: {
@@ -323,7 +281,7 @@ DF_FXU: {
       ],
 
       core: [
-        "From CIF No. (Client/Sender)",
+        "From CIF No. (Client/Sender)", 
         "From CIF Name (Client/Sender)"
       ],
 
@@ -335,91 +293,12 @@ DF_FXU: {
 
       feeGroup: [],
     },
-    // ====================================================
-    // DF_FXM
-    // ====================================================
-    DF_FXM: {
-
-      /**
-       * Header ของ Test Data
-       * อยู่ที่แถวที่ 5
-       */
-      headerRowNumber: 5,
-
-      /**
-       * DF_FXM ใช้ Test Data Field
-       * ชุดเดียวกับ DF_FXU
-       *
-       * ความแตกต่างอยู่ที่ Threshold:
-       *
-       * DF_FXU:
-       * Settled Amount ต่ำกว่า 1,000,000 USD
-       *
-       * DF_FXM:
-       * Settled Amount ตั้งแต่ 1,000,000 USD ขึ้นไป
-       */
-      requiredHeaders: {
-
-        /**
-         * Matching Key หลัก
-         *
-         * ใช้จับคู่กับ Arrangement Number
-         * ใน DF_FXM Report
-         */
-        matchingKey: [
-          "Transaction ID/ Reconcile ID",
-        ],
-
-        /**
-         * Field หลักที่ใช้ตรวจ Business Rule,
-         * Fallback Matching และ Core Field
-         */
-        core: [
-          "From Currency (CCY)",
-          "To Currency (CCY)",
-          "Settled Currency (CCY)",
-          "Settled Amount (CCY)",
-          "Txn Date",
-          "From Customer Type Code",
-          "From Customer Type Description",
-        ],
-
-        /**
-         * ยังไม่มี Customer Field แยก
-         */
-        customer: [],
-
-        /**
-         * ยังไม่มี Conditional Field
-         *
-         * NIUM และ Settlement Logic
-         * จะยังไม่เพิ่มในขั้นตอนนี้
-         */
-        conditional: [],
-
-        /**
-         * Test No. ใช้สำหรับแสดงหมายเลข Test Case
-         * ไม่ใช้ตัดสิน Business PASS หรือ FAIL
-         */
-        reference: [
-          "Test No.",
-        ],
-
-        /**
-         * DF_FXM ไม่มีการตรวจ Fee Group
-         */
-        feeGroup: [],
-      },
-    },
   },
->>>>>>> Stashed changes
 
 } as const;
-
 
 
 /**
  * Report Code ที่รองรับใน Test Data Config
  */
-export type TestDataReportCode =
-  keyof typeof TESTDATA_CONFIG;
+export type TestDataReportCode = keyof typeof TESTDATA_CONFIG;

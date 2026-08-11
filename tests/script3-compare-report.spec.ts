@@ -1,34 +1,27 @@
 /**
  * ============================================================================
  * script3-compare-report.spec.ts
- * --------------------------------------------------------------------------
+ * ----------------------------------------------------------------------------
  * Script 3 - Compare Report with Test Data
  *
- * Report ที่รองรับ:
+ * รองรับ:
  * - DS_LTX
  * - DS_PTX
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
-<<<<<<< Updated upstream
-=======
  * - DF_OLB
  * - DF_FXM
->>>>>>> Stashed changes
  *
- * ตัวอย่างคำสั่ง:
+ * ตัวอย่าง:
  * npm run test:script3 -- report=DS_PTX
  * npm run test:script3 -- report=DS_FTX
  * npm run test:script3 -- report=DS_LTX
-<<<<<<< Updated upstream
- * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU
-=======
  * npm run test:script3 -- report=DS_FTU
  * npm run test:script3 -- report=DF_FXU
  * npm run test:script3 -- report=DF_OLB
  * npm run test:script3 -- report=DF_FXM
  * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB,DF_FXM
->>>>>>> Stashed changes
  * ============================================================================
  */
 
@@ -72,11 +65,9 @@ import {
   printFtxCompareFilePaths,
 } from "../resources/AF1-resources/utils/reconcile/DS_FTX/ftx-file-helper";
 
-/**
- * ============================================================
- * DS_LTX
- * ============================================================
- */
+import {
+  reconcileOlbReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_OLB/olb-reconcile";
 
 import {
   reconcileReport as reconcileDsLtx,
@@ -105,13 +96,6 @@ import {
   reconcileFxuReport,
 } from "../resources/AF1-resources/utils/reconcile/DF_FXU/fxu-reconcile";
 
-/**
- * DF_FXM ใช้ Reconciler แยกจาก DF_FXU
- *
- * รองรับรายการ FX ที่มี
- * USD Equivalent Amount ตั้งแต่
- * 1,000,000 USD ขึ้นไป
- */
 import {
   reconcileFXMReport,
 } from "../resources/AF1-resources/utils/reconcile/DF_FXM/fxm-reconcile";
@@ -266,15 +250,13 @@ const runDfFxuCompare = async (
    * 5. เขียน Reconcile Result
    */
   await reconcileFxuReport(
-<<<<<<< Updated upstream
-=======
     testDataFilePath,
   );
 };
 
-/**
-* ทำงานสำหรับ DF_OLB
-*/
+ /**
+ * ทำงานสำหรับ DF_OLB
+ */
 const runDfOlbCompare = async (
   reportName: string,
 ): Promise<void> => {
@@ -284,7 +266,6 @@ const runDfOlbCompare = async (
     );
 
   await reconcileOlbReport(
->>>>>>> Stashed changes
     testDataFilePath,
   );
 };
@@ -359,7 +340,7 @@ const runCompareByReport = async (
     return;
   }
 
-  if (
+    if (
     reportName ===
     "DS_FTU"
   ) {
@@ -386,21 +367,17 @@ const runCompareByReport = async (
 
     return;
   }
-<<<<<<< Updated upstream
-=======
-
   /**
    * DF_FXU
   */
-
+ 
   if (
     reportName ===
     "DF_OLB"
   ) {
     await runDfOlbCompare(
       reportName,
-    );
-
+    )
     return;
   }
 
@@ -420,19 +397,14 @@ const runCompareByReport = async (
 
     return;
   }
->>>>>>> Stashed changes
 
   throw new Error(
 
-
+ 
     [
       `Script 3 ยังไม่รองรับ Report: ${reportName}`,
-<<<<<<< Updated upstream
-            "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU",
-=======
       "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU, DF_OLB, DF_FXM",
 
->>>>>>> Stashed changes
     ].join(
       "\n",
     ),
@@ -511,7 +483,7 @@ describe(
 
           console.log(
             "================================",
-          );
+           );
         },
       );
     }

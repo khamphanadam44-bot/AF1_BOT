@@ -1210,7 +1210,6 @@ export class FXMReconcileService {
 
     /**
      * ตัดสินว่า Test Data หนึ่งแถว
-  
     /**
      * ตัดสินว่า Test Data หนึ่งแถว
      * ต้องมีหรือไม่ต้องมีใน DF_FXM
