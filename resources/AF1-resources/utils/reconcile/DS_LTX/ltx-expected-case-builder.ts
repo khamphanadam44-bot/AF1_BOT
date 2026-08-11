@@ -37,24 +37,40 @@ import {
   AmountComparator,
 } from "./ltx-amount-compare";
 
+import {
+  DEFAULT_AMOUNT_TOLERANCE,
+} from "./ltx-config";
+
 import type {
   ReconcileReportConfig,
 } from "./ltx-config";
 
-import type {
-  ExpectedCase,
-  IExpectedCaseBuilder,
-} from "./ltx-expected-case";
+/**
+ * Expected Case ของ Test Data หนึ่งแถว
+ *
+ * เก็บไว้กับ Builder ซึ่งเป็นผู้สร้างและเป็นเจ้าของโครงสร้างนี้โดยตรง
+ */
+export interface ExpectedCase {
+  /** Test No. ที่ใช้แสดงผล โดยตัด suffix "-Return" ออกแล้ว */
+  displayTestCaseNo: string;
 
-/** Header ที่ใช้แสดงหมายเลข Test Case */
-const TEST_NO_HEADER =
-  "Test No.";
+  /** แถว Test Data ต้นทางสำหรับตรวจ Matching Key และ Field อื่น */
+  primaryRecord: ReconcileRecord;
+
+  /** Reference ของแถว DR; undefined เมื่อ Test Data ไม่ได้คาดหวังแถว DR */
+  expectedDrReference: string | undefined;
+
+  /** Reference ของแถว FE; undefined เมื่อ Test Data ไม่ได้คาดหวังแถว FE */
+  expectedFeReference: string | undefined;
+
+  /** SUM Fee Amount ของ Test Data แถวนี้ สำหรับตรวจยอดของแถว FE */
+  expectedFeAmount: string;
+}
 
 /**
  * สร้าง Expected Case ของ DS_LTX
  */
-export class LtxExpectedCaseBuilder
-  implements IExpectedCaseBuilder {
+export class LtxExpectedCaseBuilder {
   constructor(
     private readonly amountComparator:
       AmountComparator =
@@ -196,7 +212,7 @@ export class LtxExpectedCaseBuilder
          */
         const identity =
           record.resolveIdentity(
-            TEST_NO_HEADER,
+            config.testDataTestNoField,
             config.testDataIdField,
             (
               testNo,
@@ -259,18 +275,18 @@ export class LtxExpectedCaseBuilder
 
         /**
          * Test Data แถวนี้ต้องมี DR
-         * เมื่อยอดหลักหรือยอดสำรองมากกว่า 0.01
+         * เมื่อยอดหลักหรือยอดสำรองมากกว่า Amount Tolerance
          *
          * ค่า 0 หรือค่าว่างไม่ถือว่าต้องมี DR
          */
         const hasDrAmount =
           (
             drAmount !== null &&
-            drAmount > 0.01
+            drAmount > DEFAULT_AMOUNT_TOLERANCE
           ) ||
           (
             drAmountFallback !== null &&
-            drAmountFallback > 0.01
+            drAmountFallback > DEFAULT_AMOUNT_TOLERANCE
           );
 
         /**
@@ -285,10 +301,10 @@ export class LtxExpectedCaseBuilder
 
         /**
          * Test Data แถวนี้ต้องมี FE
-         * เมื่อยอด Fee รวมมากกว่า 0.01
+         * เมื่อยอด Fee รวมมากกว่า Amount Tolerance
          */
         const hasFee =
-          feeSum > 0.01;
+          feeSum > DEFAULT_AMOUNT_TOLERANCE;
 
         return {
           displayTestCaseNo,

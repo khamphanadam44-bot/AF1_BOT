@@ -1,14 +1,16 @@
 /**
- * FieldRuleValidator 
+ * FieldRuleValidator
  * ------------------------------------------------------------------
  * Template Method เดียว: FieldRuleValidator.validate()
  * ทำหน้าที่ filter + map เหมือนกันทั้งคู่ ส่วน subclass override แค่ selectRules()
  * ------------------------------------------------------------------
  */
-import { ReconcileFieldRule } from "./ltx-config";
-import { FieldComparer } from "./ltx-field-compare";
+import type { ReconcileFieldRule } from "./ltx-config";
+import {
+  FieldComparer,
+  type FieldCheckResult,
+} from "./ltx-field-compare";
 import { ReconcileRecord } from "../shared/record";
-import { FieldCheckResult } from "./ltx-types";
 
 export abstract class FieldRuleValidator {
   protected readonly comparer: FieldComparer;

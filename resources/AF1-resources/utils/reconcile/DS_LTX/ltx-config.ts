@@ -180,6 +180,15 @@ export interface ReconcileGroupKeyFields {
 }
 
 /**
+ * Field ที่ตั้งใจ Copy ไปแสดงในผลลัพธ์เท่านั้น
+ * แต่ยังไม่มี Expected Value หรือ Business Rule สำหรับเปรียบเทียบ
+ */
+export interface ReconcileOutputOnlyField {
+  reportField: string;
+  reason: string;
+}
+
+/**
  * Config หลักสำหรับ Reconcile Report
  */
 export interface ReconcileReportConfig {
@@ -197,39 +206,6 @@ export interface ReconcileReportConfig {
    * Field ที่ใช้จับกลุ่มข้อมูล
    */
   groupKeyFields: ReconcileGroupKeyFields;
-
-  /**
-   * Header ฝั่ง Report ที่บอกประเภทธุรกรรม
-   *
-   * ใช้กรอง Candidate ของแถว DR และ FE
-   */
-  withdrawTypeReportField: string;
-
-  /**
-   * Transaction Type ที่แถว DR และ FE ต้องมี
-   */
-  withdrawTransactionTypeCode: string;
-
-  /**
-   * Header Purpose Code ฝั่ง Report
-   *
-   * ใช้แยกแถว DR ออกจากแถว FE
-   */
-  outflowPurposeReportField: string;
-
-  /**
-   * Header Purpose Code ฝั่ง Test Data
-   *
-   * ใช้เป็น Expected Value ของแถว DR
-   */
-  purposeCodeTestDataField: string;
-
-  /**
-   * Purpose Code คงที่ของแถว Fee
-   *
-   * ไม่ได้อ่านจาก Test Data
-   */
-  feeOutflowPurposeCode: string;
 
   /**
    * Header Reference Transaction Number
@@ -255,6 +231,13 @@ export interface ReconcileReportConfig {
    * - Transaction ID + FE
    */
   testDataIdField: string;
+
+  /**
+   * Header Test No. ฝั่ง Test Data
+   *
+   * ใช้แสดงหมายเลข Test Case และแจ้งเตือนเมื่อไม่ได้กรอกค่า
+   */
+  testDataTestNoField: string;
 
   /**
    * Header จำนวนเงินฝั่ง AF1 Report
@@ -287,6 +270,15 @@ export interface ReconcileReportConfig {
    * รายการ Rule สำหรับเปรียบเทียบ Field
    */
   fieldRules: ReconcileFieldRule[];
+
+  /**
+   * Field ที่ตั้งใจ Copy ไปแสดง แต่ยังไม่ใช้เปรียบเทียบ
+   *
+   * ต้องระบุเหตุผลทุก Field เพื่อป้องกัน Mapping Field
+   * หลุดจากการตรวจสอบโดยไม่มีคำอธิบาย
+   */
+  outputOnlyFields:
+    readonly ReconcileOutputOnlyField[];
 }
 
 /**
@@ -318,12 +310,6 @@ export const DEFAULT_AMOUNT_TOLERANCE =
  */
 const RELATIONSHIP_OTHER_CODE =
   "172064";
-
-const WITHDRAW_TRANSACTION_TYPE_CODE =
-  "184010";
-
-const FEE_OUTFLOW_PURPOSE_CODE =
-  "318029";
 
 /**
  * อ่านหมายเลขแถว Header ของ Test Data
@@ -384,27 +370,6 @@ export const RECONCILE_CONFIG: Partial<
     },
 
     /**
-     * Transaction Type ของแถว DR และ FE
-     */
-    withdrawTypeReportField:
-      "Loan Deposit Transaction Type",
-
-    withdrawTransactionTypeCode:
-      WITHDRAW_TRANSACTION_TYPE_CODE,
-
-    /**
-     * Purpose Code สำหรับแยกแถว DR และ FE
-     */
-    outflowPurposeReportField:
-      "Outflow Transaction Purpose",
-
-    purposeCodeTestDataField:
-      "From BOT Purpose code",
-
-    feeOutflowPurposeCode:
-      FEE_OUTFLOW_PURPOSE_CODE,
-
-    /**
      * Reference Transaction Number
      *
      * DR:
@@ -424,6 +389,9 @@ export const RECONCILE_CONFIG: Partial<
 
     testDataIdField:
       "Transaction ID/ Reconcile ID",
+
+    testDataTestNoField:
+      "Test No.",
 
     /**
      * Field จำนวนเงิน
@@ -493,8 +461,8 @@ export const RECONCILE_CONFIG: Partial<
         /**
          * ตรวจเฉพาะแถว DR
          *
-         * แถว FE ใช้ Purpose Code คงที่
-         * จาก feeOutflowPurposeCode
+         * แถว FE แสดงข้อมูลจาก Report เท่านั้น
+         * เพราะยังไม่มี Rule เปรียบเทียบที่ยืนยันแล้ว
          */
         reportField:
           "Outflow Transaction Purpose",
@@ -513,7 +481,7 @@ export const RECONCILE_CONFIG: Partial<
         ],
 
         remark:
-          "ตรวจเฉพาะแถว DR เพราะแถว FE ใช้ Purpose Code คงที่ 318029",
+          "ตรวจเฉพาะแถว DR; แถว FE แสดงข้อมูลจาก Report เท่านั้น",
       },
 
       // ==================================================
@@ -659,16 +627,88 @@ export const RECONCILE_CONFIG: Partial<
     ],
 
     /**
-     * Installment Number และ Approval Document Number
-     * เป็น Conditional Field ตาม Requirement
-     *
-     * แต่ไม่ต้อง Reconcile กับ Test Data
-     *
-     * Column ทั้งสองจะถูกคัดลอกจาก AF1 Report
-     * ไปแสดงในไฟล์ผลลัพธ์โดยตรง
-     * และจะไม่ถูก Highlight จาก Rule ในไฟล์นี้
+     * Field กลุ่มนี้ถูกคัดลอกจาก AF1 Report ไปแสดงโดยตรง
+     * และยังไม่ถูก Highlight จนกว่าจะมี Expected Value
+     * หรือ Business Rule ที่ได้รับการยืนยัน
      */
+    outputOnlyFields: [
+      {
+        reportField:
+          "Loan Deposit Transaction Type",
+        reason:
+          "ตรวจเฉพาะการมี Header; ยังไม่มี Rule เปรียบเทียบค่าที่ได้รับการยืนยัน",
+      },
+      {
+        reportField:
+          "Payment Method",
+        reason:
+          "ยังไม่มี Expected Value ที่ยืนยันสำหรับ DS_LTX",
+      },
+      {
+        reportField:
+          "From Transaction Type",
+        reason:
+          "ยังไม่มี Expected Value ที่ยืนยันสำหรับ DS_LTX",
+      },
+      {
+        reportField:
+          "To Transaction Type",
+        reason:
+          "ยังไม่มี Expected Value ที่ยืนยันสำหรับ DS_LTX",
+      },
+      {
+        reportField:
+          "Installment Number",
+        reason:
+          "ไม่มีข้อมูลต้นทางใน Test Data สำหรับเปรียบเทียบ",
+      },
+      {
+        reportField:
+          "Approval Document Number",
+        reason:
+          "ไม่มีข้อมูลต้นทางใน Test Data สำหรับเปรียบเทียบ",
+      },
+      {
+        reportField:
+          "CMF CODE",
+        reason:
+          "ยังไม่มี Expected Value ที่ยืนยันสำหรับ DS_LTX",
+      },
+      {
+        reportField:
+          "Data Set Date",
+        reason:
+          "เป็น Reference Field สำหรับแสดงผลเท่านั้น",
+      },
+      {
+        reportField:
+          "Data Submission Period",
+        reason:
+          "เป็น Reference Field สำหรับแสดงผลเท่านั้น",
+      },
+    ],
   },
+};
+
+/**
+ * รายชื่อ Report Field ที่ DS_LTX จัดประเภทไว้แล้วทั้งหมด
+ *
+ * ใช้ตรวจ Coverage ระหว่าง Mapping Config และ Reconcile Config
+ */
+export const getHandledReportFields = (
+  config: ReconcileReportConfig,
+): string[] => {
+  return [
+    config.referenceNumberReportField,
+    config.groupKeyFields.reportAccountField,
+    config.transactionAmountReportField,
+    ...config.fieldRules.map(
+      (rule) => rule.reportField,
+    ),
+    ...config.outputOnlyFields.map(
+      (field) => field.reportField,
+    ),
+  ];
 };
 
 /**
