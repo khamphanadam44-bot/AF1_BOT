@@ -281,7 +281,7 @@ export const TESTDATA_CONFIG = {
       ],
 
       core: [
-        "From CIF No. (Client/Sender)",
+        "From CIF No. (Client/Sender)", 
         "From CIF Name (Client/Sender)"
       ],
 
@@ -295,42 +295,6 @@ export const TESTDATA_CONFIG = {
     },
   },
 
-  // ====================================================
-  // DF_FXM
-  // ====================================================
-  DF_FXM: {
-    headerRowNumber: 5,
-
-    requiredHeaders: {
-      matchingKey: [
-        "Transaction ID/ Reconcile ID",
-      ],
-
-      core: [
-        "From Currency (CCY)",
-        "To Currency (CCY)",
-        "Settled Currency (CCY)",
-        "Settled Amount (CCY)",
-        "Txn Date",
-        "From Customer Type Code",
-        "From Customer Type Description",
-      ],
-
-      customer: [],
-
-      /**
-       * NIUM และ Settlement Logic
-       * ยังไม่เพิ่มจนกว่าจะได้ Requirement ยืนยัน
-       */
-      conditional: [],
-
-      reference: [
-        "Test No.",
-      ],
-
-      feeGroup: [],
-    },
-  },
 } as const;
 
 
