@@ -65,15 +65,6 @@ export const FXU_USD_THRESHOLD =
   1_000_000;
 
 /**
- * วันที่เริ่มมีผลของ Requirement DF_FXU
- *
- * รูปแบบ:
- * yyyy-MM-dd
- */
-export const FXU_EFFECTIVE_DATE =
-  "2025-06-02";
-
-/**
  * Arrangement Type ที่ Requirement กำหนด
  */
 export const FXU_ARRANGEMENT_TYPE =

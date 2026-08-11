@@ -66,15 +66,6 @@ export const FXM_USD_THRESHOLD =
   1_000_000;
 
 /**
- * วันที่เริ่มมีผลของ Requirement DF_FXM
- *
- * รูปแบบ:
- * yyyy-MM-dd
- */
-export const FXM_EFFECTIVE_DATE =
-  "2025-06-02";
-
-/**
  * Arrangement Type ที่ Requirement กำหนด
  */
 export const FXM_ARRANGEMENT_TYPE =
