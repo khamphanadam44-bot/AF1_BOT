@@ -124,7 +124,7 @@ export const FXM_REPORT_FIELDS = {
     "Data Set Date",
 
   arrangementNumber:
-    "Arrangement Number",
+    "FI Arrangement Number",
 
   customerCode:
     "Cust Code",
@@ -139,7 +139,7 @@ export const FXM_REPORT_FIELDS = {
     "Arrangement Type",
 
   arrangementTypeName:
-    "Fi Arrangement Type Name",
+    "Arrangement Type Name",
 
   legType:
     "Leg Type",
@@ -148,10 +148,10 @@ export const FXM_REPORT_FIELDS = {
     "Leg Type Name",
 
   currencyId:
-    "Currency ID",
+    "Currency Code",
 
   currencyIdName:
-    "Currency ID Name",
+    "Currency Code Name",
 
   originalAmount:
     "Original Amount",

@@ -429,7 +429,7 @@ export const REPORT_CONFIG_mapping = {
        * Arrangement Number
        */
       matchingKey: [
-        "Arrangement Number",
+        "FI Arrangement Number",
       ],
 
       /**
@@ -486,12 +486,11 @@ export const REPORT_CONFIG_mapping = {
         "Cust Code",
         "CMF CODE",
         "Cust Name",
-        "Fi Arrangement Type Name",
-        "Currency ID",
-        "Currency ID Name",
+        "Arrangement Type Name",
+        "Currency Code",
+        "Currency Code Name",
         "Original Amount",
       ],
-
     },
 
   },

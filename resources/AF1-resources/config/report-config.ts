@@ -203,9 +203,9 @@ export const REPORT_CONFIG = {
      */
     requiredHeaders: [
       "Data Set Date",
-      "Arrangement Number",
+      "FI Arrangement Number",
       "Arrangement Type",
-      "Fi Arrangement Type Name",
+      "Arrangement Type Name",
       "Leg Type",
       "Leg Type Name",
       "USD Equivalent Amount",
