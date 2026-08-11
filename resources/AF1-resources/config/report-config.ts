@@ -154,15 +154,49 @@ export const REPORT_CONFIG = {
 
   },
 
-  DF_FXM: {
+  /**
+ * Requirement ของ Report DF_FXM
+ *
+ * DF_FXM ใช้โครงสร้าง Header เดียวกับ DF_FXU
+ * แต่ต่างกันที่เงื่อนไขจำนวนเงิน:
+ *
+ * DF_FXU:
+ * USD Equivalent Amount ต่ำกว่า 1,000,000 USD
+ *
+ * DF_FXM:
+ * USD Equivalent Amount ตั้งแต่ 1,000,000 USD ขึ้นไป
+ */
+DF_FXM: {
 
-    headerRowNumber: 1,
+  /**
+   * Header ของ DF_FXM Report
+   * อยู่ที่แถวที่ 1
+   */
+  headerRowNumber: 1,
 
-    aliases: {},
+  /**
+   * ตอนนี้ Header ในไฟล์ Report
+   * ตรงกับชื่อใน Requirement
+   * จึงยังไม่มีชื่อ Header สำรอง
+   */
+  aliases: {},
 
-    requiredHeaders: [],
+  /**
+   * Header ที่ต้องพบใน DF_FXM Report
+   *
+   * ใช้ Header ชุดเดียวกับ DF_FXU
+   */
+  requiredHeaders: [
+    "Data Set Date",
+    "Arrangement Number",
+    "Arrangement Type",
+    "Fi Arrangement Type Name",
+    "Leg Type",
+    "Leg Type Name",
+    "USD Equivalent Amount",
+  ],
 
-  },
+},
 
 } as const;
 

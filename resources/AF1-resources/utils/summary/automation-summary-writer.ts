@@ -48,7 +48,13 @@ type SupportedSummaryReport =
   | "DS_FTX"
   | "DS_LTX"
   | "DS_FTU"
+<<<<<<< Updated upstream
   | "DF_FXU";
+=======
+  | "DF_FXU"
+  | "DF_OLB"
+  | "DF_FXM";
+>>>>>>> Stashed changes
 
 type SummaryReportConfig = {
   reportCode: SupportedSummaryReport;
@@ -116,40 +122,40 @@ const SUMMARY_REPORT_CONFIG: Record<
     reportSourceSheetNames: ["DS_FTU Transaction", "DS_FTU"],
   },
 
-    /**
-   * ====================================================
-   * DF_FXU
-   * ====================================================
-   *
-   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
-   *
-   * Summary Template:
-   * - Column B-I เป็นข้อมูลผล Reconcile
-   * - Column J เป็นช่องว่างคั่นกลาง
-   * - Column K เป็นต้นไปเป็นข้อมูล Test Data
-   */
-    /**
-   * ====================================================
-   * DF_FXU
-   * ====================================================
-   *
-   * DF_FXU ไม่มี Fee Group
-   * และไม่มีการรวม Test Data หลายแถว
-   *
-   * โครงสร้าง Summary Template:
-   *
-   * - Column B-C:
-   *   ผลการตรวจสอบและเหตุผล
-   *
-   * - Column D-J:
-   *   ข้อมูลจาก DF_FXU Reconcile
-   *
-   * - Column K:
-   *   ช่องว่างคั่นกลาง
-   *
-   * - Column L-T:
-   *   ข้อมูลจาก Test Data
-   */
+  /**
+ * ====================================================
+ * DF_FXU
+ * ====================================================
+ *
+ * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+ *
+ * Summary Template:
+ * - Column B-I เป็นข้อมูลผล Reconcile
+ * - Column J เป็นช่องว่างคั่นกลาง
+ * - Column K เป็นต้นไปเป็นข้อมูล Test Data
+ */
+  /**
+ * ====================================================
+ * DF_FXU
+ * ====================================================
+ *
+ * DF_FXU ไม่มี Fee Group
+ * และไม่มีการรวม Test Data หลายแถว
+ *
+ * โครงสร้าง Summary Template:
+ *
+ * - Column B-C:
+ *   ผลการตรวจสอบและเหตุผล
+ *
+ * - Column D-J:
+ *   ข้อมูลจาก DF_FXU Reconcile
+ *
+ * - Column K:
+ *   ช่องว่างคั่นกลาง
+ *
+ * - Column L-T:
+ *   ข้อมูลจาก Test Data
+ */
   DF_FXU: {
     reportCode:
       "DF_FXU",
@@ -202,7 +208,103 @@ const SUMMARY_REPORT_CONFIG: Record<
       "DF_FXU",
     ],
   },
+<<<<<<< Updated upstream
+=======
+
+  /**
+  * ====================================================
+  * DF_OLB
+  * ====================================================
+  *
+  * DF_OLB ไม่มี Fee Group
+  * และไม่มีการรวม Test Data หลายแถว
+  */
+  DF_OLB: {
+    reportCode:
+      "DF_OLB",
+
+    summarySheetName:
+      "DF_OLB_Summary Result",
+
+    reconcileSheetName:
+      "DF_OLB_Reconcile",
+
+    reportSheetName:
+      "DF_OLB",
+
+    title:
+      "DF-OLB AUTOMATION VERIFICATION SUMMARY",
+
+    hasDynamicFeeColumns:
+      false,
+
+    compareLastColumn:
+      8,
+
+    testDataFirstColumn:
+      10,
+
+    mergeRepeatedTestDataRows:
+      false,
+
+    reportSourceSheetNames: [
+      "DF_OLB",
+    ],
+  },
+
+  /**
+   * ====================================================
+   * DF_FXM
+   * ====================================================
+   *
+   * DF_FXM ใช้โครงสร้าง Summary
+   * แบบเดียวกับ DF_FXU
+   *
+   * DF_FXM ใช้กับรายการที่มี
+   * USD Equivalent Amount ตั้งแต่
+   * 1,000,000 USD ขึ้นไป
+   *
+   * ไม่มี Fee Group
+   * และไม่มีการรวม Test Data หลายแถว
+   */
+  DF_FXM: {
+    reportCode:
+      "DF_FXM",
+
+    summarySheetName:
+      "DF_FXM_Summary Result",
+
+    reconcileSheetName:
+      "DF_FXM_Reconcile",
+
+    reportSheetName:
+      "DF_FXM",
+
+    title:
+      "DF-FXM AUTOMATION VERIFICATION SUMMARY",
+
+    hasDynamicFeeColumns:
+      false,
+
+    compareLastColumn:
+      10,
+
+    testDataFirstColumn:
+      12,
+
+    mergeRepeatedTestDataRows:
+      false,
+
+    reportSourceSheetNames: [
+      "DF_FXM Transaction",
+      "DF_FXM",
+    ],
+  },
+
+>>>>>>> Stashed changes
 };
+
+
 
 const normalizeText = (value: unknown): string =>
   String(value ?? "")
@@ -220,22 +322,49 @@ const normalizeHeader = (value: unknown): string =>
 const normalizeTestNo = (value: unknown): string =>
   normalizeText(value).toUpperCase();
 
-const normalizeReportName = (reportName: string): SupportedSummaryReport => {
-  const normalizedReportName = normalizeText(reportName)
-    .toUpperCase()
-    .replace(/-/g, "_");
+const normalizeReportName = (
+  reportName: string,
+): SupportedSummaryReport => {
+  const normalizedReportName =
+    normalizeText(
+      reportName,
+    )
+      .toUpperCase()
+      .replace(
+        /-/g,
+        "_",
+      );
 
   if (
+<<<<<<< Updated upstream
     normalizedReportName === "DS_PTX" ||
     normalizedReportName === "DS_FTX" ||
     normalizedReportName === "DS_LTX" ||
     normalizedReportName === "DS_FTU" ||
     normalizedReportName === "DF_FXU"
+=======
+    normalizedReportName ===
+    "DS_PTX" ||
+    normalizedReportName ===
+    "DS_FTX" ||
+    normalizedReportName ===
+    "DS_LTX" ||
+    normalizedReportName ===
+    "DS_FTU" ||
+    normalizedReportName ===
+    "DF_FXU" ||
+    normalizedReportName ===
+    "DF_OLB" ||
+    normalizedReportName ===
+    "DF_FXM"
+>>>>>>> Stashed changes
   ) {
     return normalizedReportName;
   }
 
-  throw new Error(`Unsupported Summary Report: ${reportName}`);
+  throw new Error(
+    `Unsupported Summary Report: ${reportName}`,
+  );
 };
 
 const getSummaryReportConfig = (reportName: string): SummaryReportConfig =>
@@ -1003,28 +1132,28 @@ const getCompareValue = (
       return compareRow.remark;
     }
 
-        if (
+    if (
       compareRow.status ===
       "PASS"
     ) {
       /**
-       * DF_FXU:
-       *
-       * PASS ปกติไม่ต้องแสดง Reason
-       *
-       * PASS ที่ต้องแสดงเหตุผล เช่น:
-       * - วันที่ไม่ตรงกับ Data Set Date
-       *   แต่ตรงกับวันที่ใน Ref
-       *
-       * - รายการไม่ต้องรายงานใน DF_FXU
-       *
-       * กรณีเหล่านี้จะมีค่าอยู่ใน
-       * compareRow.remark และถูก Return
-       * ก่อนเข้ามาถึงเงื่อนไขนี้แล้ว
-       */
+ * DF_FXU และ DF_FXM:
+ *
+ * PASS ปกติไม่ต้องแสดง Reason
+ *
+ * กรณีที่ PASS แต่ต้องมีคำอธิบาย เช่น:
+ * - Txn Date ไม่ตรงกับ Data Set Date
+ *   แต่ตรงกับวันที่ใน Reference
+ * - รายการเข้าเงื่อนไข Expected Absence
+ *
+ * กรณีเหล่านี้จะมีค่าใน compareRow.remark
+ * และถูก Return ก่อนถึงเงื่อนไขนี้
+ */
       if (
         config.reportCode ===
-        "DF_FXU"
+        "DF_FXU" ||
+        config.reportCode ===
+        "DF_FXM"
       ) {
         return "";
       }
@@ -1065,12 +1194,12 @@ const getCompareValue = (
 };
 
 const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
-    /**
-   * DF_FXU Template ใหม่ใช้ Test No.
-   *
-   * ยังคงรองรับ Test Script No.
-   * ของ Template Report เดิม
-   */
+  /**
+ * DF_FXU Template ใหม่ใช้ Test No.
+ *
+ * ยังคงรองรับ Test Script No.
+ * ของ Template Report เดิม
+ */
   "test no.": [
     "Test No.",
     "Test No",
@@ -1090,10 +1219,10 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "Test Scenario",
   ],
   "txn date": ["Txn Date", "Transaction Date"],
-    /**
-   * รองรับทั้งรูปแบบที่มีและไม่มีช่องว่าง
-   * ก่อนเครื่องหมาย /
-   */
+  /**
+ * รองรับทั้งรูปแบบที่มีและไม่มีช่องว่าง
+ * ก่อนเครื่องหมาย /
+ */
   "transaction id/ reconcile id": [
     "Transaction ID/ Reconcile ID",
     "Transaction ID / Reconcile ID",
@@ -1120,10 +1249,10 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "From Account (A/C Client/Sender)",
   ],
   "from currency (ccy)": ["From Currency (CCY)"],
-    "to currency (ccy)": [
+  "to currency (ccy)": [
     "To Currency (CCY)",
   ],
-  
+
   "from customer type code": [
     "From Customer Type Code",
   ],
@@ -1862,7 +1991,7 @@ export const writeReportAutomationSummary = async (
       const outputCell = outputRow.getCell(columnNumber);
 
       if (columnNumber <= config.compareLastColumn) {
-                outputCell.value =
+        outputCell.value =
           getCompareValue(
             header,
             compareRow,

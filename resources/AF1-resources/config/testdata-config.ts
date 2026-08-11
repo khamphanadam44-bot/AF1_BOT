@@ -307,7 +307,112 @@ DF_FXU: {
 
               feeGroup: [],
     },
+<<<<<<< Updated upstream
 },
+=======
+  },
+
+  DF_OLB: {
+    headerRowNumber: 5,
+
+    requiredHeaders: {
+      matchingKey: [
+        "Transaction ID/ Reconcile ID",
+        "Txn Date",
+        "From THB Equivalent Transfer Amount",
+      ],
+
+      core: [
+        "From CIF No. (Client/Sender)",
+        "From CIF Name (Client/Sender)"
+      ],
+
+      customer: [],
+
+      conditional: [],
+
+      reference: [],
+
+      feeGroup: [],
+    },
+    // ====================================================
+    // DF_FXM
+    // ====================================================
+    DF_FXM: {
+
+      /**
+       * Header ของ Test Data
+       * อยู่ที่แถวที่ 5
+       */
+      headerRowNumber: 5,
+
+      /**
+       * DF_FXM ใช้ Test Data Field
+       * ชุดเดียวกับ DF_FXU
+       *
+       * ความแตกต่างอยู่ที่ Threshold:
+       *
+       * DF_FXU:
+       * Settled Amount ต่ำกว่า 1,000,000 USD
+       *
+       * DF_FXM:
+       * Settled Amount ตั้งแต่ 1,000,000 USD ขึ้นไป
+       */
+      requiredHeaders: {
+
+        /**
+         * Matching Key หลัก
+         *
+         * ใช้จับคู่กับ Arrangement Number
+         * ใน DF_FXM Report
+         */
+        matchingKey: [
+          "Transaction ID/ Reconcile ID",
+        ],
+
+        /**
+         * Field หลักที่ใช้ตรวจ Business Rule,
+         * Fallback Matching และ Core Field
+         */
+        core: [
+          "From Currency (CCY)",
+          "To Currency (CCY)",
+          "Settled Currency (CCY)",
+          "Settled Amount (CCY)",
+          "Txn Date",
+          "From Customer Type Code",
+          "From Customer Type Description",
+        ],
+
+        /**
+         * ยังไม่มี Customer Field แยก
+         */
+        customer: [],
+
+        /**
+         * ยังไม่มี Conditional Field
+         *
+         * NIUM และ Settlement Logic
+         * จะยังไม่เพิ่มในขั้นตอนนี้
+         */
+        conditional: [],
+
+        /**
+         * Test No. ใช้สำหรับแสดงหมายเลข Test Case
+         * ไม่ใช้ตัดสิน Business PASS หรือ FAIL
+         */
+        reference: [
+          "Test No.",
+        ],
+
+        /**
+         * DF_FXM ไม่มีการตรวจ Fee Group
+         */
+        feeGroup: [],
+      },
+    },
+  },
+>>>>>>> Stashed changes
 
 } as const;
 

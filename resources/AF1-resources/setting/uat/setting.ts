@@ -92,11 +92,63 @@ export type DmsReportName =
  * ผ่าน Terminal
  */
 /**
- * ช่วงวันที่สำหรับ Export Report
+ * รูปแบบช่วงวันที่ที่ใช้ Export Report
  */
-export const datereport = {
+export type ReportDateRange = {
+  readonly dateset: string;
+  readonly dateto: string;
+};
+
+/**
+ * ช่วงวันที่เริ่มต้นของ Report ทั่วไป
+ *
+ * Report ที่ไม่ได้กำหนดช่วงวันที่แยกไว้
+ * จะใช้ช่วงวันที่ชุดนี้
+ */
+export const datereport: ReportDateRange = {
   dateset: "25/11/2025",
   dateto: "27/11/2025",
+};
+
+/**
+ * ช่วงวันที่เฉพาะของแต่ละ Report
+ *
+ * DF_FXM:
+ * ใช้ข้อมูลตั้งแต่วันที่ 26/02/2026
+ * ถึงวันที่ 27/02/2026 เท่านั้น
+ */
+const REPORT_DATE_RANGE: Partial<
+  Record<
+    DmsReportName,
+    ReportDateRange
+  >
+> = {
+  DF_FXM: {
+    dateset: "26/02/2026",
+    dateto: "27/02/2026",
+  },
+};
+
+/**
+ * คืนช่วงวันที่สำหรับ Report ที่กำลัง Export
+ *
+ * ลำดับการเลือก:
+ * 1. ถ้า Report มีช่วงวันที่เฉพาะ ให้ใช้ช่วงวันที่นั้น
+ * 2. ถ้าไม่มี ให้ใช้ช่วงวันที่เริ่มต้นจาก datereport
+ *
+ * ตัวอย่าง:
+ * DF_FXM → 26/02/2026 ถึง 27/02/2026
+ * DF_FXU → ใช้ช่วงวันที่เริ่มต้น
+ */
+export const getReportDateRange = (
+  reportName: DmsReportName,
+): ReportDateRange => {
+  return (
+    REPORT_DATE_RANGE[
+      reportName
+    ] ??
+    datereport
+  );
 };
 
   /**
