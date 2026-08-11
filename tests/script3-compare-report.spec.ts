@@ -10,23 +10,18 @@
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
-<<<<<<< HEAD
  * - DF_OLB
-=======
->>>>>>> 9def6946be8f6da7b43a9674af58a59a711abced
+ * - DF_FXM
  *
  * ตัวอย่าง:
  * npm run test:script3 -- report=DS_PTX
  * npm run test:script3 -- report=DS_FTX
  * npm run test:script3 -- report=DS_LTX
-<<<<<<< HEAD
  * npm run test:script3 -- report=DS_FTU
  * npm run test:script3 -- report=DF_FXU
  * npm run test:script3 -- report=DF_OLB
- * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB
-=======
- * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU
->>>>>>> 9def6946be8f6da7b43a9674af58a59a711abced
+ * npm run test:script3 -- report=DF_FXM
+ * npm run test:script3 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB,DF_FXM
  * ============================================================================
  */
 
@@ -100,6 +95,10 @@ import {
 import {
   reconcileFxuReport,
 } from "../resources/AF1-resources/utils/reconcile/DF_FXU/fxu-reconcile";
+
+import {
+  reconcileFXMReport,
+} from "../resources/AF1-resources/utils/reconcile/DF_FXM/fxm-reconcile";
 
 const SCRIPT_TIMEOUT =
   300000;
@@ -271,9 +270,38 @@ const runDfOlbCompare = async (
   );
 };
 
+
 /**
- * เลือก Logic ตาม Report
+ * ทำงานสำหรับ DF_FXM
+ *
+ * DF_FXM ใช้ Test Data จาก:
+ * AF1_SHAREPATH/af1_test_data/DF_FXM
+ *
+ * Business Rule หลัก:
+ * - FX Conversion
+ * - USD Equivalent Amount ตั้งแต่
+ *   1,000,000 USD ขึ้นไป
  */
+const runDfFxmCompare = async (
+  reportName: string,
+): Promise<void> => {
+  /**
+   * ค้นหา Test Data ของ DF_FXM
+   * จาก AF1 Share Path
+   */
+  const testDataFilePath =
+    getTestDataPath(
+      reportName,
+    );
+
+  /**
+   * เรียก DF_FXM Reconcile Service
+   */
+  await reconcileFXMReport(
+    testDataFilePath,
+  );
+};
+
 const runCompareByReport = async (
   reportName: string,
 ): Promise<void> => {
@@ -310,7 +338,7 @@ const runCompareByReport = async (
     return;
   }
 
-    if (
+  if (
     reportName ===
     "DS_FTU"
   ) {
@@ -321,12 +349,6 @@ const runCompareByReport = async (
     return;
   }
 
-  /**
-   * DF_FXU:
-   *
-   * FX Trading Transaction
-   * Under 1,000,000 USD Summary
-   */
   if (
     reportName ===
     "DF_FXU"
@@ -337,11 +359,7 @@ const runCompareByReport = async (
 
     return;
   }
-  
-  /**
-   * DF_FXU
-  */
- 
+
   if (
     reportName ===
     "DF_OLB"
@@ -349,17 +367,25 @@ const runCompareByReport = async (
     await runDfOlbCompare(
       reportName,
     );
-    
+
     return;
-  } 
+  }
+
+  if (
+    reportName ===
+    "DF_FXM"
+  ) {
+    await runDfFxmCompare(
+      reportName,
+    );
+
+    return;
+  }
 
   throw new Error(
-
- 
     [
       `Script 3 ยังไม่รองรับ Report: ${reportName}`,
-            "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU,DF_OLB",
-     
+      "Report ที่รองรับ: DS_LTX, DS_PTX, DS_FTX, DS_FTU, DF_FXU, DF_OLB, DF_FXM",
     ].join(
       "\n",
     ),

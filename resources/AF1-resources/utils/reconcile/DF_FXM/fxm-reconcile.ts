@@ -1,16 +1,16 @@
 /**
- * fxu-reconcile.ts
+ * FXM-reconcile.ts
  * ------------------------------------------------------------------
- * ตัวควบคุมหลักของ Script 3 สำหรับ DF_FXU
+ * ตัวควบคุมหลักของ Script 3 สำหรับ DF_FXM
  *
  * Flow ที่ไฟล์นี้จะรับผิดชอบ:
  * 1. อ่าน Checked Report และ Test Data
  * 2. ตรวจ Header ที่จำเป็น
- * 3. ตัดสินว่ารายการต้องมีหรือไม่ต้องมีใน DF_FXU
+ * 3. ตัดสินว่ารายการต้องมีหรือไม่ต้องมีใน DF_FXM
  * 4. จับคู่ Transaction ID กับ Arrangement Number
  * 5. ใช้ Txn Date และ Settled Amount เป็น Matching Support
  * 6. ตรวจ Core Fields
- * 7. เขียนผลลง DF_FXU_Reconcile
+ * 7. เขียนผลลง DF_FXM_Reconcile
  *
  * ขั้นนี้เพิ่ม:
  * - Type ที่ใช้ใน Reconcile
@@ -25,23 +25,23 @@
  */
 
 import {
-    FXU_ARRANGEMENT_TYPE,
-    FXU_LEG_TYPES,
-    FXU_LEG_TYPE_NAMES,
-    FXU_REPORT_CODE,
-    FXU_REPORT_FIELDS,
-    FXU_REPORT_HEADER_ROW,
-    FXU_TEST_DATA_FIELDS,
-    FXU_TEST_DATA_HEADER_ROW,
-    FXU_USD_THRESHOLD,
-} from "./fxu-config";
+    FXM_ARRANGEMENT_TYPE,
+    FXM_LEG_TYPES,
+    FXM_LEG_TYPE_NAMES,
+    FXM_REPORT_CODE,
+    FXM_REPORT_FIELDS,
+    FXM_REPORT_HEADER_ROW,
+    FXM_TEST_DATA_FIELDS,
+    FXM_TEST_DATA_HEADER_ROW,
+    FXM_USD_THRESHOLD,
+} from "./fxm-config";
 
 import {
-    FxuDirection,
-    FxuRuleEvaluator,
-    normalizeFxuValue,
-    parseFxuAmount,
-} from "./fxu-rules";
+    FXMDirection,
+    FXMRuleEvaluator,
+    normalizeFXMValue,
+    parseFXMAmount,
+} from "./fxm-rules";
 
 import {
     getUniqueMappingHeaders,
@@ -77,19 +77,19 @@ import {
 
 /**
  * สถานะที่ใช้ตัดสินว่า Transaction
- * ต้องมีหรือไม่ต้องมีใน Report DF_FXU
+ * ต้องมีหรือไม่ต้องมีใน Report DF_FXM
  *
  * MUST_EXIST:
- * รายการต้องพบใน DF_FXU
+ * รายการต้องพบใน DF_FXM
  *
  * MUST_NOT_EXIST:
- * รายการต้องไม่พบใน DF_FXU
+ * รายการต้องไม่พบใน DF_FXM
  *
  * CANNOT_DECIDE:
  * ข้อมูล Test Data ไม่เพียงพอ
  * จึงยังไม่สามารถตัดสิน Presence Rule ได้
  */
-export type FxuPresenceExpectation =
+export type FXMPresenceExpectation =
     | "MUST_EXIST"
     | "MUST_NOT_EXIST"
     | "CANNOT_DECIDE";
@@ -97,7 +97,7 @@ export type FxuPresenceExpectation =
 /**
  * ผลการตัดสิน Rule ของ Test Data หนึ่งแถว
  */
-export interface FxuReconcileDecision {
+export interface FXMReconcileDecision {
     /**
      * ทิศทางของธุรกรรม FX
      *
@@ -108,12 +108,12 @@ export interface FxuReconcileDecision {
      * - NOT_FX
      * - UNKNOWN
      */
-    direction: FxuDirection;
+    direction: FXMDirection;
 
     /**
-     * รายการต้องมีหรือไม่ต้องมีใน DF_FXU
+     * รายการต้องมีหรือไม่ต้องมีใน DF_FXM
      */
-    expectation: FxuPresenceExpectation;
+    expectation: FXMPresenceExpectation;
 
     /**
      * เหตุผลเพิ่มเติมจากการตัดสิน Rule
@@ -134,7 +134,7 @@ export interface FxuReconcileDecision {
 }
 
 /**
- * วิธีที่ระบบใช้จับคู่ Test Data กับ DF_FXU Report
+ * วิธีที่ระบบใช้จับคู่ Test Data กับ DF_FXM Report
  *
  * EXACT:
  * Transaction ID ตรงกับ Arrangement Number
@@ -154,7 +154,7 @@ export interface FxuReconcileDecision {
  * FALLBACK_UNAVAILABLE:
  * ข้อมูลไม่เพียงพอสำหรับทำ Fallback
  */
-export type FxuMatchMode =
+export type FXMMatchMode =
     | "EXACT"
     | "FALLBACK"
     | "NOT_FOUND"
@@ -165,7 +165,7 @@ export type FxuMatchMode =
 /**
  * ผลการจับคู่ Test Data หนึ่งแถว
  */
-export interface FxuMatchResolution {
+export interface FXMMatchResolution {
     /**
      * ค่าที่ใช้แสดงใน Column Test Script No.
      *
@@ -185,13 +185,13 @@ export interface FxuMatchResolution {
      * ผล Presence Rule ของ Test Data แถวนี้
      */
     decision:
-    FxuReconcileDecision;
+    FXMReconcileDecision;
 
     /**
      * วิธีที่ใช้จับคู่ข้อมูล
      */
     matchMode:
-    FxuMatchMode;
+    FXMMatchMode;
 
     /**
      * Report Record ที่จับคู่ได้
@@ -221,7 +221,7 @@ export interface FxuMatchResolution {
 /**
  * ผลการค้นหา Fallback ภายในระบบ
  */
-interface FxuFallbackResult {
+interface FXMFallbackResult {
     matchedRecord?:
     ReconcileRecord;
 
@@ -240,7 +240,7 @@ interface FxuFallbackResult {
  * - Expected Absence แต่พบรายการ
  * - ไม่สามารถตัดสิน Presence Rule ได้
  */
-export interface FxuCompareOptions {
+export interface FXMCompareOptions {
     /**
      * Remark ที่ต้องใส่ก่อนเริ่มตรวจ Field
      */
@@ -264,7 +264,7 @@ export interface FxuCompareOptions {
  * ผลการเปรียบเทียบ Field
  * ของ Test Data กับ Report หนึ่งคู่
  */
-export interface FxuFieldComparisonResult {
+export interface FXMFieldComparisonResult {
     /**
      * Header ที่ไม่ผ่าน Business Rule
      *
@@ -295,7 +295,7 @@ export interface FxuFieldComparisonResult {
  * Workbook ที่สร้างจาก Checked Report
  *
  * reportRecords:
- * ข้อมูลทุกแถวจาก DF_FXU Report
+ * ข้อมูลทุกแถวจาก DF_FXM Report
  *
  * testDataRecords:
  * ข้อมูลทุกแถวจาก Test Data
@@ -306,7 +306,7 @@ export interface FxuFieldComparisonResult {
  * reservedExactRowNumbers:
  * Report Row ที่ถูกจองไว้สำหรับ Exact Matching
  */
-export interface FxuLoadedData {
+export interface FXMLoadedData {
     prepared:
     PreparedReconcileWorkbook;
 
@@ -340,20 +340,20 @@ export interface FxuLoadedData {
  * ถ้าผลต่างไม่เกิน 0.01
  * จะถือว่า Amount เท่ากัน
  */
-export const FXU_AMOUNT_TOLERANCE =
+export const FXM_AMOUNT_TOLERANCE =
     0.01;
 
 /**
  * รายการ Header ของ Test Data
- * ที่ Script 3 สำหรับ DF_FXU ต้องใช้
+ * ที่ Script 3 สำหรับ DF_FXM ต้องใช้
  *
  * ใช้ Set เพื่อตัด Header ซ้ำ
  * หาก Config มีชื่อ Header เดียวกันมากกว่าหนึ่งตำแหน่ง
  */
-export const FXU_REQUIRED_TEST_DATA_HEADERS = [
+export const FXM_REQUIRED_TEST_DATA_HEADERS = [
     ...new Set(
         Object.values(
-            FXU_TEST_DATA_FIELDS,
+            FXM_TEST_DATA_FIELDS,
         ),
     ),
 ];
@@ -373,7 +373,7 @@ export const FXU_REQUIRED_TEST_DATA_HEADERS = [
  * ถ้าค่าว่างหรือรูปแบบวันที่ไม่ถูกต้อง
  * จะคืนค่า null
  */
-export const parseFxuDateKey = (
+export const parseFXMDateKey = (
     value: unknown,
 ): string | null => {
     const text =
@@ -587,7 +587,7 @@ export const parseFxuDateKey = (
  * ถ้า Ref ไม่มีวันที่ หรือวันที่ไม่ถูกต้อง
  * จะคืนค่า null
  */
-export const parseFxuReferenceDateKey = (
+export const parseFXMReferenceDateKey = (
     value: unknown,
 ): string | null => {
     const text =
@@ -636,7 +636,7 @@ export const parseFxuReferenceDateKey = (
      * ตัวอย่าง Ref ที่มีวันที่ 250231
      * จะไม่ผ่าน เพราะไม่มีวันที่ 31/02/2025
      */
-    return parseFxuDateKey(
+    return parseFXMDateKey(
         `${day}/${month}/${year}`,
     );
 };
@@ -645,7 +645,7 @@ export const parseFxuReferenceDateKey = (
  * ประเภทของรายการที่ต้องโยงกลับไปหา
  * Original Transaction
  */
-export type FxuReturnTransactionType =
+export type FXMReturnTransactionType =
     | "RETURN"
     | "REVERSAL";
 
@@ -653,7 +653,7 @@ export type FxuReturnTransactionType =
  * ข้อมูลที่อ่านได้จาก Test No.
  * ของ Return/Reversal
  */
-export interface FxuReturnTestInfo {
+export interface FXMReturnTestInfo {
     /**
      * Test No. ของ Original Transaction
      *
@@ -668,7 +668,7 @@ export interface FxuReturnTestInfo {
      * ประเภทของรายการ
      */
     transactionType:
-    FxuReturnTransactionType;
+    FXMReturnTransactionType;
 }
 
 /**
@@ -687,9 +687,9 @@ export interface FxuReturnTestInfo {
  * หรือไม่มี Original Test No.
  * จะคืนค่า null
  */
-export const parseFxuReturnTestInfo = (
+export const parseFXMReturnTestInfo = (
     value: unknown,
-): FxuReturnTestInfo | null => {
+): FXMReturnTestInfo | null => {
     const text =
         String(
             value ?? "",
@@ -739,26 +739,26 @@ export const parseFxuReturnTestInfo = (
         transactionType:
             matched[2]
                 .toUpperCase() as
-            FxuReturnTransactionType,
+            FXMReturnTransactionType,
     };
 };
 
 /**
- * Service หลักสำหรับ Reconcile DF_FXU
+ * Service หลักสำหรับ Reconcile DF_FXM
  *
  * ขั้นนี้เพิ่มเฉพาะ Presence Decision ก่อน
  * ส่วนการอ่านไฟล์และเขียนผลจะเพิ่มในขั้นถัดไป
  */
-export class FxuReconcileService {
+export class FXMReconcileService {
     /**
-     * ใช้ Rule จาก fxu-rules.ts
+     * ใช้ Rule จาก FXM-rules.ts
      * เพื่อตรวจ Field และหาทิศทางธุรกรรม
      */
     private readonly ruleEvaluator =
-        new FxuRuleEvaluator();
+        new FXMRuleEvaluator();
 
     /**
-     * Entry Point หลักของ DF_FXU Reconcile
+     * Entry Point หลักของ DF_FXM Reconcile
      *
      * ขั้นตอน:
      * 1. อ่าน Checked Report และ Test Data
@@ -766,7 +766,7 @@ export class FxuReconcileService {
      * 3. วนประมวลผล Test Data ทุกแถว
      * 4. ทำ Exact/Fallback Matching
      * 5. ตัดสิน PASS/FAIL
-     * 6. เขียนผลลง DF_FXU_Reconcile
+     * 6. เขียนผลลง DF_FXM_Reconcile
      * 7. ลบ Source Worksheet
      * 8. บันทึกไฟล์ผลลัพธ์
      */
@@ -853,7 +853,7 @@ export class FxuReconcileService {
             [];
 
         console.log(
-            `\n===== RECONCILE - ${FXU_REPORT_CODE} =====`,
+            `\n===== RECONCILE - ${FXM_REPORT_CODE} =====`,
         );
 
         /**
@@ -951,7 +951,7 @@ export class FxuReconcileService {
          * - Test Result
          * - Remark
          *
-         * หลังจากนั้นเป็น Header จาก DF_FXU Report
+         * หลังจากนั้นเป็น Header จาก DF_FXM Report
          */
         resultWriter.writeHeaderRow(
             prepared.resultSheet,
@@ -973,7 +973,7 @@ export class FxuReconcileService {
                     prepared.resultSheet,
                     prepared.reportWorksheet,
                     prepared.reportHeaders,
-                    FXU_REPORT_HEADER_ROW +
+                    FXM_REPORT_HEADER_ROW +
                     1,
                     prepared.reportWorksheet
                         .rowCount,
@@ -996,7 +996,7 @@ export class FxuReconcileService {
          * ลบ Source Worksheet ออกจากไฟล์ผลลัพธ์
          *
          * เหลือเฉพาะ Worksheet:
-         * DF_FXU_Reconcile
+         * DF_FXM_Reconcile
          */
         prepared.workbook.removeWorksheet(
             prepared.reportWorksheet.id,
@@ -1057,7 +1057,7 @@ export class FxuReconcileService {
         );
 
         console.log(
-            `${FXU_REPORT_CODE} Reconcile Completed`,
+            `${FXM_REPORT_CODE} Reconcile Completed`,
         );
 
         console.log(
@@ -1100,7 +1100,7 @@ export class FxuReconcileService {
        */
     async loadAndValidate(
         testDataFilePath: string,
-    ): Promise<FxuLoadedData> {
+    ): Promise<FXMLoadedData> {
         const workbookPreparer =
             new ReconcileWorkbookPreparer();
 
@@ -1108,7 +1108,7 @@ export class FxuReconcileService {
             new ReconcileExcelReader();
 
         console.log(
-            `\n===== LOAD RECONCILE DATA - ${FXU_REPORT_CODE} =====`,
+            `\n===== LOAD RECONCILE DATA - ${FXM_REPORT_CODE} =====`,
         );
 
         /**
@@ -1117,19 +1117,19 @@ export class FxuReconcileService {
          */
         const prepared =
             await workbookPreparer.prepare(
-                FXU_REPORT_CODE,
-                FXU_REPORT_HEADER_ROW,
+                FXM_REPORT_CODE,
+                FXM_REPORT_HEADER_ROW,
             );
 
         /**
          * อ่านข้อมูลจาก Report Worksheet
          *
-         * Header ของ DF_FXU อยู่แถวที่ 1
+         * Header ของ DF_FXM อยู่แถวที่ 1
          */
         const reportData =
             excelReader.parseWorksheet(
                 prepared.reportWorksheet,
-                FXU_REPORT_HEADER_ROW,
+                FXM_REPORT_HEADER_ROW,
             );
 
         /**
@@ -1140,7 +1140,7 @@ export class FxuReconcileService {
         const testData =
             await excelReader.readFile(
                 testDataFilePath,
-                FXU_TEST_DATA_HEADER_ROW,
+                FXM_TEST_DATA_HEADER_ROW,
             );
 
         /**
@@ -1210,14 +1210,13 @@ export class FxuReconcileService {
 
     /**
      * ตัดสินว่า Test Data หนึ่งแถว
-  
     /**
      * ตัดสินว่า Test Data หนึ่งแถว
-     * ต้องมีหรือไม่ต้องมีใน DF_FXU
+     * ต้องมีหรือไม่ต้องมีใน DF_FXM
      */
     evaluatePresence(
         testDataRecord: ReconcileRecord,
-    ): FxuReconcileDecision {
+    ): FXMReconcileDecision {
         /**
          * ระบุทิศทางของธุรกรรมจาก:
          * - From Currency
@@ -1250,9 +1249,9 @@ export class FxuReconcileService {
          * เทียบกับ USD Equivalent Amount ใน Report
          */
         const settledAmount =
-            parseFxuAmount(
+            parseFXMAmount(
                 testDataRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .settledAmount,
                 ),
             );
@@ -1275,7 +1274,7 @@ export class FxuReconcileService {
                 ...(settledAmount ===
                     null
                     ? [
-                        FXU_TEST_DATA_FIELDS
+                        FXM_TEST_DATA_FIELDS
                             .settledAmount,
                     ]
                     : []),
@@ -1313,7 +1312,7 @@ export class FxuReconcileService {
          * From Currency และ To Currency เหมือนกัน
          *
          * ไม่ถือเป็นรายการแลกเปลี่ยนเงินตรา
-         * จึงต้องไม่พบใน DF_FXU
+         * จึงต้องไม่พบใน DF_FXM
          */
         if (
             direction ===
@@ -1335,14 +1334,15 @@ export class FxuReconcileService {
         }
 
         /**
-         * Amount ตั้งแต่ 1,000,000 USD ขึ้นไป
-         *
-         * ต้องตรวจใน DF_FXM
-         * จึงต้องไม่พบใน DF_FXU
-         */
+ * Amount ต่ำกว่า 1,000,000 USD
+ *
+ * ยอดไม่เข้าเงื่อนไขของ DF_FXM
+ * จึงต้องไม่พบใน DF_FXM
+ * และต้องพิจารณารายงานใน DF_FXU
+ */
         if (
-            settledAmount >=
-            FXU_USD_THRESHOLD
+            settledAmount <
+            FXM_USD_THRESHOLD
         ) {
             return {
                 direction,
@@ -1351,8 +1351,8 @@ export class FxuReconcileService {
                     "MUST_NOT_EXIST",
 
                 reasons: [
-                    `Settled Amount ${settledAmount} >= ` +
-                    `${FXU_USD_THRESHOLD}`,
+                    `Settled Amount ${settledAmount} < ` +
+                    `${FXM_USD_THRESHOLD}`,
                 ],
 
                 requiresReview:
@@ -1373,7 +1373,7 @@ export class FxuReconcileService {
          * ช่วยตัดสินว่าใครเป็นผู้ทำ FX Conversion
          *
          * ขณะนี้ Requirement ยังไม่มี Use Case ที่ยืนยัน
-         * จึงห้ามสรุปว่ารายการต้องพบหรือไม่ต้องพบใน DF_FXU
+         * จึงห้ามสรุปว่ารายการต้องพบหรือไม่ต้องพบใน DF_FXM
          */
         if (
             direction ===
@@ -1398,11 +1398,11 @@ export class FxuReconcileService {
 
 
         /**
-         * BUY_FCY หรือ SELL_FCY
-         * และ Amount ต่ำกว่า 1,000,000 USD
-         *
-         * ต้องพบใน DF_FXU
-         */
+ * BUY_FCY หรือ SELL_FCY
+ * และ Amount ตั้งแต่ 1,000,000 USD ขึ้นไป
+ *
+ * ต้องพบใน DF_FXM
+ */
         return {
             direction,
 
@@ -1426,16 +1426,16 @@ export class FxuReconcileService {
             ReconcileRecord,
 
         returnInfo:
-            FxuReturnTestInfo,
+            FXMReturnTestInfo,
 
         testDataIndex:
             ReadonlyMap<
                 string,
                 readonly ReconcileRecord[]
             >,
-    ): FxuReconcileDecision {
+    ): FXMReconcileDecision {
         const originalTestNo =
-            normalizeFxuValue(
+            normalizeFXMValue(
                 returnInfo.originalTestNo,
             );
 
@@ -1537,11 +1537,11 @@ export class FxuReconcileService {
          * เพราะทิศทางจะย้อนกลับจาก Original
          */
         const requiredReturnFields = [
-            FXU_TEST_DATA_FIELDS
+            FXM_TEST_DATA_FIELDS
                 .transactionDate,
-            FXU_TEST_DATA_FIELDS
+            FXM_TEST_DATA_FIELDS
                 .settledCurrency,
-            FXU_TEST_DATA_FIELDS
+            FXM_TEST_DATA_FIELDS
                 .settledAmount,
         ];
 
@@ -1550,7 +1550,7 @@ export class FxuReconcileService {
                 (
                     field,
                 ) =>
-                    normalizeFxuValue(
+                    normalizeFXMValue(
                         returnRecord.get(
                             field,
                         ),
@@ -1558,9 +1558,9 @@ export class FxuReconcileService {
             );
 
         const returnAmount =
-            parseFxuAmount(
+            parseFXMAmount(
                 returnRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .settledAmount,
                 ),
             );
@@ -1569,12 +1569,12 @@ export class FxuReconcileService {
             returnAmount ===
             null &&
             !invalidReturnFields.includes(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .settledAmount,
             )
         ) {
             invalidReturnFields.push(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .settledAmount,
             );
         }
@@ -1603,7 +1603,7 @@ export class FxuReconcileService {
         }
 
         /**
-         * ถ้า Original ไม่ต้องรายงานใน DF_FXU
+         * ถ้า Original ไม่ต้องรายงานใน DF_FXM
          * Return/Reversal ก็ไม่ต้องรายงานตาม
          */
         if (
@@ -1620,7 +1620,7 @@ export class FxuReconcileService {
                 reasons: [
                     `Return/Reversal: Original Test Case ` +
                     `"${returnInfo.originalTestNo}" ` +
-                    "ไม่ต้องรายงานใน DF_FXU " +
+                    "ไม่ต้องรายงานใน DF_FXM " +
                     `จึงไม่ต้องรายงานรายการ ${returnInfo.transactionType} ตาม`,
                 ],
 
@@ -1630,7 +1630,7 @@ export class FxuReconcileService {
         }
 
         /**
-         * Original ต้องรายงานใน DF_FXU
+         * Original ต้องรายงานใน DF_FXM
          * Return/Reversal ต้องรายงานเช่นกัน
          * แต่ต้องกลับทิศทาง FX
          *
@@ -1638,7 +1638,7 @@ export class FxuReconcileService {
          * Original SELL_FCY → Return BUY_FCY
          */
         const reverseDirection:
-            FxuDirection =
+            FXMDirection =
             originalDecision.direction ===
                 "BUY_FCY"
                 ? "SELL_FCY"
@@ -1682,7 +1682,7 @@ export class FxuReconcileService {
         };
     }
     /**
-     * จับคู่ Test Data หนึ่งแถวกับ DF_FXU Report
+     * จับคู่ Test Data หนึ่งแถวกับ DF_FXM Report
      *
      * ลำดับการทำงาน:
      * 1. ประเมิน Presence Rule
@@ -1728,7 +1728,7 @@ export class FxuReconcileService {
 
         usedReportRowNumbers:
             ReadonlySet<number>,
-    ): FxuMatchResolution {
+    ): FXMMatchResolution {
         /**
          * อ่านและ Normalize Matching Key
          *
@@ -1737,9 +1737,9 @@ export class FxuReconcileService {
          * → "TX001"
          */
         const transactionId =
-            normalizeFxuValue(
+            normalizeFXMValue(
                 testDataRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .transactionId,
                 ),
             );
@@ -1755,12 +1755,12 @@ export class FxuReconcileService {
 
         /**
          * ตัดสินก่อนว่ารายการควรมี
-         * หรือไม่ควรมีใน DF_FXU
+         * หรือไม่ควรมีใน DF_FXM
          */
         const returnInfo =
-            parseFxuReturnTestInfo(
+            parseFXMReturnTestInfo(
                 testDataRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .testNo,
                 ),
             );
@@ -1821,9 +1821,9 @@ export class FxuReconcileService {
                     exactCandidates.length,
 
                 remark:
-                    `พบ ${FXU_REPORT_FIELDS.arrangementNumber} ` +
+                    `พบ ${FXM_REPORT_FIELDS.arrangementNumber} ` +
                     `= "${transactionId}" ซ้ำ ` +
-                    `${exactCandidates.length} แถวใน DF_FXU Report`,
+                    `${exactCandidates.length} แถวใน DF_FXM Report`,
             };
         }
 
@@ -1883,8 +1883,8 @@ export class FxuReconcileService {
 
                 remark:
                     `Exact Match: ` +
-                    `${FXU_TEST_DATA_FIELDS.transactionId} ` +
-                    `ตรงกับ ${FXU_REPORT_FIELDS.arrangementNumber}`,
+                    `${FXM_TEST_DATA_FIELDS.transactionId} ` +
+                    `ตรงกับ ${FXM_REPORT_FIELDS.arrangementNumber}`,
             };
         }
 
@@ -2068,18 +2068,18 @@ export class FxuReconcileService {
 
         usedReportRowNumbers:
             ReadonlySet<number>,
-    ): FxuFallbackResult {
+    ): FXMFallbackResult {
         /**
          * อ่านวันที่จาก Test Data
          */
         const expectedDateText =
             testDataRecord.get(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .transactionDate,
             );
 
         const expectedDate =
-            parseFxuDateKey(
+            parseFXMDateKey(
                 expectedDateText,
             );
 
@@ -2088,12 +2088,12 @@ export class FxuReconcileService {
          */
         const expectedAmountText =
             testDataRecord.get(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .settledAmount,
             );
 
         const expectedAmount =
-            parseFxuAmount(
+            parseFXMAmount(
                 expectedAmountText,
             );
 
@@ -2106,7 +2106,7 @@ export class FxuReconcileService {
             null
         ) {
             invalidFields.push(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .transactionDate,
             );
         }
@@ -2116,7 +2116,7 @@ export class FxuReconcileService {
             null
         ) {
             invalidFields.push(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .settledAmount,
             );
         }
@@ -2180,17 +2180,17 @@ export class FxuReconcileService {
                     }
 
                     const actualDate =
-                        parseFxuDateKey(
+                        parseFXMDateKey(
                             reportRecord.get(
-                                FXU_REPORT_FIELDS
+                                FXM_REPORT_FIELDS
                                     .dataSetDate,
                             ),
                         );
 
                     const actualAmount =
-                        parseFxuAmount(
+                        parseFXMAmount(
                             reportRecord.get(
-                                FXU_REPORT_FIELDS
+                                FXM_REPORT_FIELDS
                                     .usdEquivalentAmount,
                             ),
                         );
@@ -2214,7 +2214,7 @@ export class FxuReconcileService {
                             actualAmount -
                             expectedAmount,
                         ) <=
-                        FXU_AMOUNT_TOLERANCE
+                        FXM_AMOUNT_TOLERANCE
                     );
                 },
             );
@@ -2237,8 +2237,8 @@ export class FxuReconcileService {
 
                 remark:
                     "Primary Matching Key ไม่พบ แต่ Fallback Match สำเร็จจาก " +
-                    `${FXU_TEST_DATA_FIELDS.transactionDate} + ` +
-                    FXU_TEST_DATA_FIELDS
+                    `${FXM_TEST_DATA_FIELDS.transactionDate} + ` +
+                    FXM_TEST_DATA_FIELDS
                         .settledAmount,
             };
         }
@@ -2256,8 +2256,8 @@ export class FxuReconcileService {
 
                 remark:
                     "Fallback Matching ไม่พบข้อมูลจาก " +
-                    `${FXU_TEST_DATA_FIELDS.transactionDate} + ` +
-                    FXU_TEST_DATA_FIELDS
+                    `${FXM_TEST_DATA_FIELDS.transactionDate} + ` +
+                    FXM_TEST_DATA_FIELDS
                         .settledAmount,
             };
         }
@@ -2273,8 +2273,8 @@ export class FxuReconcileService {
 
             remark:
                 `Ambiguous Fallback Match: พบ ${candidates.length} แถวจาก ` +
-                `${FXU_TEST_DATA_FIELDS.transactionDate} + ` +
-                FXU_TEST_DATA_FIELDS
+                `${FXM_TEST_DATA_FIELDS.transactionDate} + ` +
+                FXM_TEST_DATA_FIELDS
                     .settledAmount,
         };
     }
@@ -2297,7 +2297,7 @@ export class FxuReconcileService {
         const testNo =
             String(
                 testDataRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .testNo,
                 ),
             ).trim();
@@ -2354,12 +2354,12 @@ export class FxuReconcileService {
             ReconcileRecord,
 
         decision:
-            FxuReconcileDecision,
+            FXMReconcileDecision,
 
         options:
-            FxuCompareOptions =
+            FXMCompareOptions =
             {},
-    ): FxuFieldComparisonResult {
+    ): FXMFieldComparisonResult {
         /**
          * ใช้ Set เพื่อป้องกันชื่อ Header ซ้ำ
          */
@@ -2436,7 +2436,7 @@ export class FxuReconcileService {
 
             remarks.push(
                 formatCompareRemark(
-                    FXU_REPORT_CODE,
+                    FXM_REPORT_CODE,
                     testDataField,
                     expectedValue,
                     reportField,
@@ -2453,13 +2453,13 @@ export class FxuReconcileService {
          */
         const expectedTransactionId =
             testDataRecord.get(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .transactionId,
             );
 
         const actualArrangementNumber =
             reportRecord.get(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .arrangementNumber,
             );
 
@@ -2472,24 +2472,24 @@ export class FxuReconcileService {
          * Test Case จะยังคงเป็น FAIL
          */
         if (
-            normalizeFxuValue(
+            normalizeFXMValue(
                 expectedTransactionId,
             ) ===
             "" ||
-            normalizeFxuValue(
+            normalizeFXMValue(
                 expectedTransactionId,
             ) !==
-            normalizeFxuValue(
+            normalizeFXMValue(
                 actualArrangementNumber,
             )
         ) {
             addDifference(
                 "FAIL",
 
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .arrangementNumber,
 
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .transactionId,
 
                 expectedTransactionId,
@@ -2521,23 +2521,23 @@ export class FxuReconcileService {
   */
         const expectedDateText =
             testDataRecord.get(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .transactionDate,
             );
 
         const actualDateText =
             reportRecord.get(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .dataSetDate,
             );
 
         const expectedDate =
-            parseFxuDateKey(
+            parseFXMDateKey(
                 expectedDateText,
             );
 
         const actualDate =
-            parseFxuDateKey(
+            parseFXMDateKey(
                 actualDateText,
             );
 
@@ -2548,7 +2548,7 @@ export class FxuReconcileService {
          * Txn Date ไม่ตรงกับ Data Set Date
          */
         const referenceDate =
-            parseFxuReferenceDateKey(
+            parseFXMReferenceDateKey(
                 expectedTransactionId,
             );
 
@@ -2563,13 +2563,13 @@ export class FxuReconcileService {
             null
         ) {
             failedHeaders.add(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .dataSetDate,
             );
 
             remarks.push(
                 `ไม่สามารถอ่านค่า ` +
-                `${FXU_TEST_DATA_FIELDS.transactionDate} ` +
+                `${FXM_TEST_DATA_FIELDS.transactionDate} ` +
                 `จาก Test Data ได้: ` +
                 `"${expectedDateText}"`,
             );
@@ -2591,15 +2591,15 @@ export class FxuReconcileService {
              * และ Ref ไม่มีวันที่หรืออ่านรูปแบบไม่ได้
              */
             failedHeaders.add(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .dataSetDate,
             );
 
             remarks.push(
-                `${FXU_TEST_DATA_FIELDS.transactionDate} ` +
-                `ไม่ตรงกับ ${FXU_REPORT_FIELDS.dataSetDate} ` +
+                `${FXM_TEST_DATA_FIELDS.transactionDate} ` +
+                `ไม่ตรงกับ ${FXM_REPORT_FIELDS.dataSetDate} ` +
                 `และไม่สามารถอ่านวันที่จาก ` +
-                `${FXU_TEST_DATA_FIELDS.transactionId} ได้\n` +
+                `${FXM_TEST_DATA_FIELDS.transactionId} ได้\n` +
                 `Txn Date: "${expectedDateText}"\n` +
                 `Data Set Date: "${actualDateText}"\n` +
                 `Ref: "${expectedTransactionId}"`,
@@ -2617,10 +2617,10 @@ export class FxuReconcileService {
              * พร้อมแสดง Remark แจ้งความแตกต่าง
              */
             remarks.push(
-                `${FXU_TEST_DATA_FIELDS.transactionDate} ` +
-                `ไม่ตรงกับ ${FXU_REPORT_FIELDS.dataSetDate} ` +
+                `${FXM_TEST_DATA_FIELDS.transactionDate} ` +
+                `ไม่ตรงกับ ${FXM_REPORT_FIELDS.dataSetDate} ` +
                 `แต่ตรงกับวันที่ใน ` +
-                `${FXU_TEST_DATA_FIELDS.transactionId}\n` +
+                `${FXM_TEST_DATA_FIELDS.transactionId}\n` +
                 `Txn Date: "${expectedDateText}"\n` +
                 `Data Set Date: "${actualDateText}"\n` +
                 `Ref Date: "${referenceDate}"`,
@@ -2631,15 +2631,15 @@ export class FxuReconcileService {
              * และวันที่ที่อ่านได้จาก Ref
              */
             failedHeaders.add(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .dataSetDate,
             );
 
             remarks.push(
-                `${FXU_TEST_DATA_FIELDS.transactionDate} ` +
-                `ไม่ตรงทั้ง ${FXU_REPORT_FIELDS.dataSetDate} ` +
+                `${FXM_TEST_DATA_FIELDS.transactionDate} ` +
+                `ไม่ตรงทั้ง ${FXM_REPORT_FIELDS.dataSetDate} ` +
                 `และวันที่ใน ` +
-                `${FXU_TEST_DATA_FIELDS.transactionId}\n` +
+                `${FXM_TEST_DATA_FIELDS.transactionId}\n` +
                 `Txn Date: "${expectedDateText}"\n` +
                 `Data Set Date: "${actualDateText}"\n` +
                 `Ref Date: "${referenceDate}"`,
@@ -2653,23 +2653,23 @@ export class FxuReconcileService {
          */
         const expectedAmountText =
             testDataRecord.get(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .settledAmount,
             );
 
         const actualAmountText =
             reportRecord.get(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .usdEquivalentAmount,
             );
 
         const expectedAmount =
-            parseFxuAmount(
+            parseFXMAmount(
                 expectedAmountText,
             );
 
         const actualAmount =
-            parseFxuAmount(
+            parseFXMAmount(
                 actualAmountText,
             );
 
@@ -2689,15 +2689,15 @@ export class FxuReconcileService {
                 expectedAmount -
                 actualAmount,
             ) >
-            FXU_AMOUNT_TOLERANCE
+            FXM_AMOUNT_TOLERANCE
         ) {
             addDifference(
                 "FAIL",
 
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .usdEquivalentAmount,
 
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .settledAmount,
 
                 expectedAmountText,
@@ -2714,33 +2714,33 @@ export class FxuReconcileService {
          */
         const actualArrangementType =
             reportRecord.get(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .arrangementType,
             );
 
         if (
-            normalizeFxuValue(
+            normalizeFXMValue(
                 actualArrangementType,
             ) !==
-            normalizeFxuValue(
-                FXU_ARRANGEMENT_TYPE,
+            normalizeFXMValue(
+                FXM_ARRANGEMENT_TYPE,
             )
         ) {
             failedHeaders.add(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .arrangementType,
             );
 
             remarks.push(
                 formatFixedValueRemark(
-                    FXU_REPORT_CODE,
+                    FXM_REPORT_CODE,
 
-                    FXU_REPORT_FIELDS
+                    FXM_REPORT_FIELDS
                         .arrangementType,
 
                     actualArrangementType,
 
-                    FXU_ARRANGEMENT_TYPE,
+                    FXM_ARRANGEMENT_TYPE,
                 ),
             );
         }
@@ -2772,7 +2772,7 @@ export class FxuReconcileService {
             "CROSS_CURRENCY"
         ) {
             reviewHeaders.add(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .arrangementTypeName
             );
 
@@ -2849,7 +2849,7 @@ export class FxuReconcileService {
             ReconcileRecord,
 
         decision:
-            FxuReconcileDecision,
+            FXMReconcileDecision,
 
         addDifference: (
             mode:
@@ -2876,11 +2876,11 @@ export class FxuReconcileService {
         const expectedLegType =
             decision.direction ===
                 "BUY_FCY"
-                ? FXU_LEG_TYPES
+                ? FXM_LEG_TYPES
                     .buyForeignCurrency
                 : decision.direction ===
                     "SELL_FCY"
-                    ? FXU_LEG_TYPES
+                    ? FXM_LEG_TYPES
                         .sellForeignCurrency
                     : undefined;
 
@@ -2888,11 +2888,11 @@ export class FxuReconcileService {
          * ระบุ Leg Type Name ที่คาดหวัง
          */
         /**
- * FXU_LEG_TYPE_NAMES ใช้ Leg Type Code เป็น Key
+ * FXM_LEG_TYPE_NAMES ใช้ Leg Type Code เป็น Key
  *
  * ตัวอย่าง:
- * FXU_LEG_TYPE_NAMES["182001"]
- * FXU_LEG_TYPE_NAMES["182002"]
+ * FXM_LEG_TYPE_NAMES["182001"]
+ * FXM_LEG_TYPE_NAMES["182002"]
  *
  * จึงใช้ expectedLegType ที่หาได้ด้านบน
  * เป็น Key สำหรับอ่าน Leg Type Name
@@ -2901,7 +2901,7 @@ export class FxuReconcileService {
             expectedLegType ===
                 undefined
                 ? undefined
-                : FXU_LEG_TYPE_NAMES[
+                : FXM_LEG_TYPE_NAMES[
                 expectedLegType
                 ];
 
@@ -2912,8 +2912,8 @@ export class FxuReconcileService {
          * From Currency (CCY)/To Currency (CCY)
          */
         const currencyPairField =
-            `${FXU_TEST_DATA_FIELDS.fromCurrency}/` +
-            FXU_TEST_DATA_FIELDS
+            `${FXM_TEST_DATA_FIELDS.fromCurrency}/` +
+            FXM_TEST_DATA_FIELDS
                 .toCurrency;
 
         /**
@@ -2924,23 +2924,23 @@ export class FxuReconcileService {
          */
         const currencyPairValue =
             `${testDataRecord.get(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .fromCurrency,
             )}/` +
             testDataRecord.get(
-                FXU_TEST_DATA_FIELDS
+                FXM_TEST_DATA_FIELDS
                     .toCurrency,
             );
 
         const actualLegType =
             reportRecord.get(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .legType,
             );
 
         const actualLegTypeName =
             reportRecord.get(
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .legTypeName,
             );
 
@@ -2963,7 +2963,7 @@ export class FxuReconcileService {
             addDifference(
                 "REVIEW",
 
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .legType,
 
                 currencyPairField,
@@ -2976,7 +2976,7 @@ export class FxuReconcileService {
             addDifference(
                 "REVIEW",
 
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .legTypeName,
 
                 currencyPairField,
@@ -2993,17 +2993,17 @@ export class FxuReconcileService {
          * ตรวจ Leg Type
          */
         if (
-            normalizeFxuValue(
+            normalizeFXMValue(
                 actualLegType,
             ) !==
-            normalizeFxuValue(
+            normalizeFXMValue(
                 expectedLegType,
             )
         ) {
             addDifference(
                 "FAIL",
 
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .legType,
 
                 currencyPairField,
@@ -3018,17 +3018,17 @@ export class FxuReconcileService {
          * ตรวจ Leg Type Name
          */
         if (
-            normalizeFxuValue(
+            normalizeFXMValue(
                 actualLegTypeName,
             ) !==
-            normalizeFxuValue(
+            normalizeFXMValue(
                 expectedLegTypeName,
             )
         ) {
             addDifference(
                 "FAIL",
 
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .legTypeName,
 
                 currencyPairField,
@@ -3056,7 +3056,7 @@ export class FxuReconcileService {
             ReconcileRecord,
 
         matchResolution:
-            FxuMatchResolution,
+            FXMMatchResolution,
     ): ResultRow {
         const {
             decision,
@@ -3065,13 +3065,9 @@ export class FxuReconcileService {
             matchResolution;
 
         /**
-         * ====================================================
-         * MUST_NOT_EXIST
-         * ====================================================
-         *
-         * รายการไม่ควรพบใน DF_FXU เช่น:
+         * รายการไม่ควรพบใน DF_FXM เช่น:
          * - From Currency = To Currency
-         * - Amount >= 1,000,000 USD
+         * - Amount < 1,000,000 USD
          */
         if (
             decision.expectation ===
@@ -3096,7 +3092,7 @@ export class FxuReconcileService {
             "CANNOT_DECIDE"
         ) {
             const cannotDecideRemark = [
-                "ไม่สามารถตัดสิน Presence Rule ของ DF_FXU ได้",
+                "ไม่สามารถตัดสิน Presence Rule ของ DF_FXM ได้",
                 ...decision.reasons,
                 matchResolution.remark,
             ]
@@ -3151,7 +3147,7 @@ export class FxuReconcileService {
          * MUST_EXIST
          * ====================================================
          *
-         * รายการต้องพบใน DF_FXU
+         * รายการต้องพบใน DF_FXM
          */
         if (
             !matchedRecord
@@ -3160,7 +3156,7 @@ export class FxuReconcileService {
                 testDataRecord,
                 matchResolution,
                 [
-                    "รายการเข้าเงื่อนไขที่ต้องพบใน DF_FXU",
+                    "รายการเข้าเงื่อนไขที่ต้องพบใน DF_FXM",
                     matchResolution.remark,
                 ]
                     .filter(
@@ -3205,7 +3201,7 @@ export class FxuReconcileService {
                 ],
 
                 initialFailedHeaders: [
-                    FXU_REPORT_FIELDS
+                    FXM_REPORT_FIELDS
                         .arrangementNumber,
                 ],
             },
@@ -3213,14 +3209,14 @@ export class FxuReconcileService {
     }
 
     /**
-     * สร้างผลสำหรับรายการที่ต้องไม่พบใน DF_FXU
+     * สร้างผลสำหรับรายการที่ต้องไม่พบใน DF_FXM
      */
     private resolveMustNotExistResult(
         testDataRecord:
             ReconcileRecord,
 
         matchResolution:
-            FxuMatchResolution,
+            FXMMatchResolution,
     ): ResultRow {
         const {
             decision,
@@ -3256,7 +3252,7 @@ export class FxuReconcileService {
 
                 remark: [
                     presenceReason,
-                    "ไม่ควรพบและไม่พบรายการใน DF_FXU",
+                    "ไม่ควรพบและไม่พบรายการใน DF_FXM",
                     matchResolution.remark,
                 ]
                     .map(
@@ -3334,7 +3330,7 @@ export class FxuReconcileService {
         }
 
         /**
-         * พบรายการที่ไม่ควรมีใน DF_FXU
+         * พบรายการที่ไม่ควรมีใน DF_FXM
          *
          * ให้ FAIL และตรวจ Core Fields ต่อ
          * เพื่อแสดงรายละเอียดใน Remark
@@ -3345,15 +3341,15 @@ export class FxuReconcileService {
             {
                 initialRemarks: [
                     presenceReason,
-                    "พบรายการใน DF_FXU ทั้งที่ไม่ควรพบ",
+                    "พบรายการใน DF_FXM ทั้งที่ไม่ควรพบ",
                     matchResolution.remark,
                 ],
 
                 initialFailedHeaders: [
-                    FXU_REPORT_FIELDS
+                    FXM_REPORT_FIELDS
                         .arrangementNumber,
 
-                    FXU_REPORT_FIELDS
+                    FXM_REPORT_FIELDS
                         .usdEquivalentAmount,
                 ],
             },
@@ -3376,10 +3372,10 @@ export class FxuReconcileService {
             ReconcileRecord,
 
         matchResolution:
-            FxuMatchResolution,
+            FXMMatchResolution,
 
         options:
-            FxuCompareOptions =
+            FXMCompareOptions =
             {},
 
         forceFail =
@@ -3504,7 +3500,7 @@ export class FxuReconcileService {
             ReconcileRecord,
 
         matchResolution:
-            FxuMatchResolution,
+            FXMMatchResolution,
 
         remark:
             string,
@@ -3523,7 +3519,7 @@ export class FxuReconcileService {
                 undefined,
 
             failedKeyFieldHeaders: [
-                FXU_REPORT_FIELDS
+                FXM_REPORT_FIELDS
                     .arrangementNumber,
             ],
 
@@ -3544,14 +3540,14 @@ export class FxuReconcileService {
 
     /**
      * สร้างเหตุผลว่าเพราะเหตุใด
-     * รายการจึงต้องไม่พบใน DF_FXU
+     * รายการจึงต้องไม่พบใน DF_FXM
      */
     private getMustNotExistReason(
         testDataRecord:
             ReconcileRecord,
 
         decision:
-            FxuReconcileDecision,
+            FXMReconcileDecision,
     ): string {
 
         /**
@@ -3587,31 +3583,31 @@ export class FxuReconcileService {
         ) {
             const fromCurrency =
                 testDataRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .fromCurrency,
                 );
 
             const toCurrency =
                 testDataRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .toCurrency,
                 );
 
             return (
                 `From Currency = "${fromCurrency}" และ ` +
                 `To Currency = "${toCurrency}" ` +
-                "เป็นสกุลเดียวกัน จึงไม่ควรพบใน DF_FXU"
+                "เป็นสกุลเดียวกัน จึงไม่ควรพบใน DF_FXM"
             );
         }
 
         /**
-         * Amount ตั้งแต่ 1,000,000 USD ขึ้นไป
-         * ต้องตรวจใน DF_FXM
-         */
+        * Amount ต่ำกว่า 1,000,000 USD
+        * ต้องพิจารณารายงานใน DF_FXU
+        */
         const amount =
-            parseFxuAmount(
+            parseFXMAmount(
                 testDataRecord.get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .settledAmount,
                 ),
             );
@@ -3630,10 +3626,10 @@ export class FxuReconcileService {
 
         return (
             `Settled Amount = ${amountDisplay} USD ` +
-            `>= ${FXU_USD_THRESHOLD.toLocaleString(
+            `< ${FXM_USD_THRESHOLD.toLocaleString(
                 "en-US",
             )} USD ` +
-            "จึงต้องตรวจใน DF_FXM และไม่ควรพบใน DF_FXU"
+            "จึงต้องตรวจใน DF_FXU และไม่ควรพบใน DF_FXM"
         );
     }
 
@@ -3656,7 +3652,7 @@ export class FxuReconcileService {
         if (
             testDataRecord
                 .get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .testNo,
                 )
                 .trim() ===
@@ -3667,7 +3663,7 @@ export class FxuReconcileService {
                     result.remark,
 
                     `Test Data ไม่มี ` +
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .testNo,
                 );
         }
@@ -3681,7 +3677,7 @@ export class FxuReconcileService {
         if (
             testDataRecord
                 .get(
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .transactionId,
                 )
                 .trim() ===
@@ -3692,7 +3688,7 @@ export class FxuReconcileService {
                     result.remark,
 
                     `Test Data ไม่มี ` +
-                    FXU_TEST_DATA_FIELDS
+                    FXM_TEST_DATA_FIELDS
                         .transactionId,
                 );
         }
@@ -3748,12 +3744,12 @@ export class FxuReconcileService {
         testDataHeaders: string[],
     ): void {
         /**
-         * ยืนยันว่า DF_FXU
+         * ยืนยันว่า DF_FXM
          * มี Config อยู่ใน mapping-config.ts
          */
         const reportName =
             requireMappingReportName(
-                FXU_REPORT_CODE,
+                FXM_REPORT_CODE,
             );
 
         /**
@@ -3778,7 +3774,7 @@ export class FxuReconcileService {
 
         this.assertHeaders(
             testDataHeaders,
-            FXU_REQUIRED_TEST_DATA_HEADERS,
+            FXM_REQUIRED_TEST_DATA_HEADERS,
             "Test Data",
         );
     }
@@ -3839,7 +3835,7 @@ export class FxuReconcileService {
             0
         ) {
             throw new Error(
-                `[${FXU_REPORT_CODE}] ` +
+                `[${FXM_REPORT_CODE}] ` +
                 `${sourceName} missing header(s): ` +
                 missingHeaders.join(
                     ", ",
@@ -3878,9 +3874,9 @@ export class FxuReconcileService {
             testDataRecords
         ) {
             const testNo =
-                normalizeFxuValue(
+                normalizeFXMValue(
                     testDataRecord.get(
-                        FXU_TEST_DATA_FIELDS
+                        FXM_TEST_DATA_FIELDS
                             .testNo,
                     ),
                 );
@@ -3953,7 +3949,7 @@ export class FxuReconcileService {
             const arrangementNumber =
                 String(
                     reportRecord.get(
-                        FXU_REPORT_FIELDS
+                        FXM_REPORT_FIELDS
                             .arrangementNumber,
                     ),
                 )
@@ -4036,7 +4032,7 @@ export class FxuReconcileService {
             const transactionId =
                 String(
                     testDataRecord.get(
-                        FXU_TEST_DATA_FIELDS
+                        FXM_TEST_DATA_FIELDS
                             .transactionId,
                     ),
                 )
@@ -4081,17 +4077,17 @@ export class FxuReconcileService {
  * script3-compare-report.spec.ts เรียกใช้งาน
  *
  * @param testDataFilePath
- * Path ของ Test Data สำหรับ DF_FXU
+ * Path ของ Test Data สำหรับ DF_FXM
  *
  * @returns
- * Path ของไฟล์ DF_FXU Reconcile Result
+ * Path ของไฟล์ DF_FXM Reconcile Result
  */
-export const reconcileFxuReport = (
+export const reconcileFXMReport = (
     testDataFilePath:
         string,
 ): Promise<string> => {
     const reconcileService =
-        new FxuReconcileService();
+        new FXMReconcileService();
 
     return reconcileService.reconcile(
         testDataFilePath,

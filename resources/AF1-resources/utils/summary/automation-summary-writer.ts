@@ -49,7 +49,8 @@ type SupportedSummaryReport =
   | "DS_LTX"
   | "DS_FTU"
   | "DF_FXU"
-  | "DF_OLB";
+  | "DF_OLB"
+  | "DF_FXM";
 
 type SummaryReportConfig = {
   reportCode: SupportedSummaryReport;
@@ -204,7 +205,8 @@ const SUMMARY_REPORT_CONFIG: Record<
     ],
   },
 
-   /**
+     /**
+   * ====================================================
    * DF_OLB
    * ====================================================
    * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
@@ -214,19 +216,79 @@ const SUMMARY_REPORT_CONFIG: Record<
    * - Column I เป็นช่องว่างคั่นกลาง
    * - Column J เป็นต้นไปเป็นข้อมูล Test Data
    */
-
   DF_OLB: {
-    reportCode: "DF_OLB",
-    summarySheetName: "DF_OLB_Summary Result",
-    reconcileSheetName: "DF_OLB_Reconcile",
-    reportSheetName: "DF_OLB",
-    title: "DF-OLB AUTOMATION VERIFICATION SUMMARY",
-    hasDynamicFeeColumns: false,
-    compareLastColumn: 8,
-    testDataFirstColumn: 10,
-    mergeRepeatedTestDataRows: false,
-    reportSourceSheetNames: ["DF_OLB"],
-  },  
+    reportCode:
+      "DF_OLB",
+
+    summarySheetName:
+      "DF_OLB_Summary Result",
+
+    reconcileSheetName:
+      "DF_OLB_Reconcile",
+
+    reportSheetName:
+      "DF_OLB",
+
+    title:
+      "DF-OLB AUTOMATION VERIFICATION SUMMARY",
+
+    hasDynamicFeeColumns:
+      false,
+
+    compareLastColumn:
+      8,
+
+    testDataFirstColumn:
+      10,
+
+    mergeRepeatedTestDataRows:
+      false,
+
+    reportSourceSheetNames: [
+      "DF_OLB Transaction",
+      "DF_OLB",
+    ],
+  },
+
+  /**
+   * ====================================================
+   * DF_FXM
+   * ====================================================
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   */
+  DF_FXM: {
+    reportCode:
+      "DF_FXM",
+
+    summarySheetName:
+      "DF_FXM_Summary Result",
+
+    reconcileSheetName:
+      "DF_FXM_Reconcile",
+
+    reportSheetName:
+      "DF_FXM",
+
+    title:
+      "DF-FXM AUTOMATION VERIFICATION SUMMARY",
+
+    hasDynamicFeeColumns:
+      false,
+
+    compareLastColumn:
+      10,
+
+    testDataFirstColumn:
+      12,
+
+    mergeRepeatedTestDataRows:
+      false,
+
+    reportSourceSheetNames: [
+      "DF_FXM Transaction",
+      "DF_FXM",
+    ],
+  },
 };
 
 const normalizeText = (value: unknown): string =>
@@ -251,12 +313,20 @@ const normalizeReportName = (reportName: string): SupportedSummaryReport => {
     .replace(/-/g, "_");
 
   if (
-    normalizedReportName === "DS_PTX" ||
-    normalizedReportName === "DS_FTX" ||
-    normalizedReportName === "DS_LTX" ||
-    normalizedReportName === "DS_FTU" ||
-    normalizedReportName === "DF_FXU" ||
-    normalizedReportName === "DF_OLB"
+    normalizedReportName ===
+    "DS_PTX" ||
+    normalizedReportName ===
+    "DS_FTX" ||
+    normalizedReportName ===
+    "DS_LTX" ||
+    normalizedReportName ===
+    "DS_FTU" ||
+    normalizedReportName ===
+    "DF_FXU" ||
+    normalizedReportName ===
+    "DF_OLB" ||
+    normalizedReportName ===
+    "DF_FXM"
   ) {
     return normalizedReportName;
   }
