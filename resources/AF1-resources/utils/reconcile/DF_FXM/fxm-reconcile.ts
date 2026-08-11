@@ -12,15 +12,12 @@
  * 6. ตรวจ Core Fields
  * 7. เขียนผลลง DF_FXM_Reconcile
  *
- * ขั้นนี้เพิ่ม:
- * - Type ที่ใช้ใน Reconcile
- * - Date Parser
- * - Presence Rule
+ * Entry Point:
+ * - reconcileFXMReport()
+ * - ถูกเรียกจาก tests/script3-compare-report.spec.ts
  *
- * หมายเหตุ:
- * - ยังไม่เชื่อมเข้ากับ tests/script3-compare-report.spec.ts
- * - ยังไม่ต้อง Run Script 3
- * - หลังวาง Code ให้ตรวจด้วย npx tsc --noEmit ก่อน
+ * การตรวจสอบ:
+ * - ใช้ npm run test:script3 -- report=DF_FXM เพื่อรัน Reconcile
  * ------------------------------------------------------------------
  */
 
@@ -2778,7 +2775,7 @@ export class FXMReconcileService {
 
             remarks.push(
                 "Cross Currency: Please review Settlement/Intermediary rule; " +
-                "ยังไม่เปิดใช้ NIUM และ Return/Reversal logic",
+                "NIUM และ Settlement/Intermediary logic ยังไม่ได้รับการยืนยัน",
             );
         }
 

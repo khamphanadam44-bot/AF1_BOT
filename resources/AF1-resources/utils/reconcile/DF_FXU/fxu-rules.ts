@@ -4,12 +4,10 @@
  * Business Rule ของ DF_FXU สำหรับ Script 3
  *
  * หน้าที่:
- * 1. ตรวจข้อมูลบังคับที่ใช้ใน Business Rule
- * 2. ตรวจว่ารายการเป็น FX Conversion หรือไม่
- * 3. แยกทิศทางซื้อหรือขายเงินตราต่างประเทศ
- * 4. ตรวจ Threshold ต่ำกว่า 1,000,000 USD
- * 5. ตัดสินว่ารายการต้องมีหรือไม่ต้องมีใน DF_FXU
- * 6. สร้าง Expected Leg Type และ Leg Type Name
+ * 1. Normalize ค่าที่ใช้ใน Business Rule
+ * 2. แปลง Settled Amount เป็นตัวเลข
+ * 3. ตรวจข้อมูลบังคับที่ใช้ใน Business Rule
+ * 4. ตรวจและระบุทิศทางของ FX Transaction
  *
  * ไฟล์นี้ไม่มีการอ่านหรือเขียน Excel
  * จึงสามารถใช้ทดสอบ Business Rule แยกจาก Reconcile Flow ได้
@@ -21,8 +19,6 @@ import {
 } from "../shared/record";
 
 import {
-  FXU_LEG_TYPE_NAMES,
-  FXU_LEG_TYPES,
   FXU_REPORT_CODE,
   FXU_TEST_DATA_FIELDS,
   FXU_THB_CURRENCY_CODE,
@@ -317,72 +313,5 @@ export class FxuRuleEvaluator {
     return "CROSS_CURRENCY";
   }
 
-  /**
-   * คืน Expected Leg Type จากทิศทางของรายการ
-   */
-  getExpectedLegType(
-    direction: FxuDirection,
-  ): string | undefined {
-    if (
-      direction ===
-      "BUY_FCY"
-    ) {
-      return FXU_LEG_TYPES
-        .buyForeignCurrency;
-    }
 
-    if (
-      direction ===
-      "SELL_FCY"
-    ) {
-      return FXU_LEG_TYPES
-        .sellForeignCurrency;
-    }
-
-    /**
-     * CROSS_CURRENCY ยังไม่สามารถระบุ Leg Type ได้
-     * จนกว่าจะได้ Settlement/Intermediary Use Case
-     */
-    return undefined;
-  }
-
-  /**
-   * คืน Expected Leg Type Name
-   * ให้สัมพันธ์กับ Expected Leg Type
-   */
-  getExpectedLegTypeName(
-    direction: FxuDirection,
-  ): string | undefined {
-    if (
-      direction ===
-      "BUY_FCY"
-    ) {
-      return FXU_LEG_TYPE_NAMES[
-        FXU_LEG_TYPES
-          .buyForeignCurrency
-      ];
-    }
-
-    if (
-      direction ===
-      "SELL_FCY"
-    ) {
-      return FXU_LEG_TYPE_NAMES[
-        FXU_LEG_TYPES
-          .sellForeignCurrency
-      ];
-    }
-
-    return undefined;
-  }
-
-  /**
-   * ประเมิน Test Data หนึ่งแถว
-   *
-   * ลำดับการตัดสิน:
-   * 1. ตรวจข้อมูลบังคับ
-   * 2. ตรวจ FX Conversion
-   * 3. ตรวจ Threshold
-   * 4. สร้าง Expected Leg Type
-   */
 }
