@@ -162,15 +162,15 @@ describe(
             );
 
             /**
- * อ่านช่วงวันที่ตาม Report ที่กำลัง Export
- *
- * DF_FXM:
- * - Date From = 26/02/2026
- * - Date To   = 27/02/2026
- *
- * Report อื่น:
- * - ใช้ช่วงวันที่เริ่มต้นจาก setting.ts
- */
+           * อ่านช่วงวันที่ตาม Report ที่กำลัง Export
+           *
+           * DF_FXM:
+           * - Date From = 26/02/2026
+           * - Date To   = 27/02/2026
+           *
+           * Report อื่น:
+           * - ใช้ช่วงวันที่เริ่มต้นจาก setting.ts
+           */
             const reportDateRange =
               getReportDateRange(
                 selectedReport,
@@ -211,10 +211,6 @@ describe(
               exportResult.reportData.length,
             );
 
-            console.log(
-              "Test Data Rows :",
-              exportResult.reportData.length,
-            );
           } finally {
             /**
              * ปิดหน้าจอของ Report ปัจจุบัน

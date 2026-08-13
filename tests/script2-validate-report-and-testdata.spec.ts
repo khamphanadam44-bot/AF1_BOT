@@ -252,6 +252,8 @@ const validateSelectedReport =
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
+ * - DF_OLB
+ * - DF_FXM
  *
  * หากชื่อ Report มีอยู่ใน TESTDATA_CONFIG
  * ระบบจะตรวจทั้ง Header และข้อมูลใน Test Data
@@ -335,8 +337,7 @@ describe(
         },
       );
     }
-
-    /**
+ /**
  * เลือกเฉพาะ Report ที่มี Test Data Config
  *
  * Report ที่รองรับการตรวจ Test Data:
@@ -345,8 +346,10 @@ describe(
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
+ * - DF_OLB
+ * - DF_FXM
  *
- * Report ที่ยังไม่มี Config:
+ * หากมีการเพิ่ม Report ใหม่แต่ยังไม่มี Config:
  * - ยังคงตรวจ Report Header ได้ตามปกติ
  * - จะข้ามขั้นตอน Test Data Validation
  * - จะแสดงเหตุผลว่าไม่พบ Test Data Config
