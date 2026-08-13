@@ -97,7 +97,14 @@ const selectedReports =
 
 describe(
   "Script 4 - Summary Results",
-  () => {
+  function () {
+    /**
+     * เพิ่มเวลาสูงสุดเป็น 5 นาที
+     * สำหรับการสร้าง Summary หลาย Report
+     */
+    this.timeout(
+      300000,
+    );
     /**
      * สร้าง Test แยกหนึ่งชุดต่อหนึ่ง Report
      *

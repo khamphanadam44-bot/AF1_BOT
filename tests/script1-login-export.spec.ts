@@ -15,9 +15,12 @@
 import "dotenv/config";
 
 import {
-  Browser,
   chromium,
-} from "playwright-core";
+} from "playwright";
+
+import type {
+  Browser,
+} from "playwright";
 
 import {
   LoginFeature,
