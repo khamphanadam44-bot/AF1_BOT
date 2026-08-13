@@ -154,10 +154,6 @@ export const getReconcileOutputDir = (
 };
 
 /**
- * คืนค่าโฟลเดอร์ผลลัพธ์จาก Script 4
- */
-
-/**
  * สร้างชื่อเริ่มต้นของไฟล์ผลตรวจ Test Data
  * ตามชื่อ Report
  *

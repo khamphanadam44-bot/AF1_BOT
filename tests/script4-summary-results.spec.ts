@@ -13,12 +13,14 @@
  * - DS_PTX
  * - DS_FTX
  * - DS_FTU
+ * - DF_FXU
+ * - DF_OLB
+ * - DF_FXM
  *
  * ตัวอย่างคำสั่ง:
  * npm run test:script4 -- report=DS_PTX
- * npm run test:script4 -- report=DS_FTX
- * npm run test:script4 -- report=DS_LTX
- * npm run test:script4 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU
+ * npm run test:script4 -- report=DF_FXM
+ * npm run test:script4 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB,DF_FXM
  * ------------------------------------------------------------------
  */
 
@@ -87,8 +89,8 @@ const formatTime = (
 /**
  * อ่านรายชื่อ Report จากค่า report
  *
- * ถ้าไม่ส่งค่า report ระบบจะใช้ Report เริ่มต้น
- * จาก dmsReportName ใน setting.ts
+ * ผู้ใช้ต้องระบุชื่อ Report ทุกครั้ง
+ * หากไม่ระบุ ระบบจะแจ้ง Error และหยุดการทำงาน
  */
 const selectedReports =
   getSelectedReports();

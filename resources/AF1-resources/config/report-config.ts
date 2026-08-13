@@ -106,8 +106,7 @@ export const REPORT_CONFIG = {
 
   },
 
-  // Report ด้านล่างยังไม่ได้เพิ่ม Required Header
-  // จึงเก็บ Array ว่างไว้เพื่อให้โครงสร้าง Config รองรับชื่อ Report ก่อน
+// Requirement ของ Report DS_FTU
   DS_FTU: {
 
     headerRowNumber: 1,
@@ -140,7 +139,8 @@ export const REPORT_CONFIG = {
       "Fi Arrangement Type Name",
       "Leg Type",
       "Leg Type Name",
-      "USD Equivalent Amount",],
+      "USD Equivalent Amount",
+    ],
 
   },
 

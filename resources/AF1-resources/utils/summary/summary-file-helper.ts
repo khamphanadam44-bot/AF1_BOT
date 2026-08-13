@@ -179,20 +179,31 @@ const getLatestExcelFile = (
    * อ่านไฟล์ทั้งหมดภายใน Folder
    * แล้วเลือกเฉพาะไฟล์ที่ตรงตามเงื่อนไข
    */
-  const matchedFiles = fs
-    .readdirSync(folderPath)
-    .filter((fileName) => {
-      const fullPath = path.join(folderPath, fileName);
+ const matchedFiles = fs
+  .readdirSync(folderPath)
+  .filter((fileName) => {
+    /**
+     * ข้ามไฟล์ชั่วคราวที่ Excel สร้างขึ้น
+     *
+     * ตัวอย่าง:
+     * ~$DF_FXM_Reconcile_20260811_163707.xlsx
+     */
+    if (fileName.startsWith("~$")) {
+      return false;
+    }
 
-      /**
-       * ข้าม Folder ย่อย
-       */
-      if (!fs.statSync(fullPath).isFile()) {
-        return false;
-      }
+    const fullPath = path.join(folderPath, fileName);
 
-      return fileFilter(fileName);
-    })
+    /**
+     * ข้าม Folder ย่อย
+     */
+    if (!fs.statSync(fullPath).isFile()) {
+      return false;
+    }
+
+    return fileFilter(fileName);
+  })
+
     .map((fileName) => {
       const fullPath = path.join(folderPath, fileName);
 
