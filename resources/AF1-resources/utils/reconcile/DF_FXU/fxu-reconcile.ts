@@ -1207,9 +1207,6 @@ export class FxuReconcileService {
 
     /**
      * ตัดสินว่า Test Data หนึ่งแถว
-  
-    /**
-     * ตัดสินว่า Test Data หนึ่งแถว
      * ต้องมีหรือไม่ต้องมีใน DF_FXU
      */
     evaluatePresence(
@@ -1358,8 +1355,6 @@ export class FxuReconcileService {
         }
 
         /**
-                /**
-                /**
          * Cross Currency:
          *
          * Source Currency และ Destination Currency ต่างกัน
@@ -2883,17 +2878,16 @@ export class FxuReconcileService {
 
         /**
          * ระบุ Leg Type Name ที่คาดหวัง
+         *
+         * FXU_LEG_TYPE_NAMES ใช้ Leg Type Code เป็น Key
+         *
+         * ตัวอย่าง:
+         * FXU_LEG_TYPE_NAMES["182001"]
+         * FXU_LEG_TYPE_NAMES["182002"]
+         *
+         * จึงใช้ expectedLegType ที่หาได้ด้านบน
+         * เป็น Key สำหรับอ่าน Leg Type Name
          */
-        /**
- * FXU_LEG_TYPE_NAMES ใช้ Leg Type Code เป็น Key
- *
- * ตัวอย่าง:
- * FXU_LEG_TYPE_NAMES["182001"]
- * FXU_LEG_TYPE_NAMES["182002"]
- *
- * จึงใช้ expectedLegType ที่หาได้ด้านบน
- * เป็น Key สำหรับอ่าน Leg Type Name
- */
         const expectedLegTypeName =
             expectedLegType ===
                 undefined

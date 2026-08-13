@@ -12,7 +12,7 @@
  * DS_PTX และ DS_LTX:
  * - ตรวจจับจำนวน Fee Group จาก Header ใน Test Data
  *
- * DS_FTX, DS_FTU และ DF_FXU:
+  * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
  * - ไม่มีการตรวจ Fee Group
  * - คืนจำนวน Fee Group เป็น 0
  * ------------------------------------------------------------
@@ -35,6 +35,8 @@ import type {
  * DS_FTX → TESTDATA_CONFIG.DS_FTX
  * DS_FTU → TESTDATA_CONFIG.DS_FTU
  * DF_FXU → TESTDATA_CONFIG.DF_FXU
+ * DF_OLB → TESTDATA_CONFIG.DF_OLB
+ * DF_FXM → TESTDATA_CONFIG.DF_FXM
  */
 const getTestDataReportConfig = (
   reportCode: TestDataReportCode,
@@ -64,7 +66,7 @@ const getTestDataReportConfig = (
  *
  * Fee Group:
  * - DS_PTX และ DS_LTX สร้าง Header ตามจำนวนที่ตรวจพบ
- * - DS_FTX และ DS_FTU ไม่มี Fee Group
+ * - DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM ไม่มี Fee Group
  */
 export function getRequiredTestDataHeaders(
   reportCode: TestDataReportCode,
@@ -88,7 +90,7 @@ export function getRequiredTestDataHeaders(
    * DS_PTX และ DS_LTX:
    * feeGroup เป็นฟังก์ชันสำหรับสร้าง Header
    *
-   * DS_FTX, DS_FTU และ DF_FXU:
+   * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
    * feeGroup เป็น Array ว่าง
    */
   const feeHeaders =
@@ -277,7 +279,7 @@ export function detectFeeTypeCount(
  * DS_PTX และ DS_LTX:
  * - ตรวจจำนวนจาก Header ใน Test Data จริง
  *
- * DS_FTX, DS_FTU และ DF_FXU:
+  * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
  * - ไม่มี Fee Group
  * - คืนค่า 0 เสมอ
  */
@@ -294,10 +296,12 @@ export function getFeeTypeCount(
    * ถ้า feeGroup ไม่ใช่ฟังก์ชัน
    * หมายความว่า Report นี้ไม่ได้ตรวจ Fee Group
    *
-   * ปัจจุบันคือ:
+      * ปัจจุบันคือ:
    * - DS_FTX
    * - DS_FTU
    * - DF_FXU
+   * - DF_OLB
+   * - DF_FXM
    */
   if (
     typeof reportConfig.requiredHeaders.feeGroup !==

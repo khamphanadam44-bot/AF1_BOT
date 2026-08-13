@@ -1207,8 +1207,6 @@ export class FXMReconcileService {
 
     /**
      * ตัดสินว่า Test Data หนึ่งแถว
-    /**
-     * ตัดสินว่า Test Data หนึ่งแถว
      * ต้องมีหรือไม่ต้องมีใน DF_FXM
      */
     evaluatePresence(
@@ -1358,8 +1356,6 @@ export class FXMReconcileService {
         }
 
         /**
-                /**
-                /**
          * Cross Currency:
          *
          * Source Currency และ Destination Currency ต่างกัน
@@ -2883,17 +2879,16 @@ export class FXMReconcileService {
 
         /**
          * ระบุ Leg Type Name ที่คาดหวัง
+         *
+         * FXM_LEG_TYPE_NAMES ใช้ Leg Type Code เป็น Key
+         *
+         * ตัวอย่าง:
+         * FXM_LEG_TYPE_NAMES["182001"]
+         * FXM_LEG_TYPE_NAMES["182002"]
+         *
+         * จึงใช้ expectedLegType ที่หาได้ด้านบน
+         * เป็น Key สำหรับอ่าน Leg Type Name
          */
-        /**
- * FXM_LEG_TYPE_NAMES ใช้ Leg Type Code เป็น Key
- *
- * ตัวอย่าง:
- * FXM_LEG_TYPE_NAMES["182001"]
- * FXM_LEG_TYPE_NAMES["182002"]
- *
- * จึงใช้ expectedLegType ที่หาได้ด้านบน
- * เป็น Key สำหรับอ่าน Leg Type Name
- */
         const expectedLegTypeName =
             expectedLegType ===
                 undefined
