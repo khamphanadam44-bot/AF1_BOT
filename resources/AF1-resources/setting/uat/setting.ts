@@ -42,9 +42,12 @@ const requireEnv = (
  * ข้อมูลสำหรับเข้าใช้งานระบบ UAT
  */
 export const webSetting = {
-  url:
-    process.env.AF1_UAT_URL ??
-    "http://192.168.35.99:7081/portal/index",
+  
+  get url(): string {
+    return requireEnv(
+      "AF1_UAT_URL",
+    );
+  },
 
   get username(): string {
     return requireEnv(
