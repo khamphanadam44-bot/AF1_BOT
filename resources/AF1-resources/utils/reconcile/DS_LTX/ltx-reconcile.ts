@@ -6,16 +6,21 @@
  *   ReconcileWorkbookPreparer   -> Copy Report + สร้าง Sheet ผลลัพธ์
  *   ReconcileExcelReader        -> อ่าน Excel (Report/Test Data) เป็น ReconcileRecord[]
  *   LtxExpectedCaseBuilder      -> Test Data -> Expected Case ของ DS_LTX
- *   LtxMatcher                  -> จับคู่ Test Case กับ Report row และจัดการรายการซ้ำ
+ *   LtxMatcher                  -> จับคู่ Test Case กับ Report row โดยรับ usedReportRowNumbers
+ *                                  จาก ReconcileService เพื่อกันแถวเดียวกันถูกจับคู่ซ้ำข้าม
+ *                                  Expected Case ตามกติกาการครอบครอง Report row
  *   FieldRuleValidatorSet       -> เทียบ field อื่นที่ไม่ใช่ 3 หัวข้อหลัก (ผล = ไฮไลท์เหลืองเท่านั้น)
  *   ReconcileResultSheetWriter  -> เขียนผลลง Sheet (copy ทุกแถวจาก AF1 Report + แปะ annotation)
  *
- *  Test_Result Pass/Fail ตัดสินจาก "3 หัวข้อ" เท่านั้น:
+ *  Test_Result Pass/Fail ตัดสินจาก Key หลักดังนี้:
  *   1. Reference Transaction Number (Report) vs Transaction ID/ Reconcile ID (Test Data)
+ *      - ถ้า Transaction ID มีค่า ต้องตรงกัน มิฉะนั้น FAIL
+ *      - ถ้า Transaction ID ว่าง แต่ Unique Fallback สำเร็จ ให้เป็น Review
  *   2. FI Arrangement Number (Report) vs From Account (A/C Client/Sender) (Test Data)
  *   3. Transaction Amount (Report) vs SUM ของ Fee Amount ทุกรายการ (แถว FE) หรือ
  *      From Transfer Amount/Debit Amount (แถว DR)
- * ครบทั้ง 3 ข้อ = Pass, ข้อใดข้อหนึ่งไม่ตรง = Fail (checkKeyConditions ด้านล่าง)
+ * Account และ Amount ต้องตรงเสมอ ส่วน Reference ใช้กติกาตามข้อ 1
+ * (ดู checkKeyConditions ด้านล่าง)
  *
  * ส่วน field อื่นทั้งหมด (Payment Method, Currency, Beneficiary Name, ฯลฯ) ยังคงเทียบตาม
  * Requirement เดิมผ่าน FieldRuleValidatorSet เหมือนเดิมทุกอย่าง แต่ผลลัพธ์ตอนนี้ไม่ว่าจะ
@@ -30,26 +35,21 @@
  * - FE Amount เทียบ SUM Fee Amount ที่ ExpectedCaseBuilder คำนวณไว้
  * - ถ้าพบหลายแถว จะเลือกแถวที่มี Key/Supporting Field ตรงมากที่สุด
  * - ถ้าคะแนนสูงสุดเท่ากันหลายแถว จะไม่เดาแถวและคืนผล Ambiguous
- * - แม้ Fallback จะ Mapping เจอ แต่ Transaction ID ที่ว่าง/ไม่ตรงยังคงทำให้ Key เป็น FAIL
- *   และระบบจะตรวจ Account, Amount และ Field อื่นต่อ พร้อมบันทึก Remark
+ * - ถ้า Transaction ID ว่าง แต่ Fallback พบคู่แบบไม่กำกวม จะตรวจ Account/Amount ต่อ
+ *   และให้ Reference เป็น Review โดยไม่บังคับ FAIL เพียงเพราะ Transaction ID ว่าง
+ * - ถ้า Transaction ID มีค่าแต่ Reference ไม่ตรง ยังคงถือว่า Reference เป็น FAIL
  * ------------------------------------------------------------------
  */
-import {
-  DEFAULT_AMOUNT_TOLERANCE,
-  getHandledReportFields,
-  getReconcileConfig,
-} from "./ltx-config";
+import { getHandledReportFields, getReconcileConfig } from "./ltx-config";
 import type { ReconcileReportConfig } from "./ltx-config";
 import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
 import { ReconcileExcelReader } from "../shared/excel-reader";
 import { AmountComparator } from "./ltx-amount-compare";
 import { FieldRuleValidatorSet } from "./ltx-field-validator";
 import { LtxMatcher } from "./ltx-matcher";
-import {
-  ReconcileResultSheetWriter,
-  ResultRow,
-  RowStatus,
-} from "../shared/result-writer";
+import type { LtxMatchResult } from "./ltx-matcher";
+import { ReconcileResultSheetWriter } from "../shared/result-writer";
+import type { ResultRow, RowStatus } from "../shared/result-writer";
 import {
   LtxExpectedCaseBuilder,
   type ExpectedCase,
@@ -66,6 +66,10 @@ import {
   getUniqueMappingHeaders,
   requireMappingReportName,
 } from "../../../config/mapping-helper";
+
+type CollectedResultRow = ResultRow & {
+  reserveReportRow: boolean;
+};
 
 export class ReconcileService {
   constructor(
@@ -134,22 +138,13 @@ export class ReconcileService {
       );
     }
 
-    const unknownOutputOnlyHeaders =
-      config.outputOnlyFields
-        .map(
-          (field) =>
-            field.reportField,
-        )
-        .filter(
-          (reportField) =>
-            !configuredHeaders.has(
-              canonicalHeader(reportField),
-            ),
-        );
+    const unknownOutputOnlyHeaders = config.outputOnlyFields
+      .map((field) => field.reportField)
+      .filter(
+        (reportField) => !configuredHeaders.has(canonicalHeader(reportField)),
+      );
 
-    if (
-      unknownOutputOnlyHeaders.length > 0
-    ) {
+    if (unknownOutputOnlyHeaders.length > 0) {
       throw new Error(
         `[${reportCode}] Output Only Config อ้างถึง Report Header ` +
           "ที่ไม่มีใน Mapping Config: " +
@@ -162,32 +157,17 @@ export class ReconcileService {
         config.referenceNumberReportField,
         config.groupKeyFields.reportAccountField,
         config.transactionAmountReportField,
-        ...config.fieldRules.map(
-          (rule) =>
-            rule.reportField,
-        ),
-      ].map(
-        (header) =>
-          canonicalHeader(header),
-      ),
+        ...config.fieldRules.map((rule) => rule.reportField),
+      ].map((header) => canonicalHeader(header)),
     );
 
-    const conflictingOutputOnlyHeaders =
-      config.outputOnlyFields
-        .map(
-          (field) =>
-            field.reportField,
-        )
-        .filter(
-          (reportField) =>
-            evaluatedHeaders.has(
-              canonicalHeader(reportField),
-            ),
-        );
+    const conflictingOutputOnlyHeaders = config.outputOnlyFields
+      .map((field) => field.reportField)
+      .filter((reportField) =>
+        evaluatedHeaders.has(canonicalHeader(reportField)),
+      );
 
-    if (
-      conflictingOutputOnlyHeaders.length > 0
-    ) {
+    if (conflictingOutputOnlyHeaders.length > 0) {
       throw new Error(
         `[${reportCode}] Report Header ถูกกำหนดเป็นทั้ง Field ที่ตรวจ ` +
           "และ Output Only: " +
@@ -196,27 +176,14 @@ export class ReconcileService {
     }
 
     const handledHeaders = new Set(
-      getHandledReportFields(
-        config,
-      ).map(
-        (header) =>
-          canonicalHeader(header),
-      ),
+      getHandledReportFields(config).map((header) => canonicalHeader(header)),
     );
 
-    const uncoveredMappingHeaders =
-      getUniqueMappingHeaders(
-        mappingReportName,
-      ).filter(
-        (header) =>
-          !handledHeaders.has(
-            canonicalHeader(header),
-          ),
-      );
+    const uncoveredMappingHeaders = getUniqueMappingHeaders(
+      mappingReportName,
+    ).filter((header) => !handledHeaders.has(canonicalHeader(header)));
 
-    if (
-      uncoveredMappingHeaders.length > 0
-    ) {
+    if (uncoveredMappingHeaders.length > 0) {
       throw new Error(
         `[${reportCode}] Mapping Field ยังไม่ได้กำหนดวิธีตรวจ ` +
           "หรือระบุเป็น Output Only: " +
@@ -279,9 +246,13 @@ export class ReconcileService {
     status: RowStatus;
     failedKeyFieldHeaders: string[];
     failRemarks: string[];
+    reviewFieldHeaders: string[];
+    reviewRemarks: string[];
   } {
     const failedKeyFieldHeaders: string[] = [];
     const failRemarks: string[] = [];
+    const reviewFieldHeaders: string[] = [];
+    const reviewRemarks: string[] = [];
 
     const expectedId = expectedCase.primaryRecord
       .get(config.testDataIdField)
@@ -295,7 +266,13 @@ export class ReconcileService {
       ? actualReference.slice(0, actualReference.length - suffix.length)
       : actualReference;
 
-    if (expectedId === "" || actualId !== expectedId) {
+    if (expectedId === "") {
+      reviewFieldHeaders.push(config.referenceNumberReportField);
+      reviewRemarks.push(
+        `Test Data ไม่มี ${config.testDataIdField} ` +
+          `จึงไม่สามารถตรวจ Exact Reference ได้ และใช้ผลจาก LTX Fallback Matching`,
+      );
+    } else if (actualId !== expectedId) {
       failedKeyFieldHeaders.push(config.referenceNumberReportField);
       failRemarks.push(
         `[TS] : ${config.testDataIdField} = "${expectedId}" | ` +
@@ -368,6 +345,8 @@ export class ReconcileService {
       status: failedKeyFieldHeaders.length === 0 ? "PASS" : "FAIL",
       failedKeyFieldHeaders,
       failRemarks,
+      reviewFieldHeaders,
+      reviewRemarks,
     };
   }
 
@@ -406,27 +385,12 @@ export class ReconcileService {
    * รวม Review Remark จาก Matching และ Field Compare
    * แล้วต่อท้าย Please review เพียงครั้งเดียว
    */
-  private combineReviewRemarks(
-    ...remarks: string[]
-  ): string {
+  private combineReviewRemarks(...remarks: string[]): string {
     const messages = remarks
-      .map(
-        (remark) =>
-          remark
-            .replace(
-              /\n?Please review\s*$/i,
-              "",
-            )
-            .trim(),
-      )
-      .filter(
-        (remark) =>
-          remark !== "",
-      );
+      .map((remark) => remark.replace(/\n?Please review\s*$/i, "").trim())
+      .filter((remark) => remark !== "");
 
-    return messages.length === 0
-      ? ""
-      : `${messages.join("\n")}\nPlease review`;
+    return messages.length === 0 ? "" : `${messages.join("\n")}\nPlease review`;
   }
 
   /**
@@ -443,20 +407,13 @@ export class ReconcileService {
           .filter(
             (rule) =>
               !rule.applicableSuffixes ||
-              rule.applicableSuffixes.includes(
-                suffix,
-              ),
+              rule.applicableSuffixes.includes(suffix),
           )
-          .map(
-            (rule) =>
-              rule.reportField,
-          ),
+          .map((rule) => rule.reportField),
       ),
     ];
 
-    if (
-      unavailableFields.length === 0
-    ) {
+    if (unavailableFields.length === 0) {
       return "";
     }
 
@@ -467,6 +424,56 @@ export class ReconcileService {
     );
   }
 
+  private removeFailedHeadersFromReview(
+    reviewFieldHeaders: string[],
+    failedKeyFieldHeaders: string[],
+  ): string[] {
+    const failedHeaders = new Set(
+      failedKeyFieldHeaders.map((header) => canonicalHeader(header)),
+    );
+
+    return [...new Set(reviewFieldHeaders)].filter(
+      (header) => !failedHeaders.has(canonicalHeader(header)),
+    );
+  }
+
+  private buildUnresolvableCaseResult(
+    config: ReconcileReportConfig,
+    expectedCase: ExpectedCase,
+  ): CollectedResultRow {
+    const testNo = expectedCase.primaryRecord
+      .get(config.testDataTestNoField)
+      .trim();
+    const transactionId = expectedCase.primaryRecord
+      .get(config.testDataIdField)
+      .trim();
+    const remarks: string[] = [];
+
+    if (testNo === "") {
+      remarks.push(`Test Data ไม่มี ${config.testDataTestNoField}`);
+    }
+
+    if (transactionId === "") {
+      remarks.push(`Test Data ไม่มี ${config.testDataIdField}`);
+    }
+
+    remarks.push(
+      "ไม่สามารถสร้าง DR หรือ FE Slot สำหรับ Reconcile ได้ " +
+        "เพราะไม่มี Expected Reference และไม่มี Amount ที่มากกว่า 0",
+    );
+
+    return {
+      testCaseNo: expectedCase.displayTestCaseNo,
+      status: "FAIL",
+      remark: remarks.join("\n"),
+      matchedRowNumber: undefined,
+      failedKeyFieldHeaders: [],
+      reviewFieldHeaders: [],
+      isExpectedAbsence: false,
+      reserveReportRow: false,
+    };
+  }
+
   private resolveSlot(
     reportCode: string,
     config: ReconcileReportConfig,
@@ -474,7 +481,13 @@ export class ReconcileService {
     expectedReference: string,
     suffix: string,
     reportRecords: ReconcileRecord[],
-  ): ResultRow {
+    /**
+     * แถว AF1 ที่ Expected Case อื่นจับคู่ไปแล้ว (ทั้ง DR และ FE ของ
+     * Test Case อื่น) — ส่งต่อให้ LtxMatcher กรอง Candidate ออก
+     * เพื่อกันการจับคู่ซ้ำข้าม Test Case (ดู ltx-matcher.ts)
+     */
+    usedReportRowNumbers: ReadonlySet<number>,
+  ): CollectedResultRow {
     const presenceDecision = this.presenceRuleEvaluator.evaluate(
       expectedCase.primaryRecord,
       config.reportPresenceRules,
@@ -501,41 +514,52 @@ export class ReconcileService {
         .filter((remark) => remark.trim() !== "")
         .join("\n");
 
-    const matchResult =
-      this.matcher.findMatch(
-        reportCode,
+    let matchResult: LtxMatchResult;
+
+    if (presenceDecision.expectation === "MUST_NOT_EXIST") {
+      matchResult = this.matcher.findPresence(
         reportRecords,
+        usedReportRowNumbers,
         expectedCase,
         config,
         normalizedExpectedReference,
         suffix,
       );
+    } else {
+      matchResult = this.matcher.findMatch(
+        reportCode,
+        reportRecords,
+        usedReportRowNumbers,
+        expectedCase,
+        config,
+        normalizedExpectedReference,
+        suffix,
+      );
+    }
 
-    const matchedRecord =
-      matchResult.matchedRecord;
+    const matchedRecord = matchResult.matchedRecord;
 
-    if (
-      matchResult.strategy ===
-        "AMBIGUOUS_EXACT" ||
-      matchResult.strategy ===
-        "AMBIGUOUS_FALLBACK"
-    ) {
+    const isUnresolvedMustExistMatch =
+      presenceDecision.expectation !== "MUST_NOT_EXIST" &&
+      (matchResult.strategy === "AMBIGUOUS_EXACT" ||
+        matchResult.strategy === "AMBIGUOUS_FALLBACK" ||
+        matchResult.strategy === "EXACT_ALREADY_USED" ||
+        matchResult.strategy === "FALLBACK_ALREADY_USED");
+
+    if (isUnresolvedMustExistMatch) {
       return {
-        testCaseNo:
-          expectedCase.displayTestCaseNo,
+        testCaseNo: expectedCase.displayTestCaseNo,
         status: "FAIL",
         remark: withMissingTestNoRemark(
           matchResult.informationalRemark,
           matchResult.failureRemark,
-          this.buildUnavailableFieldRemark(
-            config,
-            suffix,
-          ),
+          this.buildUnavailableFieldRemark(config, suffix),
         ),
         matchedRowNumber: undefined,
         failedKeyFieldHeaders: [],
         reviewFieldHeaders: [],
         isExpectedAbsence: false,
+        reserveReportRow: false,
       };
     }
 
@@ -553,6 +577,10 @@ export class ReconcileService {
        * ของ Expected Absence
        */
       if (!matchedRecord) {
+        const reviewRemark = this.combineReviewRemarks(
+          matchResult.reviewRemark,
+        );
+
         return {
           testCaseNo: expectedCase.displayTestCaseNo,
 
@@ -561,6 +589,7 @@ export class ReconcileService {
           remark: withMissingTestNoRemark(
             this.formatRuleRemark(presenceDecision.passRemark, reportCode),
             matchResult.informationalRemark,
+            reviewRemark,
             expectedId === ""
               ? `Test Data ไม่มี ${config.testDataIdField}`
               : "",
@@ -568,8 +597,9 @@ export class ReconcileService {
 
           matchedRowNumber: undefined,
           failedKeyFieldHeaders: [],
-          reviewFieldHeaders: [],
+          reviewFieldHeaders: matchResult.reviewFieldHeaders,
           isExpectedAbsence: true,
+          reserveReportRow: false,
         };
       }
 
@@ -577,6 +607,16 @@ export class ReconcileService {
        * พบ Report Row ทั้งที่ Business Rule กำหนด
        * ว่ารายการนี้ต้องไม่มี จึงถือว่า FAIL
        */
+      const matchedRowWasAlreadyUsed = usedReportRowNumbers.has(
+        matchedRecord.rowNumber,
+      );
+      const alreadyUsedRemark = matchedRowWasAlreadyUsed
+        ? `พบรายการที่ Report row ${matchedRecord.rowNumber} ` +
+          "ซึ่งถูกจับคู่กับ Test Case อื่นแล้ว แต่ยังถือว่ารายการมีอยู่ใน Report"
+        : "";
+      const missingExpectedIdRemark =
+        expectedId === "" ? `Test Data ไม่มี ${config.testDataIdField}` : "";
+
       return {
         testCaseNo: expectedCase.displayTestCaseNo,
 
@@ -587,19 +627,19 @@ export class ReconcileService {
 
           `[${reportCode}] : ${config.referenceNumberReportField} = ` +
             `"${matchedRecord.get(config.referenceNumberReportField).trim()}"`,
-
-          matchResult.informationalRemark !== ""
-            ? matchResult.informationalRemark
-            : expectedId === ""
-              ? `Test Data ไม่มี ${config.testDataIdField}`
-              : "",
+          matchResult.informationalRemark,
+          alreadyUsedRemark,
+          missingExpectedIdRemark,
         ),
-        matchedRowNumber: matchedRecord.rowNumber,
+        matchedRowNumber: matchedRowWasAlreadyUsed
+          ? undefined
+          : matchedRecord.rowNumber,
 
         failedKeyFieldHeaders: [config.referenceNumberReportField],
 
         reviewFieldHeaders: [],
         isExpectedAbsence: false,
+        reserveReportRow: false,
       };
     }
 
@@ -620,57 +660,71 @@ export class ReconcileService {
           `ไม่พบแถว ${suffix} ใน ${reportCode} ทั้งจาก Exact Reference ` +
             "และ LTX Fallback Matching " +
             "(Account + Currency + DR/FE + Amount)",
-          this.buildUnavailableFieldRemark(
-            config,
-            suffix,
-          ),
+          this.buildUnavailableFieldRemark(config, suffix),
         ),
         matchedRowNumber: undefined,
         failedKeyFieldHeaders: [],
         reviewFieldHeaders: [],
         isExpectedAbsence: false,
+        reserveReportRow: false,
       };
     }
 
-    const { status, failedKeyFieldHeaders, failRemarks } =
-      this.checkKeyConditions(
-        reportCode,
-        config,
-        expectedCase,
-        suffix,
-        matchedRecord,
-      );
+    const {
+      status,
+      failedKeyFieldHeaders,
+      failRemarks,
+      reviewFieldHeaders: keyReviewFieldHeaders,
+      reviewRemarks: keyReviewRemarks,
+    } = this.checkKeyConditions(
+      reportCode,
+      config,
+      expectedCase,
+      suffix,
+      matchedRecord,
+    );
     const {
       reviewFieldHeaders: fieldReviewHeaders,
       remark: fieldReviewRemark,
-    } =
-      this.buildReviewSection(
-        reportCode,
-        config,
-        expectedCase,
-        matchedRecord,
-        suffix,
-      );
+    } = this.buildReviewSection(
+      reportCode,
+      config,
+      expectedCase,
+      matchedRecord,
+      suffix,
+    );
 
-    const reviewFieldHeaders = [
-      ...new Set(
-        [
-          ...matchResult.reviewFieldHeaders,
-          ...fieldReviewHeaders,
-        ],
-      ),
-    ];
+    const reviewFieldHeaders = this.removeFailedHeadersFromReview(
+      [
+        ...matchResult.reviewFieldHeaders,
+        ...keyReviewFieldHeaders,
+        ...fieldReviewHeaders,
+      ],
+      failedKeyFieldHeaders,
+    );
 
-    const reviewRemark =
-      this.combineReviewRemarks(
-        matchResult.reviewRemark,
-        fieldReviewRemark,
-      );
+    const reviewRemark = this.combineReviewRemarks(
+      matchResult.reviewRemark,
+      ...keyReviewRemarks,
+      fieldReviewRemark,
+    );
 
     const remark = withMissingTestNoRemark(
       matchResult.informationalRemark,
       ...failRemarks,
       reviewRemark,
+    );
+
+    /**
+     * Fallback ที่มี Transaction ID แต่ไปจับ Reference ของรายการอื่น
+     * ต้องไม่จอง Report row เพราะแถวนั้นอาจเป็น Exact Reference
+     * ของ Expected Case ถัดไป ส่วน Exact Match และ No-ID Fallback
+     * ยังจองแถวได้ตามปกติ
+     */
+    const referenceFailed = failedKeyFieldHeaders.some(
+      (header) =>
+        canonicalHeader(header) ===
+        canonicalHeader(config.referenceNumberReportField),
     );
 
     return {
@@ -681,6 +735,7 @@ export class ReconcileService {
       failedKeyFieldHeaders,
       reviewFieldHeaders,
       isExpectedAbsence: false,
+      reserveReportRow: !referenceFailed,
     };
   }
 
@@ -722,62 +777,91 @@ export class ReconcileService {
       config,
     );
 
-    const annotationByRowNumber = new Map<number, ResultRow>();
+    const annotationByRowNumber = new Map<number, CollectedResultRow>();
     const unmatchedRows: ResultRow[] = [];
 
-    const collect = (row: ResultRow): void => {
-      if (row.matchedRowNumber !== undefined) {
-        annotationByRowNumber.set(row.matchedRowNumber, row);
-      } else {
-        unmatchedRows.push(row);
-      }
+    /** แถว AF1 ที่จับคู่แล้วจะไม่ถูกนำไปใช้กับ MUST_EXIST Slot อื่น */
+    const usedReportRowNumbers = new Set<number>();
+
+    const moveResultToUnmatched = (
+      row: CollectedResultRow,
+      reportRowNumber: number,
+    ): CollectedResultRow => {
+      const referenceRemark =
+        `ผลลัพธ์นี้อ้างถึง Report row ${reportRowNumber} ` +
+        "แต่แสดงเป็น Unmatched Result เพื่อไม่ให้เขียนทับผลลัพธ์ของแถวเดียวกัน";
+
+      return {
+        ...row,
+        matchedRowNumber: undefined,
+        remark: [row.remark, referenceRemark]
+          .filter((remark) => remark.trim() !== "")
+          .join("\n"),
+      };
     };
 
-    expectedCases.forEach((expectedCase) => {
+    const collect = (row: CollectedResultRow): void => {
+      if (row.matchedRowNumber === undefined) {
+        unmatchedRows.push(row);
+        return;
+      }
+
+      const reportRowNumber = row.matchedRowNumber;
+      const previous = annotationByRowNumber.get(reportRowNumber);
+
+      if (!previous) {
+        annotationByRowNumber.set(reportRowNumber, row);
+
+        if (row.reserveReportRow) {
+          usedReportRowNumbers.add(reportRowNumber);
+        }
+
+        return;
+      }
+
+      const previousReservesReportRow =
+        usedReportRowNumbers.has(reportRowNumber);
+
+      if (previousReservesReportRow && row.reserveReportRow) {
+        throw new Error(
+          `[${reportCode}] AF1 Row ${reportRowNumber} ถูกจับคู่ซ้ำ: ` +
+            `"${previous.testCaseNo}" กับ "${row.testCaseNo}". ` +
+            "กรุณาตรวจสอบ LtxMatcher และ usedReportRowNumbers",
+        );
+      }
+
+      if (previousReservesReportRow) {
+        unmatchedRows.push(moveResultToUnmatched(row, reportRowNumber));
+        return;
+      }
+
+      if (row.reserveReportRow) {
+        unmatchedRows.push(
+          moveResultToUnmatched(
+            previous,
+            reportRowNumber,
+          ),
+        );
+        annotationByRowNumber.set(reportRowNumber, row);
+        usedReportRowNumbers.add(reportRowNumber);
+        return;
+      }
+
+      unmatchedRows.push(moveResultToUnmatched(row, reportRowNumber));
+    };
+
+    for (const expectedCase of expectedCases) {
       const expectedDrReference = expectedCase.expectedDrReference ?? "";
 
       const expectedFeReference = expectedCase.expectedFeReference ?? "";
 
       /**
-       * Parse DR Amount ด้วย Logic กลางเดียวกับ
-       * LtxExpectedCaseBuilder
+       * ExpectedCaseBuilder เป็นแหล่งตัดสินเพียงจุดเดียวว่า Test Data
+       * ต้องมี DR/FE Slot หรือไม่ โดย Amount มากกว่า 0 ถือว่ามี Slot
+       * ส่วน Amount Tolerance ใช้เฉพาะตอนเปรียบเทียบ Expected กับ Actual
        */
-      const drPrimaryAmount = this.amountComparator.parse(
-        expectedCase.primaryRecord.get(config.drAmountTestDataField),
-      );
-
-      const drFallbackAmount = this.amountComparator.parse(
-        expectedCase.primaryRecord.get(config.drAmountFallbackTestDataField),
-      );
-
-      /**
-       * Expected FE Amount เป็นผลรวม Fee Amount
-       * ที่ LtxExpectedCaseBuilder คำนวณไว้แล้ว
-       */
-      const expectedFeAmount = this.amountComparator.parse(
-        String(expectedCase.expectedFeAmount ?? ""),
-      );
-
-      /**
-       * Transaction ID ว่างอาจทำให้ Expected Reference ว่าง
-       * จึงใช้ Amount ตรวจว่ายังมี DR Slot
-       * ที่ต้องนำไป Fallback Matching หรือไม่
-       */
-      const shouldResolveDr =
-        expectedDrReference.trim() !== "" ||
-        (drPrimaryAmount !== null &&
-          drPrimaryAmount > DEFAULT_AMOUNT_TOLERANCE) ||
-        (drFallbackAmount !== null &&
-          drFallbackAmount > DEFAULT_AMOUNT_TOLERANCE);
-
-      /**
-       * มี FE Slot เมื่อมี Expected Reference
-       * หรือ SUM Fee Amount มากกว่า Amount Tolerance
-       */
-      const shouldResolveFe =
-        expectedFeReference.trim() !== "" ||
-        (expectedFeAmount !== null &&
-          expectedFeAmount > DEFAULT_AMOUNT_TOLERANCE);
+      const shouldResolveDr = expectedCase.hasExpectedDr;
+      const shouldResolveFe = expectedCase.hasExpectedFe;
 
       if (shouldResolveDr) {
         collect(
@@ -788,6 +872,7 @@ export class ReconcileService {
             expectedDrReference,
             config.drSuffixLabel,
             reportRecords,
+            usedReportRowNumbers,
           ),
         );
       }
@@ -801,19 +886,24 @@ export class ReconcileService {
             expectedFeReference,
             config.feSuffixLabel,
             reportRecords,
+            usedReportRowNumbers,
           ),
         );
       }
-    });
 
-    const unexpectedMissingRows = unmatchedRows.filter(
+      if (!shouldResolveDr && !shouldResolveFe) {
+        collect(this.buildUnresolvableCaseResult(config, expectedCase));
+      }
+    }
+
+    const unmatchedFailRows = unmatchedRows.filter(
       (row) => row.status === "FAIL",
     );
 
-    if (unexpectedMissingRows.length > 0) {
+    if (unmatchedFailRows.length > 0) {
       console.warn(
-        `⚠️ พบ ${unexpectedMissingRows.length} แถวที่หาคู่กันใน ${reportCode} ` +
-          `ไม่เจอและไม่เข้าเงื่อนไข Expected Absence`,
+        `⚠️ พบผลลัพธ์ FAIL ${unmatchedFailRows.length} แถวใน ${reportCode} ` +
+          "ที่ไม่มี Report row สำหรับเขียน Annotation โดยตรง",
       );
     }
 
@@ -843,7 +933,8 @@ export class ReconcileService {
     const totalPass = allRows.filter((row) => row.status === "PASS").length;
     const totalFail = allRows.filter((row) => row.status === "FAIL").length;
     const totalWithReview = allRows.filter(
-      (row) => row.reviewFieldHeaders.length > 0,
+      (row) =>
+        row.reviewFieldHeaders.length > 0 || /Please review/i.test(row.remark),
     ).length;
 
     console.log(`Output File : ${reconcileFilePath}`);
@@ -857,7 +948,7 @@ export class ReconcileService {
 }
 
 /**
- * Backward-compatible function wrapper — ให้ tests/script3-reconcile.spec.ts เดิม
+ * Backward-compatible function wrapper — ให้ tests/script3-compare-report.spec.ts
  * เรียกใช้ได้โดยไม่ต้องแก้ไฟล์ test เลย
  */
 export const reconcileReport = (

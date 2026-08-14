@@ -7,11 +7,11 @@
  */
 import { DEFAULT_AMOUNT_TOLERANCE } from "./ltx-config";
 
+/** ตัวคูณเผื่อ Floating-point error โดยไม่เปลี่ยน Business Tolerance */
+const FLOATING_POINT_SAFETY_FACTOR = 4;
+
 export interface AmountCompareResult {
   isMatch: boolean;
-  expectedNumber: number | null;
-  actualNumber: number | null;
-  diff: number | null;
 }
 
 export class AmountComparator {
@@ -36,7 +36,7 @@ export class AmountComparator {
     }, 0);
   }
 
-  /** เปรียบเทียบตัวเลขแบบ tolerance — คืนรายละเอียดสำหรับใส่ใน Remark */
+  /** เปรียบเทียบตัวเลขและคืนผลว่าอยู่ภายใน Amount Tolerance หรือไม่ */
   compare(
     expected: string,
     actual: string,
@@ -46,10 +46,27 @@ export class AmountComparator {
     const actualNumber = this.parse(actual);
 
     if (expectedNumber === null || actualNumber === null) {
-      return { isMatch: false, expectedNumber, actualNumber, diff: null };
+      return { isMatch: false };
     }
 
     const diff = Math.abs(expectedNumber - actualNumber);
-    return { isMatch: diff <= tolerance, expectedNumber, actualNumber, diff };
+
+    /**
+     * ป้องกัน Floating-point error ของ JavaScript เช่น
+     * 100.01 - 100 อาจได้ 0.010000000000005116
+     * ทั้งที่ผลต่างทางธุรกิจคือ 0.01 และต้องอยู่ใน Tolerance
+     */
+    const floatingPointAllowance =
+      Number.EPSILON *
+      Math.max(
+        1,
+        Math.abs(expectedNumber),
+        Math.abs(actualNumber),
+      ) *
+      FLOATING_POINT_SAFETY_FACTOR;
+
+    return {
+      isMatch: diff <= tolerance + floatingPointAllowance,
+    };
   }
 }

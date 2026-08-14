@@ -37,10 +37,6 @@ import {
   AmountComparator,
 } from "./ltx-amount-compare";
 
-import {
-  DEFAULT_AMOUNT_TOLERANCE,
-} from "./ltx-config";
-
 import type {
   ReconcileReportConfig,
 } from "./ltx-config";
@@ -62,6 +58,12 @@ export interface ExpectedCase {
 
   /** Reference ของแถว FE; undefined เมื่อ Test Data ไม่ได้คาดหวังแถว FE */
   expectedFeReference: string | undefined;
+
+  /** มี DR Slot เมื่อ From Transfer Amount หรือ From Debit Amount มากกว่า 0 */
+  hasExpectedDr: boolean;
+
+  /** มี FE Slot เมื่อ SUM Fee Amount มากกว่า 0 */
+  hasExpectedFe: boolean;
 
   /** SUM Fee Amount ของ Test Data แถวนี้ สำหรับตรวจยอดของแถว FE */
   expectedFeAmount: string;
@@ -275,18 +277,19 @@ export class LtxExpectedCaseBuilder {
 
         /**
          * Test Data แถวนี้ต้องมี DR
-         * เมื่อยอดหลักหรือยอดสำรองมากกว่า Amount Tolerance
+         * เมื่อยอดหลักหรือยอดสำรองมากกว่า 0
          *
          * ค่า 0 หรือค่าว่างไม่ถือว่าต้องมี DR
+         * Amount Tolerance ใช้เฉพาะตอนเปรียบเทียบจำนวนเงินสองฝั่ง
          */
         const hasDrAmount =
           (
             drAmount !== null &&
-            drAmount > DEFAULT_AMOUNT_TOLERANCE
+            drAmount > 0
           ) ||
           (
             drAmountFallback !== null &&
-            drAmountFallback > DEFAULT_AMOUNT_TOLERANCE
+            drAmountFallback > 0
           );
 
         /**
@@ -301,10 +304,10 @@ export class LtxExpectedCaseBuilder {
 
         /**
          * Test Data แถวนี้ต้องมี FE
-         * เมื่อยอด Fee รวมมากกว่า Amount Tolerance
+         * เมื่อยอด Fee รวมมากกว่า 0
          */
         const hasFee =
-          feeSum > DEFAULT_AMOUNT_TOLERANCE;
+          feeSum > 0;
 
         return {
           displayTestCaseNo,
@@ -351,6 +354,16 @@ export class LtxExpectedCaseBuilder {
                   `${config.feSuffixLabel}`
                 )
               : undefined,
+
+          /**
+           * ใช้เป็นแหล่งตัดสิน Slot ร่วมกันระหว่าง
+           * ReconcileService และ LtxMatcher
+           */
+          hasExpectedDr:
+            hasDrAmount,
+
+          hasExpectedFe:
+            hasFee,
 
           /**
            * ยอด Fee รวมภายใน Test Data แถวนี้
