@@ -30,6 +30,7 @@ import {
     FXU_REPORT_HEADER_ROW,
     FXU_TEST_DATA_FIELDS,
     FXU_TEST_DATA_HEADER_ROW,
+    FXU_USD_CURRENCY_CODE,
     FXU_USD_THRESHOLD,
 } from "./fxu-config";
 
@@ -1252,6 +1253,21 @@ export class FxuReconcileService {
             );
 
         /**
+         * อ่าน Settled Currency และ Normalize เป็นตัวพิมพ์ใหญ่
+         *
+         * ตัวอย่าง:
+         * "usd", " USD ", "Usd"
+         * จะถูกแปลงเป็น "USD"
+         */
+        const settledCurrency =
+            normalizeFxuValue(
+                testDataRecord.get(
+                    FXU_TEST_DATA_FIELDS
+                        .settledCurrency,
+                ),
+            );
+
+        /**
          * กรณี Field ว่าง
          * หรือ Settled Amount ไม่สามารถแปลงเป็นตัวเลขได้
          *
@@ -1327,6 +1343,36 @@ export class FxuReconcileService {
                     false,
             };
         }
+
+        /**
+ * ปัจจุบัน DF_FXU รองรับเฉพาะ
+ * Settled Currency = USD
+ *
+ * ถ้าเป็นสกุลอื่น จะยังไม่นำ Settled Amount
+ * ไปเปรียบเทียบกับ USD Equivalent Amount
+ * เพราะยังไม่มี Currency Conversion Rule
+ */
+if (
+    settledCurrency !==
+    FXU_USD_CURRENCY_CODE
+) {
+    return {
+        direction,
+
+        expectation:
+            "CANNOT_DECIDE",
+
+        reasons: [
+            `รองรับเฉพาะ ${FXU_USD_CURRENCY_CODE} แต่พบ ` +
+            `${FXU_TEST_DATA_FIELDS.settledCurrency} = ` +
+            `"${settledCurrency}"`,
+        ],
+
+        requiresReview:
+            true,
+    };
+}
+
 
         /**
          * Amount ตั้งแต่ 1,000,000 USD ขึ้นไป

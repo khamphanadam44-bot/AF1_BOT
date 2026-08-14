@@ -31,6 +31,7 @@ import {
     FXM_TEST_DATA_FIELDS,
     FXM_TEST_DATA_HEADER_ROW,
     FXM_USD_THRESHOLD,
+    FXM_USD_CURRENCY_CODE
 } from "./fxm-config";
 
 import {
@@ -1250,6 +1251,20 @@ export class FXMReconcileService {
                         .settledAmount,
                 ),
             );
+        /**
+         * อ่าน Settled Currency และ Normalize เป็นตัวพิมพ์ใหญ่
+         *
+         * ตัวอย่าง:
+         * "usd", " USD ", "Usd"
+         * จะถูกแปลงเป็น "USD"
+         */
+        const settledCurrency =
+            normalizeFXMValue(
+                testDataRecord.get(
+                    FXM_TEST_DATA_FIELDS
+                        .settledCurrency,
+                ),
+            );
 
         /**
          * กรณี Field ว่าง
@@ -1325,6 +1340,35 @@ export class FXMReconcileService {
 
                 requiresReview:
                     false,
+            };
+        }
+
+        /**
+ * ปัจจุบัน DF_FXM รองรับเฉพาะ
+ * Settled Currency = USD
+ *
+ * ถ้าเป็นสกุลอื่น จะยังไม่นำ Settled Amount
+ * ไปเปรียบเทียบกับ USD Equivalent Amount
+ * เพราะยังไม่มี Currency Conversion Rule
+ */
+        if (
+            settledCurrency !==
+            FXM_USD_CURRENCY_CODE
+        ) {
+            return {
+                direction,
+
+                expectation:
+                    "CANNOT_DECIDE",
+
+                reasons: [
+                    `รองรับเฉพาะ ${FXM_USD_CURRENCY_CODE} แต่พบ ` +
+                    `${FXM_TEST_DATA_FIELDS.settledCurrency} = ` +
+                    `"${settledCurrency}"`,
+                ],
+
+                requiresReview:
+                    true,
             };
         }
 

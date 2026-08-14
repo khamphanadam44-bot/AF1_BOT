@@ -53,6 +53,16 @@ export const FXU_THB_CURRENCY_CODE =
   "THB";
 
 /**
+ * Settlement Currency ที่ระบบรองรับในปัจจุบัน
+ *
+ * ตอนนี้ระบบสามารถนำ Settled Amount (CCY)
+ * ไปเปรียบเทียบกับ USD Equivalent Amount
+ * ได้โดยตรงเฉพาะกรณีที่ Settled Currency เป็น USD
+ */
+export const FXU_USD_CURRENCY_CODE =
+  "USD";
+
+/**
  * Threshold ของ DF_FXU
  *
  * ต่ำกว่า 1,000,000 USD:
