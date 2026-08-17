@@ -1,33 +1,18 @@
 /**
- * LtxMatcher
- * ------------------------------------------------------------------
  * จับคู่ Expected Case ของ DS_LTX กับ AF1 Report Row
  *
- * ลำดับ:
- * 1. Exact Reference (ค่าเต็มรวม suffix เช่น TX001DR หรือ TX001FE)
- * 2. Fallback: Account + Currency + DR/FE + Amount
- * 3. ถ้าพบหลายแถว ให้เลือกแถวที่ Key และ Supporting Field ตรงมากที่สุด
- * 4. ถ้าคะแนนสูงสุดเสมอกัน จะไม่เดาและคืนผล Ambiguous
+ * - ใช้ Exact Reference ก่อน Fallback
+ * - กัน Fallback ไม่ให้แย่งแถวที่สงวนไว้ให้ Exact Case
+ * - ไม่เดาเมื่อ Candidate ที่ดีที่สุดมีคะแนนเสมอกัน
+ * - Presence Check ยังเห็นแถวที่ใช้แล้วเพื่อยืนยัน Expected Absence
  *
- * DR และ FE ที่มี Transaction ID ฐานเดียวกันไม่ถือว่าซ้ำ
- * เพราะค่า Exact Reference เต็มมี suffix ต่างกัน
- *
- * findMatch() ใช้ usedReportRowNumbers เพื่อกันแถว AF1 เดียวกันถูกจับคู่ซ้ำ
- * ส่วน findPresence() ตรวจจาก Report ทั้งหมด เพราะ Expected Absence ต้องตอบว่า
- * รายการมีอยู่จริงหรือไม่ โดยไม่ขึ้นกับว่าแถวนั้นถูก Test Case อื่นใช้แล้วหรือยัง
- *
- * ไฟล์นี้ไม่ตัดสิน PASS/FAIL ของ Test Case และไม่เขียน Excel
- * ------------------------------------------------------------------
+ * ไฟล์นี้ไม่ตัดสิน PASS/FAIL และไม่เขียน Excel Workbook
  */
 
 import { ReconcileRecord } from "../shared/record";
-
 import { AmountComparator } from "./ltx-amount-compare";
-
 import type { ReconcileReportConfig } from "./ltx-config";
-
 import type { ExpectedCase } from "./ltx-expected-case-builder";
-
 import { FieldRuleValidatorSet } from "./ltx-field-validator";
 
 export type LtxMatchStrategy =
@@ -65,8 +50,8 @@ interface LtxBestCandidateResult {
 
 export class LtxMatcher {
   constructor(
-    private readonly amountComparator: AmountComparator = new AmountComparator(),
-    private readonly fieldValidatorSet: FieldRuleValidatorSet = new FieldRuleValidatorSet(),
+    private amountComparator: AmountComparator = new AmountComparator(),
+    private fieldValidatorSet: FieldRuleValidatorSet = new FieldRuleValidatorSet(),
   ) {}
 
   private normalize(value: string): string {
@@ -118,21 +103,21 @@ export class LtxMatcher {
     const actualAmount = record.get(config.transactionAmountReportField);
 
     if (this.normalize(suffix) === this.normalize(config.feSuffixLabel)) {
-      return this.amountComparator.compare(
+      return this.amountComparator.matches(
         expectedCase.expectedFeAmount,
         actualAmount,
-      ).isMatch;
+      );
     }
 
-    const primaryMatch = this.amountComparator.compare(
+    const primaryMatch = this.amountComparator.matches(
       expectedCase.primaryRecord.get(config.drAmountTestDataField),
       actualAmount,
-    ).isMatch;
+    );
 
-    const fallbackMatch = this.amountComparator.compare(
+    const fallbackMatch = this.amountComparator.matches(
       expectedCase.primaryRecord.get(config.drAmountFallbackTestDataField),
       actualAmount,
-    ).isMatch;
+    );
 
     return primaryMatch || fallbackMatch;
   }
@@ -152,6 +137,33 @@ export class LtxMatcher {
       (record) =>
         this.normalize(record.get(config.referenceNumberReportField)) ===
         target,
+    );
+  }
+
+  /** กัน Fallback ไม่ให้ใช้แถวที่เป็น Exact Reference ของ Case อื่น */
+  findReservedReportRows(
+    reportRecords: ReconcileRecord[],
+    expectedCases: ExpectedCase[],
+    config: ReconcileReportConfig,
+  ): Set<number> {
+    const expectedReferences = new Set(
+      expectedCases
+        .flatMap((expectedCase) => [
+          expectedCase.expectedDrReference,
+          expectedCase.expectedFeReference,
+        ])
+        .filter((reference): reference is string => Boolean(reference))
+        .map((reference) => this.normalize(reference)),
+    );
+
+    return new Set(
+      reportRecords
+        .filter((record) =>
+          expectedReferences.has(
+            this.normalize(record.get(config.referenceNumberReportField)),
+          ),
+        )
+        .map((record) => record.rowNumber),
     );
   }
 
@@ -514,15 +526,29 @@ export class LtxMatcher {
 
   private buildAlreadyUsedFallbackRemark(
     candidates: ReconcileRecord[],
+    usedReportRowNumbers: ReadonlySet<number>,
+    reservedReportRowNumbers: ReadonlySet<number>,
   ): string {
     const usedRows = candidates
-      .map((record) => record.rowNumber)
+      .filter((record) => usedReportRowNumbers.has(record.rowNumber))
+      .map((record) => record.rowNumber);
+    const reservedRows = candidates
+      .filter((record) => reservedReportRowNumbers.has(record.rowNumber))
+      .map((record) => record.rowNumber);
+    const reasons = [
+      usedRows.length > 0
+        ? `ถูก Test Case อื่นใช้แล้ว: ${usedRows.join(", ")}`
+        : "",
+      reservedRows.length > 0
+        ? `สงวนไว้ให้ Exact Reference: ${reservedRows.join(", ")}`
+        : "",
+    ]
+      .filter((reason) => reason !== "")
       .join(", ");
 
     return (
-      "พบ LTX Fallback Candidate ที่ Report row " +
-      `${usedRows} แต่ทุกแถวถูกจับคู่กับ Test Case อื่นแล้ว ` +
-      "ระบบจึงไม่ใช้ Report row ซ้ำ"
+      "พบ LTX Fallback Candidate แต่ไม่มี Report row ที่ใช้ได้ " +
+      `(${reasons}) ระบบจึงไม่เลือกแถวอัตโนมัติ`
     );
   }
 
@@ -530,22 +556,31 @@ export class LtxMatcher {
     allCandidates: ReconcileRecord[],
     availableCandidates: ReconcileRecord[],
     usedReportRowNumbers: ReadonlySet<number>,
+    reservedReportRowNumbers: ReadonlySet<number>,
   ): string {
-    const usedRows = allCandidates
-      .filter((record) => usedReportRowNumbers.has(record.rowNumber))
-      .map((record) => record.rowNumber);
+    const unavailableRows = allCandidates.filter(
+      (record) =>
+        usedReportRowNumbers.has(record.rowNumber) ||
+        reservedReportRowNumbers.has(record.rowNumber),
+    );
 
-    if (usedRows.length === 0) {
+    if (unavailableRows.length === 0) {
       return "";
     }
 
+    const unavailableDescriptions = unavailableRows.map((record) => {
+      const reason = usedReportRowNumbers.has(record.rowNumber)
+        ? "ใช้แล้ว"
+        : "สงวนให้ Exact Reference";
+      return `${record.rowNumber} (${reason})`;
+    });
     const availableRows = availableCandidates
       .map((record) => record.rowNumber)
       .join(", ");
 
     return (
-      `LTX Fallback Matching พบ Candidate ที่ Report row ${usedRows.join(", ")} ` +
-      "ถูกจับคู่กับ Test Case อื่นแล้ว " +
+      "LTX Fallback Matching ตัด Report row ที่ใช้ไม่ได้: " +
+      `${unavailableDescriptions.join(", ")} ` +
       `จึงพิจารณาเฉพาะ Report row ที่ยังใช้ได้: ${availableRows}`
     );
   }
@@ -690,6 +725,7 @@ export class LtxMatcher {
     reportCode: string,
     reportRecords: ReconcileRecord[],
     usedReportRowNumbers: ReadonlySet<number>,
+    reservedReportRowNumbers: ReadonlySet<number>,
     expectedCase: ExpectedCase,
     config: ReconcileReportConfig,
     expectedReference: string,
@@ -791,9 +827,10 @@ export class LtxMatcher {
       suffix,
     );
 
-    const fallbackCandidates = this.getAvailableRecords(
-      allFallbackCandidates,
-      usedReportRowNumbers,
+    const fallbackCandidates = allFallbackCandidates.filter(
+      (record) =>
+        !usedReportRowNumbers.has(record.rowNumber) &&
+        !reservedReportRowNumbers.has(record.rowNumber),
     );
 
     if (
@@ -809,6 +846,8 @@ export class LtxMatcher {
         ),
         failureRemark: this.buildAlreadyUsedFallbackRemark(
           allFallbackCandidates,
+          usedReportRowNumbers,
+          reservedReportRowNumbers,
         ),
       };
     }
@@ -822,6 +861,7 @@ export class LtxMatcher {
         allFallbackCandidates,
         fallbackCandidates,
         usedReportRowNumbers,
+        reservedReportRowNumbers,
       );
 
     if (fallbackCandidates.length === 1) {
