@@ -19,6 +19,12 @@ export const OLB_TEST_DATA_HEADER_ROW =
 /** Amount ต่างกันไม่เกิน 0.01 ถือว่าตรงกัน */
 export const OLB_AMOUNT_TOLERANCE = 0.01;
 
+/** จำกัดรายการใน Remark เพื่อให้ผลลัพธ์อ่านง่ายเมื่อพบ Candidate จำนวนมาก */
+export const OLB_MAX_CANDIDATES_IN_REMARK = 10;
+
+/** Fallback ต้องมี Field ตรงอย่างน้อย 2 Field หาก Amount ไม่ได้เป็นหลักฐาน */
+export const OLB_MIN_STRONG_EVIDENCE_FIELDS = 2;
+
 export const OLB_REPORT_FIELDS = {
   arrangementNumber: "FI Arrangement Number",
   arrangementContractDate: "Arrangement Contract Date",
