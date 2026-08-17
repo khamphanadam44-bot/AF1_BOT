@@ -1,12 +1,9 @@
 /**
- * olb-matcher.ts
- * ------------------------------------------------------------------
- * รับผิดชอบเฉพาะการหา AF1 Row ที่เหมาะสมกับ Test Data 1 แถว
- * ไม่ตัดสิน PASS/FAIL และไม่เขียน Excel
- * ------------------------------------------------------------------
+ * เลือก AF1 Row ที่เหมาะสมกับ Test Data โดยไม่ตัดสิน PASS/FAIL
+ * Exact Row ถูกสงวนก่อน Fallback และ Candidate ซ้ำต้องมีผู้ชนะเพียงแถวเดียว
  */
 
-import { ReconcileRecord } from "../shared/record";
+import type { ReconcileRecord } from "../shared/record";
 import {
   isDateMatchWithArrangementFallback,
   parseAmount,
@@ -14,6 +11,8 @@ import {
 } from "../shared/reconcile-parse.util";
 import {
   OLB_AMOUNT_TOLERANCE,
+  OLB_MAX_CANDIDATES_IN_REMARK,
+  OLB_MIN_STRONG_EVIDENCE_FIELDS,
   OLB_REPORT_FIELDS,
   OLB_TEST_DATA_FIELDS,
 } from "./olb-config";
@@ -40,10 +39,7 @@ export interface OlbCandidateResolution {
 }
 
 export class OlbMatcher {
-  /**
-   * หา AF1 Row ที่ Test Data แถวใดแถวหนึ่งระบุ Primary Key ไว้แล้ว
-   * เพื่อป้องกัน Fallback ของ Test Case อื่นมาใช้แถวนั้นก่อน
-   */
+  /** สงวน Exact Row ล่วงหน้าเพื่อไม่ให้ Fallback ของ Case อื่นนำไปใช้ */
   findReservedReportRows(
     testDataRecords: ReconcileRecord[],
     reportRecords: ReconcileRecord[],
@@ -145,6 +141,7 @@ export class OlbMatcher {
     };
   }
 
+  /** เรียง Candidate ตามจำนวน Field สนับสนุนที่ตรงกัน */
   private rankCandidates(
     testDataRecord: ReconcileRecord,
     candidates: ReconcileRecord[],
@@ -154,9 +151,10 @@ export class OlbMatcher {
       .sort((left, right) => right.score - left.score);
   }
 
+  /** จำกัดรายชื่อใน Remark เพื่อไม่ให้ข้อความยาวเกินไป */
   private formatCandidateList(candidates: ScoredCandidate[]): string {
     return candidates
-      .slice(0, 10)
+      .slice(0, OLB_MAX_CANDIDATES_IN_REMARK)
       .map((candidate) => {
         const matchedFields =
           candidate.matchedFields.length > 0
@@ -172,12 +170,7 @@ export class OlbMatcher {
       .join(", ");
   }
 
-  /**
-   * Matching ตามลำดับ:
-   * 1. Primary Key พบ 1 แถว -> เลือกทันที
-   * 2. Primary Key พบหลายแถว -> เลือกคะแนน Field สนับสนุนสูงสุดแบบไม่เสมอ
-   * 3. Primary Key ว่าง/ไม่พบ -> Fallback โดยใช้แถวที่ยังไม่ถูกใช้หรือจอง
-   */
+  /** Exact หนึ่งแถวใช้ทันที; Exact ซ้ำใช้คะแนน; ไม่พบจึงใช้ Fallback */
   findBestCandidate(
     testDataRecord: ReconcileRecord,
     reportRecords: ReconcileRecord[],
@@ -220,6 +213,7 @@ export class OlbMatcher {
     return this.resolveFallback(testDataRecord, fallbackCandidates);
   }
 
+  /** เลือก Duplicate Primary เฉพาะเมื่อคะแนนสูงสุดมีเพียงแถวเดียว */
   private resolveDuplicatePrimary(
     testDataRecord: ReconcileRecord,
     primaryCandidates: ReconcileRecord[],
@@ -250,6 +244,7 @@ export class OlbMatcher {
     };
   }
 
+  /** Fallback ต้องมี Candidate เดียวและมีหลักฐานถึงเกณฑ์ที่ Config กำหนด */
   private resolveFallback(
     testDataRecord: ReconcileRecord,
     fallbackCandidates: ReconcileRecord[],
@@ -279,7 +274,8 @@ export class OlbMatcher {
 
     const best = bestCandidates[0];
     const hasStrongEvidence =
-      best.matchedFields.includes("Amount") || best.score >= 2;
+      best.matchedFields.includes("Amount") ||
+      best.score >= OLB_MIN_STRONG_EVIDENCE_FIELDS;
 
     if (!hasStrongEvidence) {
       return {

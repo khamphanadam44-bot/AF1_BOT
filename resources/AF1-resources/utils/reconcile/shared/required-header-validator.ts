@@ -1,3 +1,13 @@
+/**
+ * Required Header Validator
+ * ------------------------------------------------------------------
+ * ใช้ Fail Fast ก่อน Parse เพื่อไม่ให้ Header ที่ขาดถูกอ่านเป็นค่าว่าง
+ * แล้วสร้างผล FAIL/Review ที่ทำให้เข้าใจผิด
+ *
+ * เปรียบเทียบด้วย canonicalHeader เพื่อรองรับช่องว่างและตัวพิมพ์ที่ต่างกัน
+ * โดยไม่ Highlight หรือแก้ไข Workbook ต้นทาง
+ * ------------------------------------------------------------------
+ */
 import { canonicalHeader } from "../../validators/shared/header-matcher";
 
 export const assertRequiredHeaders = (

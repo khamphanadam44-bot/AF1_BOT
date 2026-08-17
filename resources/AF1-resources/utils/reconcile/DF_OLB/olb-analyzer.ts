@@ -1,18 +1,20 @@
 /**
- * olb-analyzer.ts
- * ------------------------------------------------------------------
- * ตรวจ Candidate ที่ Matcher เลือกมา แล้วสร้าง PASS/FAIL/Remark
- * ไม่ค้นหา Candidate และไม่อ่านหรือเขียน Excel Workbook
- * ------------------------------------------------------------------
+ * วิเคราะห์ Candidate ของ DF_OLB และสร้างผล PASS/FAIL/Review
+ *
+ * 1. ไม่พบ Candidate → FAIL พร้อมผลเปรียบเทียบทุก Field
+ * 2. Primary Key, Date และ Amount ใช้กำหนด PASS/FAIL
+ * 3. CIF Number, CIF Name และ Arrangement Date Fallback เป็น Review-only
+ *
+ * ไฟล์นี้ไม่ค้นหา Candidate และไม่อ่านหรือเขียน Workbook
  */
 
-import { ReconcileRecord } from "../shared/record";
+import type { ReconcileRecord } from "../shared/record";
 import { formatCompareRemark } from "../shared/remark";
-import { ResultRow } from "../shared/result-writer";
+import type { ResultRow } from "../shared/result-writer";
 import {
   extractDateFromArrangementNumber,
   formatDate,
-  isDateMatchWithArrangementFallback,
+  isSameDate,
   parseAmount,
   parseDate,
 } from "../shared/reconcile-parse.util";
@@ -23,9 +25,9 @@ import {
   OLB_REPORT_CODE,
   OLB_REPORT_FIELDS,
   OLB_TEST_DATA_FIELDS,
-  OlbFieldMapping,
 } from "./olb-config";
-import { OlbCandidateResolution } from "./olb-matcher";
+import type { OlbFieldMapping } from "./olb-config";
+import type { OlbCandidateResolution } from "./olb-matcher";
 import {
   normalizeOlbId,
   normalizeOlbText,
@@ -38,13 +40,14 @@ type AddComparisonRemark = (
 ) => void;
 
 export class OlbAnalyzer {
+  /** ใช้เลขแถวแทน Test No. ที่ว่าง เพื่อให้ย้อนกลับไปหา Test Data ได้ */
   analyze(
     testDataRecord: ReconcileRecord,
     candidate: OlbCandidateResolution,
   ): ResultRow {
-    const testCaseNo = testDataRecord
-      .get(OLB_TEST_DATA_FIELDS.testNo)
-      .trim();
+    const testCaseNo =
+      testDataRecord.get(OLB_TEST_DATA_FIELDS.testNo).trim() ||
+      `TEST DATA ROW ${testDataRecord.rowNumber}`;
 
     if (!candidate.matchedRecord) {
       return this.buildUnresolvedResult(
@@ -178,6 +181,7 @@ export class OlbAnalyzer {
     );
   }
 
+  /** Primary Key ว่างให้ Review แต่ค่าที่มีแล้วไม่ตรงต้อง FAIL */
   private comparePrimaryKey(
     testDataRecord: ReconcileRecord,
     matchedRecord: ReconcileRecord,
@@ -198,6 +202,7 @@ export class OlbAnalyzer {
     }
   }
 
+  /** วันที่ตรงโดยตรงถือว่าผ่าน; วันที่ตรงผ่าน Arrangement Number ต้อง Review */
   private compareDate(
     testDataRecord: ReconcileRecord,
     matchedRecord: ReconcileRecord,
@@ -214,19 +219,26 @@ export class OlbAnalyzer {
       return;
     }
 
-    if (
-      isDateMatchWithArrangementFallback(
-        expectedDate,
-        actualText,
-        matchedRecord.get(OLB_REPORT_FIELDS.arrangementNumber),
-      )
-    ) {
+    const actualDate = parseDate(actualText);
+
+    if (actualDate && isSameDate(expectedDate, actualDate)) {
       return;
     }
 
     const arrangementDate = extractDateFromArrangementNumber(
       matchedRecord.get(OLB_REPORT_FIELDS.arrangementNumber),
     );
+
+    if (arrangementDate && isSameDate(expectedDate, arrangementDate)) {
+      addReview(
+        mapping,
+        expectedText,
+        `${actualText} | FI Arrangement Number Date: ${formatDate(
+          arrangementDate,
+        )}`,
+      );
+      return;
+    }
 
     addFailure(
       mapping,
@@ -237,6 +249,7 @@ export class OlbAnalyzer {
     );
   }
 
+  /** Amount ฝั่ง Test Data ว่างให้ Review แต่ค่าที่อ่านไม่ได้หรือเกิน Tolerance ต้อง FAIL */
   private compareAmount(
     testDataRecord: ReconcileRecord,
     matchedRecord: ReconcileRecord,
@@ -262,6 +275,7 @@ export class OlbAnalyzer {
     }
   }
 
+  /** CIF Number เป็นข้อมูลประกอบ จึงไม่เปลี่ยนสถานะหลักของ Test Case */
   private compareCifNo(
     testDataRecord: ReconcileRecord,
     matchedRecord: ReconcileRecord,
@@ -270,16 +284,19 @@ export class OlbAnalyzer {
     const mapping = OLB_FIELD_MAPPINGS.cifNo;
     const expected = testDataRecord.get(mapping.testDataField);
     const actual = matchedRecord.get(mapping.reportField);
+    const normalizedExpected = normalizeOlbId(expected);
+    const normalizedActual = normalizeOlbId(actual);
 
     if (
-      normalizeOlbId(expected) === "" ||
-      normalizeOlbId(actual) === "" ||
-      normalizeOlbId(expected) !== normalizeOlbId(actual)
+      normalizedExpected === "" ||
+      normalizedActual === "" ||
+      normalizedExpected !== normalizedActual
     ) {
       addReview(mapping, expected, actual);
     }
   }
 
+  /** CIF Name เป็นข้อมูลประกอบ จึงไม่เปลี่ยนสถานะหลักของ Test Case */
   private compareCifName(
     testDataRecord: ReconcileRecord,
     matchedRecord: ReconcileRecord,
@@ -288,11 +305,13 @@ export class OlbAnalyzer {
     const mapping = OLB_FIELD_MAPPINGS.cifName;
     const expected = testDataRecord.get(mapping.testDataField);
     const actual = matchedRecord.get(mapping.reportField);
+    const normalizedExpected = normalizeOlbText(expected);
+    const normalizedActual = normalizeOlbText(actual);
 
     if (
-      normalizeOlbText(expected) === "" ||
-      normalizeOlbText(actual) === "" ||
-      normalizeOlbText(expected) !== normalizeOlbText(actual)
+      normalizedExpected === "" ||
+      normalizedActual === "" ||
+      normalizedExpected !== normalizedActual
     ) {
       addReview(mapping, expected, actual);
     }

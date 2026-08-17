@@ -1,22 +1,23 @@
 /**
- * olb-reconcile.ts
- * ------------------------------------------------------------------
- * Orchestrator ของ DF_OLB Script 3
+ * ควบคุม Flow Reconcile ของ DF_OLB จาก Raw Report และ Test Data
  *
- * Flow:
- * 1. เตรียม Workbook และอ่านข้อมูล
- * 2. ตรวจ Header
- * 3. ให้ Matcher หา AF1 Row
- * 4. ให้ Analyzer สร้าง PASS/FAIL/Remark
- * 5. เขียนและบันทึก Result Workbook
- * ------------------------------------------------------------------
+ * 1. ตรวจ Required Header ก่อนนำข้อมูลไปใช้
+ * 2. สงวน Exact Row และป้องกันการใช้ Report Row ซ้ำ
+ * 3. ให้ Matcher เลือก Candidate และ Analyzer สร้างผลลัพธ์
+ * 4. เขียน Result Sheet และบันทึก Workbook สำเนา
  */
 
 import {
   getUniqueMappingHeaders,
   requireMappingReportName,
 } from "../../../config/mapping-helper";
-import { canonicalHeader } from "../../validators/shared/header-matcher";
+import { ReconcileExcelReader } from "../shared/excel-reader";
+import { assertRequiredHeaders } from "../shared/required-header-validator";
+import {
+  ReconcileResultSheetWriter,
+  type ResultRow,
+} from "../shared/result-writer";
+import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
 import { OlbAnalyzer } from "./olb-analyzer";
 import {
   OLB_REPORT_CODE,
@@ -27,12 +28,6 @@ import {
 } from "./olb-config";
 import { OlbMatcher } from "./olb-matcher";
 import { normalizeOlbText } from "./olb-normalize.util";
-import { ReconcileExcelReader } from "../shared/excel-reader";
-import {
-  ReconcileResultSheetWriter,
-  ResultRow,
-} from "../shared/result-writer";
-import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
 
 class OlbReconcileService {
   async reconcile(testDataFilePath: string): Promise<string> {
@@ -48,6 +43,16 @@ class OlbReconcileService {
       OLB_REPORT_CODE,
       OLB_REPORT_HEADER_ROW,
     );
+
+    /** Script 3 อ่าน Raw Report โดยตรง จึงต้อง Fail Fast ก่อน Parse */
+    const reportName = requireMappingReportName(OLB_REPORT_CODE);
+    assertRequiredHeaders(
+      OLB_REPORT_CODE,
+      "Raw Report",
+      prepared.reportHeaders,
+      getUniqueMappingHeaders(reportName),
+    );
+
     const reportData = excelReader.parseWorksheet(
       prepared.reportWorksheet,
       OLB_REPORT_HEADER_ROW,
@@ -57,22 +62,24 @@ class OlbReconcileService {
       OLB_TEST_DATA_HEADER_ROW,
     );
 
-    this.validateHeaders(
-      prepared.reportHeaders, 
-      testData.headers);
+    assertRequiredHeaders(
+      OLB_REPORT_CODE,
+      "Test Data",
+      testData.headers,
+      OLB_REQUIRED_TEST_DATA_HEADERS,
+    );
 
     const reportRecords = reportData.records.filter(
       (record) =>
-        normalizeOlbText(
-          record.get(OLB_REPORT_FIELDS.arrangementNumber),
-        ) !== "",
+        normalizeOlbText(record.get(OLB_REPORT_FIELDS.arrangementNumber)) !==
+        "",
     );
 
+    /** สงวน Exact Row ก่อนวน Test Data เพื่อไม่ให้ Fallback แย่งไปใช้ */
     const reservedReportRowNumbers = matcher.findReservedReportRows(
       testData.records,
       reportRecords,
     );
-
     const usedReportRowNumbers = new Set<number>();
     const annotationByRowNumber = new Map<number, ResultRow>();
     const unmatchedRows: ResultRow[] = [];
@@ -94,18 +101,11 @@ class OlbReconcileService {
         continue;
       }
 
-      annotationByRowNumber.set(
-        result.matchedRowNumber,
-        result,
-      );
-      usedReportRowNumbers.add(
-        result.matchedRowNumber);
+      annotationByRowNumber.set(result.matchedRowNumber, result);
+      usedReportRowNumbers.add(result.matchedRowNumber);
     }
 
-    sheetWriter.writeHeaderRow(
-      prepared.resultSheet, 
-      prepared.reportHeaders);
-
+    sheetWriter.writeHeaderRow(prepared.resultSheet, prepared.reportHeaders);
     const nextRowNumber = sheetWriter.writeRowsInRequestedOrder(
       prepared.resultSheet,
       prepared.reportWorksheet,
@@ -121,79 +121,25 @@ class OlbReconcileService {
       prepared.reportHeaders,
       nextRowNumber - 1,
     );
+    prepared.workbook.removeWorksheet(prepared.reportWorksheet.id);
+    await prepared.workbook.xlsx.writeFile(prepared.reconcileFilePath);
 
-    prepared.workbook.removeWorksheet(
-      prepared.reportWorksheet.id);
-
-    await prepared.workbook.xlsx.writeFile(
-      prepared.reconcileFilePath);
-
-    this.logSummary(
-      prepared.reconcileFilePath, 
-      results
-    );
+    this.logSummary(prepared.reconcileFilePath, results);
     return prepared.reconcileFilePath;
   }
 
-  private validateHeaders(
-    reportHeaders: string[],
-    testDataHeaders: string[],
-  ): void {
-    const reportName = requireMappingReportName(OLB_REPORT_CODE);
-
-    this.assertHeaders(
-      reportHeaders,
-      getUniqueMappingHeaders(reportName),
-      "Raw Report",
-    );
-
-    this.assertHeaders(
-      testDataHeaders,
-      OLB_REQUIRED_TEST_DATA_HEADERS,
-      "Test Data",
-    );
-  }
-
-  private assertHeaders(
-    actualHeaders: string[],
-    requiredHeaders: readonly string[],
-    sourceName: string,
-  ): void {
-    const actualHeaderSet = new Set(
-      actualHeaders
-        .filter((header) => header.trim() !== "")
-        .map(canonicalHeader),
-    );
-
-    const missingHeaders = requiredHeaders.filter(
-      (header) => !actualHeaderSet.has(canonicalHeader(header)),
-    );
-
-    if (missingHeaders.length > 0) {
-      throw new Error(
-        `[${OLB_REPORT_CODE}] ${sourceName} missing header(s): ` +
-          missingHeaders.join(", "),
-      );
-    }
-  }
-
-  private logSummary(outputPath: string, 
-    results: ResultRow[]): void {
-    const passCount = results.filter(
-      (result) => result.status === "PASS",
-    ).length;
-    const failCount = results.length - passCount;
+  private logSummary(outputPath: string, results: ResultRow[]): void {
+    const passCount = results.filter((result) => result.status === "PASS").length;
 
     console.log(`Output File : ${outputPath}`);
     console.log(
       `Test Case : ${results.length} | ` +
         `Pass : ${passCount} | ` +
-        `Fail : ${failCount}`,
+        `Fail : ${results.length - passCount}`,
     );
   }
 }
 
 export const reconcileOlbReport = (
   testDataFilePath: string,
-): Promise<string> => 
-  new OlbReconcileService().reconcile(testDataFilePath);
+): Promise<string> => new OlbReconcileService().reconcile(testDataFilePath);
