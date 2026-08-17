@@ -1,16 +1,11 @@
 /**
- * ftu-analyzer.ts
- * ------------------------------------------------------------------
- * วิเคราะห์ Test Data ของ DS_FTU ทีละแถว
+ * วิเคราะห์ Test Data ของ DS_FTU จาก Candidate ที่ FtuMatcher เลือกไว้
  *
- * หน้าที่:
  * 1. ตัดสิน Expected Presence/Absence
- * 2. ใช้ผล Exact/Fallback Matching ที่ Matcher เตรียมไว้
- * 3. ตรวจ Field หลังจับคู่ AF1 Row
- * 4. สร้าง PASS/FAIL/Review และ Remark
+ * 2. ตรวจ Direction, Date, Purpose, Country, Currency และ Amount
+ * 3. สร้างผล PASS, FAIL หรือ PASS พร้อม Review
  *
  * ไฟล์นี้ไม่ค้นหา Candidate และไม่อ่านหรือเขียน Excel Workbook
- * ------------------------------------------------------------------
  */
 
 import type { ReconcileRecord } from "../shared/record";
@@ -18,7 +13,7 @@ import { formatCompareRemark } from "../shared/remark";
 import {
   extractDateFromArrangementNumber,
   formatDate,
-  isDateMatchWithArrangementFallback,
+  isSameDate,
   parseAmount,
   parseDate,
 } from "../shared/reconcile-parse.util";
@@ -35,10 +30,10 @@ import {
   FTU_TEST_DATA_FIELDS,
   FTU_USD_CURRENCY_CODE,
   FTU_USD_THRESHOLD,
+  normalizeFtuText,
 } from "./ftu-config";
-import type { FtuDirection} from "./ftu-config";
+import type { FtuDirection } from "./ftu-config";
 import type { FtuMatchResult } from "./ftu-matcher";
-import { normalizeFtuText } from "./ftu-config";
 
 type AddComparisonRemark = (
   reportField: string,
@@ -172,10 +167,10 @@ export class FtuAnalyzer {
     }
 
     const matchedRecord = detection.detectedRecord;
-    let fallbackRemark = "";
+    let fallbackRemark = matchResult.failureRemark ?? "";
 
     if (!matchResult.exactMatchedRecord) {
-      fallbackRemark =
+      const detectionRemark =
         matchResult.transactionId === ""
           ? detection.detectionRemark
           : matchedRecord
@@ -185,6 +180,7 @@ export class FtuAnalyzer {
                 detection.detectionRemark,
               )
             : detection.detectionRemark;
+      fallbackRemark = this.appendRemark(fallbackRemark, detectionRemark);
     }
 
     if (!matchedRecord) {
@@ -257,7 +253,7 @@ export class FtuAnalyzer {
 
     return {
       amount,
-      mustNotExist: !this.isWithinUsdThreshold(amount),
+      mustNotExist: amount >= FTU_USD_THRESHOLD,
     };
   }
 
@@ -550,19 +546,25 @@ export class FtuAnalyzer {
       return;
     }
 
-    if (
-      isDateMatchWithArrangementFallback(
-        expectedDate,
-        actualText,
-        matchedRecord.get(FTU_REPORT_FIELDS.arrangementNumber),
-      )
-    ) {
+    const actualDate = parseDate(actualText);
+
+    if (actualDate && isSameDate(expectedDate, actualDate)) {
       return;
     }
 
     const arrangementDate = extractDateFromArrangementNumber(
       matchedRecord.get(FTU_REPORT_FIELDS.arrangementNumber),
     );
+
+    if (arrangementDate && isSameDate(expectedDate, arrangementDate)) {
+      addReview(
+        FTU_REPORT_FIELDS.dataSetDate,
+        FTU_TEST_DATA_FIELDS.transactionDate,
+        expectedText,
+        `${actualText} | Arr Number Date: ${formatDate(arrangementDate)}`,
+      );
+      return;
+    }
 
     addFailure(
       FTU_REPORT_FIELDS.dataSetDate,
