@@ -1,45 +1,14 @@
 /**
- * ltx-reconcile
+ * ควบคุม Flow Reconcile ของ DS_LTX
  *
- * โครงสร้าง Class ที่เกี่ยวข้อง:
- *   getReconcileConfig          -> อ่านและตรวจ Config ของ LTX
- *   ReconcileWorkbookPreparer   -> Copy Report + สร้าง Sheet ผลลัพธ์
- *   ReconcileExcelReader        -> อ่าน Excel (Report/Test Data) เป็น ReconcileRecord[]
- *   LtxExpectedCaseBuilder      -> Test Data -> Expected Case ของ DS_LTX
- *   LtxMatcher                  -> จับคู่ Test Case กับ Report row โดยรับ usedReportRowNumbers
- *                                  จาก ReconcileService เพื่อกันแถวเดียวกันถูกจับคู่ซ้ำข้าม
- *                                  Expected Case ตามกติกาการครอบครอง Report row
- *   FieldRuleValidatorSet       -> เทียบ field อื่นที่ไม่ใช่ 3 หัวข้อหลัก (ผล = ไฮไลท์เหลืองเท่านั้น)
- *   ReconcileResultSheetWriter  -> เขียนผลลง Sheet (copy ทุกแถวจาก AF1 Report + แปะ annotation)
+ * 1. สร้าง Expected Case จาก Test Data
+ * 2. สงวน Report Row ที่มี Exact Reference
+ * 3. จับคู่ Exact ก่อน Fallback และไม่ใช้ Report Row ซ้ำ
+ * 4. ตรวจ Reference, Account และ Amount เพื่อกำหนด PASS/FAIL
  *
- *  Test_Result Pass/Fail ตัดสินจาก Key หลักดังนี้:
- *   1. Reference Transaction Number (Report) vs Transaction ID/ Reconcile ID (Test Data)
- *      - ถ้า Transaction ID มีค่า ต้องตรงกัน มิฉะนั้น FAIL
- *      - ถ้า Transaction ID ว่าง แต่ Unique Fallback สำเร็จ ให้เป็น Review
- *   2. FI Arrangement Number (Report) vs From Account (A/C Client/Sender) (Test Data)
- *   3. Transaction Amount (Report) vs SUM ของ Fee Amount ทุกรายการ (แถว FE) หรือ
- *      From Transfer Amount/Debit Amount (แถว DR)
- * Account และ Amount ต้องตรงเสมอ ส่วน Reference ใช้กติกาตามข้อ 1
- * (ดู checkKeyConditions ด้านล่าง)
- *
- * ส่วน field อื่นทั้งหมด (Payment Method, Currency, Beneficiary Name, ฯลฯ) ยังคงเทียบตาม
- * Requirement เดิมผ่าน FieldRuleValidatorSet เหมือนเดิมทุกอย่าง แต่ผลลัพธ์ตอนนี้ไม่ว่าจะ
- * เป็น FAIL หรือ REVIEW (ตามตรรกะเดิมของ FieldComparer) จะถูกปฏิบัติเหมือนกันหมด คือ
- * "ไฮไลท์เหลือง + ใส่ข้อความใน Remark" เท่านั้น ไม่กระทบ Pass/Fail ของแถวอีกต่อไป
- *
- *  Fallback Matching ของ LTX:
- * - ใช้ Exact Reference Matching เป็นทางหลักเหมือนเดิม
- * - ถ้า Test Data ไม่มี Transaction ID หรือค้น Reference ไม่พบ ให้ค้นคู่สำรองจาก
- *   FI Arrangement Number/Account + Currency + DR/FE suffix + Amount
- * - DR Amount เทียบ From Transfer Amount หรือ Debit Amount
- * - FE Amount เทียบ SUM Fee Amount ที่ ExpectedCaseBuilder คำนวณไว้
- * - ถ้าพบหลายแถว จะเลือกแถวที่มี Key/Supporting Field ตรงมากที่สุด
- * - ถ้าคะแนนสูงสุดเท่ากันหลายแถว จะไม่เดาแถวและคืนผล Ambiguous
- * - ถ้า Transaction ID ว่าง แต่ Fallback พบคู่แบบไม่กำกวม จะตรวจ Account/Amount ต่อ
- *   และให้ Reference เป็น Review โดยไม่บังคับ FAIL เพียงเพราะ Transaction ID ว่าง
- * - ถ้า Transaction ID มีค่าแต่ Reference ไม่ตรง ยังคงถือว่า Reference เป็น FAIL
- * ------------------------------------------------------------------
+ * Field อื่นใช้สำหรับ Review และไม่เปลี่ยนสถานะหลักของ Test Case
  */
+
 import { getHandledReportFields, getReconcileConfig } from "./ltx-config";
 import type { ReconcileReportConfig } from "./ltx-config";
 import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
@@ -73,13 +42,13 @@ type CollectedResultRow = ResultRow & {
 
 export class ReconcileService {
   constructor(
-    private readonly workbookPreparer: ReconcileWorkbookPreparer = new ReconcileWorkbookPreparer(),
-    private readonly excelReader: ReconcileExcelReader = new ReconcileExcelReader(),
-    private readonly matcher: LtxMatcher = new LtxMatcher(),
-    private readonly fieldValidatorSet: FieldRuleValidatorSet = new FieldRuleValidatorSet(),
-    private readonly sheetWriter: ReconcileResultSheetWriter = new ReconcileResultSheetWriter(),
-    private readonly amountComparator: AmountComparator = new AmountComparator(),
-    private readonly presenceRuleEvaluator: ReportPresenceRuleEvaluator = new ReportPresenceRuleEvaluator(),
+    private workbookPreparer: ReconcileWorkbookPreparer = new ReconcileWorkbookPreparer(),
+    private excelReader: ReconcileExcelReader = new ReconcileExcelReader(),
+    private matcher: LtxMatcher = new LtxMatcher(),
+    private fieldValidatorSet: FieldRuleValidatorSet = new FieldRuleValidatorSet(),
+    private sheetWriter: ReconcileResultSheetWriter = new ReconcileResultSheetWriter(),
+    private amountComparator: AmountComparator = new AmountComparator(),
+    private presenceRuleEvaluator: ReportPresenceRuleEvaluator = new ReportPresenceRuleEvaluator(),
   ) {}
 
   private validateMappingConfiguration(
@@ -139,7 +108,6 @@ export class ReconcileService {
     }
 
     const unknownOutputOnlyHeaders = config.outputOnlyFields
-      .map((field) => field.reportField)
       .filter(
         (reportField) => !configuredHeaders.has(canonicalHeader(reportField)),
       );
@@ -162,7 +130,6 @@ export class ReconcileService {
     );
 
     const conflictingOutputOnlyHeaders = config.outputOnlyFields
-      .map((field) => field.reportField)
       .filter((reportField) =>
         evaluatedHeaders.has(canonicalHeader(reportField)),
       );
@@ -303,19 +270,19 @@ export class ReconcileService {
     let isAmountOk: boolean;
 
     if (suffix === config.feSuffixLabel) {
-      isAmountOk = this.amountComparator.compare(
+      isAmountOk = this.amountComparator.matches(
         expectedCase.expectedFeAmount,
         actualAmount,
-      ).isMatch;
+      );
     } else {
-      const matchesPrimary = this.amountComparator.compare(
+      const matchesPrimary = this.amountComparator.matches(
         expectedCase.primaryRecord.get(config.drAmountTestDataField),
         actualAmount,
-      ).isMatch;
-      const matchesFallback = this.amountComparator.compare(
+      );
+      const matchesFallback = this.amountComparator.matches(
         expectedCase.primaryRecord.get(config.drAmountFallbackTestDataField),
         actualAmount,
-      ).isMatch;
+      );
       isAmountOk = matchesPrimary || matchesFallback;
     }
 
@@ -487,6 +454,7 @@ export class ReconcileService {
      * เพื่อกันการจับคู่ซ้ำข้าม Test Case (ดู ltx-matcher.ts)
      */
     usedReportRowNumbers: ReadonlySet<number>,
+    reservedReportRowNumbers: ReadonlySet<number>,
   ): CollectedResultRow {
     const presenceDecision = this.presenceRuleEvaluator.evaluate(
       expectedCase.primaryRecord,
@@ -530,6 +498,7 @@ export class ReconcileService {
         reportCode,
         reportRecords,
         usedReportRowNumbers,
+        reservedReportRowNumbers,
         expectedCase,
         config,
         normalizedExpectedReference,
@@ -776,6 +745,11 @@ export class ReconcileService {
       testData.records,
       config,
     );
+    const reservedReportRowNumbers = this.matcher.findReservedReportRows(
+      reportRecords,
+      expectedCases,
+      config,
+    );
 
     const annotationByRowNumber = new Map<number, CollectedResultRow>();
     const unmatchedRows: ResultRow[] = [];
@@ -873,6 +847,7 @@ export class ReconcileService {
             config.drSuffixLabel,
             reportRecords,
             usedReportRowNumbers,
+            reservedReportRowNumbers,
           ),
         );
       }
@@ -887,6 +862,7 @@ export class ReconcileService {
             config.feSuffixLabel,
             reportRecords,
             usedReportRowNumbers,
+            reservedReportRowNumbers,
           ),
         );
       }
@@ -947,10 +923,6 @@ export class ReconcileService {
   }
 }
 
-/**
- * Backward-compatible function wrapper — ให้ tests/script3-compare-report.spec.ts
- * เรียกใช้ได้โดยไม่ต้องแก้ไฟล์ test เลย
- */
 export const reconcileReport = (
   reportCode: string,
   testDataFilePath: string,

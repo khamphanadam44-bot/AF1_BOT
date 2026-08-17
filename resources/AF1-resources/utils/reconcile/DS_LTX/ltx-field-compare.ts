@@ -1,27 +1,21 @@
 /**
- * FieldComparer
- * ------------------------------------------------------------------
- * เปรียบเทียบ "1 field rule เดียว" ระหว่าง Test Data (expected) กับ AF1 Report (actual)
- * รองรับทั้ง 4 compareMode: fixedValue / amountTolerance / exact / dateWithIdFallback
- * ใช้ร่วมกันทั้ง CoreFieldValidator และ ConditionalFieldValidator
- * ------------------------------------------------------------------
+ * เปรียบเทียบหนึ่ง Field Rule ระหว่าง Test Data กับ DS_LTX Report
+ * และคืนสถานะ PASS, FAIL หรือ REVIEW ให้ Field Validator นำไปสรุปผลต่อ
  */
-import type { ReconcileFieldRule } from "./ltx-config";
-import { AmountComparator } from "./ltx-amount-compare";
-import { ReconcileRecord } from "../shared/record";
+
 import { formatCompareRemark, formatFixedValueRemark } from "../shared/remark";
 import {
   isDateMatchWithArrangementFallback,
   parseDate,
 } from "../shared/reconcile-parse.util";
+import type { ReconcileRecord } from "../shared/record";
+import { AmountComparator } from "./ltx-amount-compare";
+import type { ReconcileFieldRule } from "./ltx-config";
 
-/** สถานะผลเปรียบเทียบของ Field หนึ่งรายการ */
-export type ReconcileStatus = "PASS" | "FAIL" | "REVIEW";
+type ReconcileStatus = "PASS" | "FAIL" | "REVIEW";
 
-/** ผลเปรียบเทียบ Field หนึ่งรายการของคู่ Test Data และ AF1 Report */
 export interface FieldCheckResult {
   fieldHeader: string;
-  isMatch: boolean;
   status: ReconcileStatus;
   remark: string;
 }
@@ -31,78 +25,48 @@ export class FieldComparer {
     private readonly amountComparator: AmountComparator = new AmountComparator(),
   ) {}
 
-  private isNumericId(value: string): boolean {
-    return /^\d+$/.test(value.trim());
-  }
-
-  /** normalize รหัสตัวเลข (เช่น Cust Code) ก่อนเทียบ — ตัด leading zero ทิ้ง */
+  /** รหัสตัวเลขตัด Leading Zero ก่อนเทียบ แต่ข้อความทั่วไปไม่ถูกเปลี่ยนรูปแบบ */
   private normalizeIdForCompare(value: string): string {
-    const trimmed = value.trim();
+    const normalized = value.trim().toLowerCase();
 
-    if (!this.isNumericId(trimmed)) {
-      return trimmed.toLowerCase();
+    if (!/^\d+$/.test(normalized)) {
+      return normalized;
     }
 
-    const normalized = trimmed.replace(/^0+(?=\d)/, "");
-
-    return normalized === "" ? "0" : normalized;
+    return normalized.replace(/^0+(?=\d)/, "");
   }
 
-  /** แปลงค่าที่ใช้แสดงใน Remark — ป้องกัน null/undefined และตัดช่องว่างหัวท้าย */
-  /**
-   * สร้างข้อความเมื่อข้อมูลระหว่าง Test Script และ AF1 Report ไม่ตรงกัน (สถานะ REVIEW)
-   * Format ตาม Requirement:
-   *   [TS] : <TestDataField> = "<value>" | [AF1-<ReportLabel>] : <ReportField> = "<value>"
-   *
-
-   */
+  /** ใช้รูปแบบ Remark กลางเพื่อให้ทุก Compare Mode แสดง Expected/Actual เหมือนกัน */
   private buildReviewRemark(
     reportCode: string,
     rule: ReconcileFieldRule,
     expected: string,
     actual: string,
   ): string {
-    const testDataLabel = rule.testDataField ?? "Test Data";
-
     return formatCompareRemark(
       reportCode,
-      testDataLabel,
+      rule.testDataField ?? "Test Data",
       expected,
       rule.reportField,
       actual,
     );
   }
 
-  /** สร้างข้อความเมื่อ AF1 Report ผิด business rule แบบชัดเจน/ไม่กำกวม (สถานะ FAIL) */
-  private buildFailRemark(
-    reportCode: string,
-    rule: ReconcileFieldRule,
-    expected: string,
-    actual: string,
-  ): string {
-    return formatFixedValueRemark(
-      reportCode,
-      rule.reportField,
-      actual,
-      expected,
-    );
-  }
-
-  private toFieldCheckResult(
+  private toResult(
     fieldHeader: string,
     status: ReconcileStatus,
-    remark: string,
+    remark = "",
   ): FieldCheckResult {
-    return { fieldHeader, status, isMatch: status === "PASS", remark };
+    return {
+      fieldHeader,
+      status,
+      remark,
+    };
   }
 
   /**
-   * เปรียบเทียบ compareMode = "fixedValue" (ค่าคงที่ตาม Requirement เช่น Payment Method ต้องเป็น 234004)
-   *
-   * กติกาตาม Requirement (ตัวอย่าง Payment Method):
-   * - AF1 Report ไม่ตรงกับค่าคงที่ -> FAIL เสมอ (ไม่สนใจฝั่ง Test Data)
-   * - AF1 Report ตรงกับค่าคงที่ แต่ Test Data (ฝั่งอ้างอิง) ว่าง -> REVIEW
-   * - AF1 Report ตรงกับค่าคงที่ และ Test Data มีค่า (หรือไม่ได้กำหนด field ให้ cross-check) -> PASS
+   * Fixed value ที่ผิดเป็น FAIL เพราะขัด Business Rule โดยตรง
+   * แต่ถ้าค่าฝั่ง Report ถูกและข้อมูล Cross-check ว่าง ให้ REVIEW แทน
    */
   private checkFixedValue(
     reportCode: string,
@@ -111,21 +75,25 @@ export class FieldComparer {
     actual: string,
   ): FieldCheckResult {
     const expected = rule.fixedValue ?? "";
-    const isCorrect =
-      actual.trim().toLowerCase() === expected.trim().toLowerCase();
 
-    if (!isCorrect) {
-      return this.toFieldCheckResult(
+    if (actual.trim().toLowerCase() !== expected.trim().toLowerCase()) {
+      return this.toResult(
         rule.reportField,
         "FAIL",
-        this.buildFailRemark(reportCode, rule, expected, actual),
+        formatFixedValueRemark(
+          reportCode,
+          rule.reportField,
+          actual,
+          expected,
+        ),
       );
     }
 
     if (rule.testDataField) {
       const crossCheckValue = testDataRecord.get(rule.testDataField);
+
       if (crossCheckValue.trim() === "") {
-        return this.toFieldCheckResult(
+        return this.toResult(
           rule.reportField,
           "REVIEW",
           this.buildReviewRemark(reportCode, rule, crossCheckValue, actual),
@@ -133,16 +101,12 @@ export class FieldComparer {
       }
     }
 
-    return this.toFieldCheckResult(rule.reportField, "PASS", "");
+    return this.toResult(rule.reportField, "PASS");
   }
 
   /**
-   * เปรียบเทียบ compareMode = "dateWithIdFallback"
-   * รอบที่ 1: เทียบ Transaction Date ตรง ๆ ก่อน
-   * รอบที่ 2: ถ้าไม่ตรง ให้ดึงวันที่จากตำแหน่ง 7-12 ของ Reference Transaction Number มาเทียบแทน
-   * ถ้าเทียบทั้ง 2 รอบแล้วยังไม่ตรง -> REVIEW (ไม่ใช่ FAIL ตาม Requirement:
-   * "ห้ามให้ผลเป็น Please review ก่อนเช็คขั้นที่ 2" หมายความว่าหลังเช็คครบ 2 ขั้นแล้ว
-   * ผลที่เป็นไปได้คือ Pass หรือ Please Review เท่านั้น ไม่มี Fail สำหรับ field นี้)
+   * ตรวจ Report Date โดยตรงก่อน แล้วจึงใช้วันที่ตำแหน่ง 7–12
+   * ของ Reference เป็น fallback; ไม่ตรงทั้งสองทางจึงเป็น REVIEW
    */
   private checkDateWithIdFallback(
     reportCode: string,
@@ -152,23 +116,22 @@ export class FieldComparer {
     actual: string,
   ): FieldCheckResult {
     const expectedDate = parseDate(expected);
-    const referenceNumber = reportRecord.get(
-      "Reference Transaction Number",
-    );
+    const fallbackReference = rule.fallbackReportField
+      ? reportRecord.get(rule.fallbackReportField)
+      : "";
 
     if (
       expectedDate &&
       isDateMatchWithArrangementFallback(
         expectedDate,
         actual,
-        referenceNumber,
+        fallbackReference,
       )
     ) {
-      return this.toFieldCheckResult(rule.reportField, "PASS", "");
+      return this.toResult(rule.reportField, "PASS");
     }
 
-    // เทียบทั้ง 2 รอบแล้วยังไม่ตรง -> ต้องตรวจสอบเพิ่มเติม (REVIEW)
-    return this.toFieldCheckResult(
+    return this.toResult(
       rule.reportField,
       "REVIEW",
       this.buildReviewRemark(reportCode, rule, expected, actual),
@@ -176,12 +139,8 @@ export class FieldComparer {
   }
 
   /**
-   * เปรียบเทียบ compareMode = "amountTolerance" — ตัวเลข ยอมรับส่วนต่าง +-tolerance
-   * ถ้าฝั่งใดฝั่งหนึ่งแปลงเป็นตัวเลขไม่ได้ (ว่าง/ไม่ใช่ตัวเลข) หรือส่วนต่างเกิน tolerance -> REVIEW
-   *
-   * ถ้าเทียบกับ testDataField หลักแล้วไม่ผ่าน และมี fallbackTestDataField กำหนดไว้
-   * จะลองเทียบกับ fallback อีกรอบก่อนสรุปว่า REVIEW (ตาม Business Rule: "หาก Transaction
-   * Amount ไม่ตรงกับ From Transfer Amount ให้ไปดูที่ From Debit Amount")
+   * Amount ผ่านเมื่อผลต่างอยู่ใน Tolerance หากยอดหลักไม่ตรง
+   * ต้องลองยอด Fallback ที่ Config กำหนดก่อนสรุปเป็น REVIEW
    */
   private checkAmountTolerance(
     reportCode: string,
@@ -190,30 +149,25 @@ export class FieldComparer {
     expected: string,
     actual: string,
   ): FieldCheckResult {
-    const result = this.amountComparator.compare(
-      expected,
-      actual,
-      rule.tolerance,
-    );
-
-    if (result.isMatch) {
-      return this.toFieldCheckResult(rule.reportField, "PASS", "");
+    if (this.amountComparator.matches(expected, actual, rule.tolerance)) {
+      return this.toResult(rule.reportField, "PASS");
     }
 
     if (rule.fallbackTestDataField) {
       const fallbackExpected = testDataRecord.get(rule.fallbackTestDataField);
-      const fallbackResult = this.amountComparator.compare(
-        fallbackExpected,
-        actual,
-        rule.tolerance,
-      );
 
-      if (fallbackResult.isMatch) {
-        return this.toFieldCheckResult(rule.reportField, "PASS", "");
+      if (
+        this.amountComparator.matches(
+          fallbackExpected,
+          actual,
+          rule.tolerance,
+        )
+      ) {
+        return this.toResult(rule.reportField, "PASS");
       }
     }
 
-    return this.toFieldCheckResult(
+    return this.toResult(
       rule.reportField,
       "REVIEW",
       this.buildReviewRemark(reportCode, rule, expected, actual),
@@ -221,8 +175,8 @@ export class FieldComparer {
   }
 
   /**
-   * เปรียบเทียบ compareMode = "exact" — ต้องตรงกันเป๊ะหลัง normalize (ตัด leading zero ของรหัสตัวเลข)
-   * ฝั่งใดฝั่งหนึ่งว่าง หรือมีค่าทั้ง 2 ฝั่งแต่ไม่ตรงกัน -> REVIEW (ตามตัวอย่าง Cust Name ใน Requirement)
+   * Exact comparison ต้องมีค่าทั้งสองฝั่งและตรงกันหลัง Normalize
+   * ค่าว่างหรือค่าไม่ตรงเป็น REVIEW เพื่อให้ผู้ตรวจสอบเห็น Expected/Actual
    */
   private checkExact(
     reportCode: string,
@@ -230,31 +184,22 @@ export class FieldComparer {
     expected: string,
     actual: string,
   ): FieldCheckResult {
-    const isEitherEmpty = expected.trim() === "" || actual.trim() === "";
-
-    if (isEitherEmpty) {
-      return this.toFieldCheckResult(
-        rule.reportField,
-        "REVIEW",
-        this.buildReviewRemark(reportCode, rule, expected, actual),
-      );
-    }
-
     const isMatch =
+      expected.trim() !== "" &&
+      actual.trim() !== "" &&
       this.normalizeIdForCompare(expected) ===
-      this.normalizeIdForCompare(actual);
+        this.normalizeIdForCompare(actual);
 
-    if (isMatch) {
-      return this.toFieldCheckResult(rule.reportField, "PASS", "");
-    }
-
-    return this.toFieldCheckResult(
-      rule.reportField,
-      "REVIEW",
-      this.buildReviewRemark(reportCode, rule, expected, actual),
-    );
+    return isMatch
+      ? this.toResult(rule.reportField, "PASS")
+      : this.toResult(
+          rule.reportField,
+          "REVIEW",
+          this.buildReviewRemark(reportCode, rule, expected, actual),
+        );
   }
 
+  /** เลือกวิธีตรวจจาก compareMode ของ Rule โดยไม่ผูกชื่อ Field ไว้ใน Logic */
   check(
     reportCode: string,
     rule: ReconcileFieldRule,
@@ -291,11 +236,10 @@ export class FieldComparer {
       );
     }
 
-    // compareMode === "exact"
     return this.checkExact(reportCode, rule, expected, actual);
   }
 
-  /** เช็คว่า Field rule นี้ใช้กับแถว suffix ปัจจุบันไหม (เช่น field จำกัดไว้เฉพาะแถว DR) */
+  /** Rule ที่จำกัดเป็น DR ต้องไม่ถูกนำไปตรวจซ้ำกับแถวค่าธรรมเนียม FE */
   isApplicableToSuffix(rule: ReconcileFieldRule, suffix: string): boolean {
     return !rule.applicableSuffixes || rule.applicableSuffixes.includes(suffix);
   }
