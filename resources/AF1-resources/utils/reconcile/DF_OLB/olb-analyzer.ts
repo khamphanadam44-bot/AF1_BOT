@@ -5,25 +5,20 @@
  *
  * หน้าที่:
  * 1. รับ AF1 Row ที่เลือกมาจาก olb-matcher.ts
- * 2. ถ้า Matcher ไม่สามารถเลือก Row ได้ → FAIL จากเหตุผลของ Matcher
- * 3. Primary Key, Date และ Amount ใช้กำหนด PASS/FAIL
- * 4. CIF Number, CIF Name และ Arrangement Date Fallback เป็น Review-only
- * 5. Amount เปรียบเทียบโดยใช้ OLB_AMOUNT_TOLERANCE
- *
- * หมายเหตุ:
- * - ไฟล์นี้ไม่มีหน้าที่ค้นหา Candidate
- * - ไฟล์นี้ไม่อ่านหรือเขียน Workbook
- * - ถ้ายังไม่มี matchedRecord จะไม่สร้าง Compare Remark
- *   ที่แสดงค่า AF1 เป็น "" เพราะยังไม่มี AF1 Row ที่ถูกเลือก
+ * 2. ตรวจ Expected Absence ของ DF_OLB ก่อนตัดสินผลปกติ
+ *    - ไม่มี THB ใน From/To Currency
+ *    - From Customer เป็น Resident
+ * 3. Expected Absence: ไม่พบ AF1 → PASS, พบ AF1 → FAIL
+ * 4. ถ้า Expected Presence แต่ Matcher เลือก Row ไม่ได้ → FAIL
+ * 5. Primary Key, Date และ Amount ใช้กำหนด PASS/FAIL
+ * 6. CIF Number, CIF Name และ Arrangement Date Fallback เป็น Review-only
+ * 7. Amount เปรียบเทียบโดยใช้ OLB_AMOUNT_TOLERANCE
  * ------------------------------------------------------------------
  */
 
 import type { ReconcileRecord } from "../shared/record";
-
 import { formatCompareRemark } from "../shared/remark";
-
 import type { ResultRow } from "../shared/result-writer";
-
 import {
   extractDateFromArrangementNumber,
   formatDate,
@@ -31,20 +26,19 @@ import {
   parseAmount,
   parseDate,
 } from "../shared/reconcile-parse.util";
-
 import {
   OLB_AMOUNT_TOLERANCE,
+  OLB_EXCLUDE_REASONS,
   OLB_FIELD_MAPPINGS,
   OLB_REMARKS,
   OLB_REPORT_CODE,
   OLB_REPORT_FIELDS,
+  OLB_RESIDENT_VALUE,
   OLB_TEST_DATA_FIELDS,
+  OLB_THB_CURRENCY_CODE,
 } from "./olb-config";
-
 import type { OlbFieldMapping } from "./olb-config";
-
 import type { OlbCandidateResolution } from "./olb-matcher";
-
 import {
   normalizeOlbId,
   normalizeOlbText,
@@ -61,6 +55,7 @@ type AddComparisonRemark = (
   mapping: OlbFieldMapping,
   expected: string,
   actual: string,
+  message?: string,
 ) => void;
 
 export class OlbAnalyzer {
@@ -73,6 +68,7 @@ export class OlbAnalyzer {
   analyze(
     testDataRecord: ReconcileRecord,
     candidate: OlbCandidateResolution,
+    presenceContextRecord: ReconcileRecord = testDataRecord,
   ): ResultRow {
     const testCaseNo =
       testDataRecord.get(
@@ -80,15 +76,35 @@ export class OlbAnalyzer {
       ).trim() ||
       `TEST DATA ROW ${testDataRecord.rowNumber}`;
 
+    // =====================================================
+    // Expected Absence / Exclude Rules
+    // =====================================================
+
+    const excludeReasons =
+      this.findExcludeReasons(
+        presenceContextRecord,
+      );
+
+    if (excludeReasons.length > 0) {
+      return this.buildExpectedAbsenceResult(
+        testCaseNo,
+        candidate,
+        excludeReasons,
+      );
+    }
+
+    // =====================================================
+    // Expected Presence
+    // =====================================================
+
     /**
-     * Matcher ยังไม่สามารถระบุ AF1 Row ที่ถูกต้องได้
+     * รายการนี้ควรอยู่ใน DF_OLB
+     * แต่ Matcher ยังไม่สามารถระบุ AF1 Row ที่ถูกต้องได้
      *
      * เช่น:
      * - ไม่มี Amount ที่ตรง
      * - Candidate คะแนนสูงสุดเสมอกัน
      * - Amount ฝั่ง Test Data อ่านไม่ได้
-     *
-     * กรณีนี้ให้ FAIL จาก Matching Resolution โดยตรง
      */
     if (!candidate.matchedRecord) {
       return this.buildUnresolvedResult(
@@ -110,15 +126,155 @@ export class OlbAnalyzer {
   }
 
   /**
+   * ตรวจเงื่อนไข Expected Absence ของ DF_OLB
+   *
+   * Rule ปัจจุบัน:
+   *  มีข้อมูลครบ และไม่มี THB ทั้งสองฝั่ง
+   *  เป็น Resident
+   * Test Case เดียวสามารถเข้า Exclude ได้มากกว่า 1 เหตุผล
+   */
+  private findExcludeReasons(
+    testDataRecord: ReconcileRecord,
+  ): string[] {
+    const reasons: string[] = [];
+
+    // =====================================================
+    // Rule 1: ไม่มี THB
+    // =====================================================
+
+    const fromCurrency =
+      normalizeOlbText(
+        testDataRecord.get(
+          OLB_TEST_DATA_FIELDS.fromCurrency,
+        ),
+      );
+
+    const toCurrency =
+      normalizeOlbText(
+        testDataRecord.get(
+          OLB_TEST_DATA_FIELDS.toCurrency,
+        ),
+      );
+
+    /**
+     * ต้องมี Currency ครบทั้งสองฝั่งก่อน
+     * จึงจะสรุปว่า "ไม่มี THB"
+     *
+     * ถ้าฝั่งใดฝั่งหนึ่งว่าง จะไม่ตีความเองว่าเป็น Expected Absence
+     */
+    const hasCompleteCurrencyData =
+      fromCurrency !== "" &&
+      toCurrency !== "";
+
+    const hasThb =
+      fromCurrency === OLB_THB_CURRENCY_CODE ||
+      toCurrency === OLB_THB_CURRENCY_CODE;
+
+    if (
+      hasCompleteCurrencyData &&
+      !hasThb
+    ) {
+      reasons.push(
+        `${OLB_EXCLUDE_REASONS.noThb} ` +
+          `(From CCY = "${fromCurrency}", ` +
+          `To CCY = "${toCurrency}")`,
+      );
+    }
+
+    // =====================================================
+    // Rule 2: Resident
+    // =====================================================
+
+    const residency =
+      normalizeOlbText(
+        testDataRecord.get(
+          OLB_TEST_DATA_FIELDS.fromResidency,
+        ),
+      );
+
+    if (
+      residency === OLB_RESIDENT_VALUE
+    ) {
+      reasons.push(
+        `${OLB_EXCLUDE_REASONS.resident} ` +
+          `(From Customer = "${residency}")`,
+      );
+    }
+
+    return reasons;
+  }
+
+  /**
+   * สร้างผลสำหรับ Test Case ที่เข้า Exclude Rule
+   *
+   * Expected Absence:
+   * - ไม่พบ AF1 Row → PASS
+   * - พบ AF1 Row → FAIL เพราะเป็น Unexpected Presence
+   */
+  private buildExpectedAbsenceResult(
+    testCaseNo: string,
+    candidate: OlbCandidateResolution,
+    excludeReasons: string[],
+  ): ResultRow {
+    const reasonRemark =
+      excludeReasons
+        .map(
+          (reason, index) =>
+            `${index + 1}. ${reason}`,
+        )
+        .join("\n");
+
+    // =====================================================
+    // ไม่พบใน DF_OLB ตามที่คาดหวัง
+    // =====================================================
+
+    if (!candidate.matchedRecord) {
+      return {
+        testCaseNo,
+        status: "PASS",
+        remark:
+          `ไม่พบรายการใน ${OLB_REPORT_CODE} ตามที่คาดหวัง ` +
+          `เนื่องจากเข้าเงื่อนไข Exclude:\n` +
+          reasonRemark,
+        matchedRowNumber: undefined,
+        failedKeyFieldHeaders: [],
+        reviewFieldHeaders: [],
+        isExpectedAbsence: true,
+      };
+    }
+
+    // =====================================================
+    // พบใน DF_OLB ทั้งที่ควรถูก Exclude
+    // =====================================================
+
+    const remarks = [
+      `พบรายการใน ${OLB_REPORT_CODE} ` +
+        "ทั้งที่ Test Case เข้าเงื่อนไข Exclude",
+      `เหตุผล Exclude:\n${reasonRemark}`,
+      candidate.remark,
+    ]
+      .filter(
+        (remark) =>
+          remark.trim() !== "",
+      )
+      .join("\n");
+
+    return {
+      testCaseNo,
+      status: "FAIL",
+      remark: remarks,
+      matchedRowNumber:
+        candidate.matchedRecord.rowNumber,
+      failedKeyFieldHeaders: [
+        OLB_REPORT_FIELDS.arrangementNumber,
+      ],
+      reviewFieldHeaders: [],
+      isExpectedAbsence: true,
+    };
+  }
+
+  /**
    * สร้างผลกรณี Matcher ไม่สามารถระบุ AF1 Row ได้
-   *
-   * ไม่สร้างข้อความลักษณะ:
-   *
-   * [TS] : Txn Date = "27/11/2025"
-   * [AF1-OLB] : Arrangement Contract Date = ""
-   *
-   * เพราะค่า "" ในกรณีนี้ไม่ได้หมายความว่า AF1 Field ว่าง
-   * แต่หมายถึงยังไม่มี AF1 Row ที่ถูกเลือก
    */
   private buildUnresolvedResult(
     testCaseNo: string,
@@ -179,10 +335,15 @@ export class OlbAnalyzer {
       mapping,
       expected,
       actual,
+      message,
     ): void => {
       failedHeaders.add(
         mapping.reportField,
       );
+
+      if (message?.trim()) {
+        remarks.push(message);
+      }
 
       remarks.push(
         this.buildRemark(
@@ -244,7 +405,6 @@ export class OlbAnalyzer {
       testDataRecord,
       matchedRecord,
       addFailure,
-      addReview,
     );
 
     // =====================================================
@@ -411,16 +571,11 @@ export class OlbAnalyzer {
 
   /**
    * ตรวจ Date
-   *
-   * Rule:
-   *
    * 1. Txn Date = Arrangement Contract Date
    *    → ผ่าน
-   *
    * 2. Arrangement Contract Date ไม่ตรง
    *    แต่ Date ที่อ่านจาก FI Arrangement Number ตรง
    *    → Review-only
-   *
    * 3. Date ไม่ตรงทั้งสองทาง
    *    → FAIL
    */
@@ -478,7 +633,6 @@ export class OlbAnalyzer {
 
     /**
      * Date ไม่ตรงโดยตรง
-     *
      * ลองอ่าน Date จาก FI Arrangement Number
      */
     const arrangementDate =
@@ -535,7 +689,7 @@ export class OlbAnalyzer {
    * THB Outstanding Amount
    *
    * Rule:
-   * - Test Data Amount ว่าง/อ่านไม่ได้ → Review
+   * - Test Data Amount ว่าง/อ่านไม่ได้ → FAIL
    * - AF1 Amount ว่าง/อ่านไม่ได้ → FAIL
    * - ผลต่าง <= OLB_AMOUNT_TOLERANCE → ผ่าน
    * - ผลต่าง > OLB_AMOUNT_TOLERANCE → FAIL
@@ -547,7 +701,6 @@ export class OlbAnalyzer {
     testDataRecord: ReconcileRecord,
     matchedRecord: ReconcileRecord,
     addFailure: AddComparisonRemark,
-    addReview: AddComparisonRemark,
   ): void {
     const mapping =
       OLB_FIELD_MAPPINGS.amount;
@@ -571,14 +724,20 @@ export class OlbAnalyzer {
     /**
      * Test Data Amount ว่างหรืออ่านไม่ได้
      *
-     * กรณี Fallback Matcher จะไม่สามารถเลือก Row ได้
-     * แต่ Exact Match อาจเข้ามาถึง Analyzer ได้
+     * Expected Absence ถูกตรวจและ return ไปก่อนหน้านี้แล้ว
+     * ดังนั้นเมื่อมาถึง compareAmount() หมายถึงรายการนี้เป็น
+     * Expected Presence และ Amount ต้องเป็นข้อมูลบังคับ
+     *
+     * กรณี Exact Match อาจเลือก AF1 Row ได้จาก Transaction ID
+     * แม้ Test Data Amount จะว่าง จึงต้อง FAIL ที่ Analyzer
      */
     if (expectedAmount === null) {
-      addReview(
+      addFailure(
         mapping,
         expectedText,
         actualText,
+         `FAIL - Test Data ไม่มี ${mapping.testDataField} ` +
+            `กรุณากรอกข้อมูล Amount ก่อน Reconcile`,
       );
 
       return;
