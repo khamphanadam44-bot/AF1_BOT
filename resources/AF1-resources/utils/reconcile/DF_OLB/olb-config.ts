@@ -22,9 +22,6 @@ export const OLB_AMOUNT_TOLERANCE = 0.01;
 /** จำกัดรายการใน Remark เพื่อให้ผลลัพธ์อ่านง่ายเมื่อพบ Candidate จำนวนมาก */
 export const OLB_MAX_CANDIDATES_IN_REMARK = 10;
 
-/** Fallback ต้องมี Field ตรงอย่างน้อย 2 Field หาก Amount ไม่ได้เป็นหลักฐาน */
-export const OLB_MIN_STRONG_EVIDENCE_FIELDS = 2;
-
 export const OLB_REPORT_FIELDS = {
   arrangementNumber: "FI Arrangement Number",
   arrangementContractDate: "Arrangement Contract Date",
@@ -43,8 +40,7 @@ export const OLB_TEST_DATA_FIELDS = {
 } as const;
 
 /**
- * Mapping กลางที่ Matcher และ Analyzer ใช้ร่วมกัน
- * ช่วยลดการเขียนชื่อ Test Data/Report Field ซ้ำหลายจุด
+ * Mapping กลางที่ Analyzer และส่วน Validation ใช้ร่วมกัน
  */
 export const OLB_FIELD_MAPPINGS = {
   primary: {
