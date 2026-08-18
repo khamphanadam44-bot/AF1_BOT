@@ -21,6 +21,8 @@ import {
   SummaryStatus,
 } from "./summary-types";
 
+import { recordAutomationRunStage } from "./automation-run-timing";
+
 const COLORS = {
   PASS_FILL: "FFC6EFCE",
   PASS_TEXT: "FF006100",
@@ -980,19 +982,14 @@ const formatSummaryTime = (
  * - 1 ชั่วโมง     -> 01:00:00
  */
 const formatSummaryDuration = (
-  startedAt: Date,
-  completedAt: Date,
+  durationMilliseconds: number,
 ): string => {
-  const durationMilliseconds =
-    Math.max(
-      0,
-      completedAt.getTime() -
-      startedAt.getTime(),
-    );
-
   const totalSeconds =
     Math.floor(
-      durationMilliseconds / 1000,
+      Math.max(
+        0,
+        durationMilliseconds,
+      ) / 1000,
     );
 
   const hours =
@@ -1027,46 +1024,52 @@ const writeSummaryInformation = (
   summarySheet.getCell("B2").value = config.title;
 
   /**
-   * ข้อมูลการทำงานตามตำแหน่งของ Template ใหม่
-   *
-   * C6  = Report File Name
-   * C7  = Execution Date
-   * C8  = Actual Execution Time Start
-   * C9  = Actual Execution Time End
-   * C10 = Duration Time
-   * C11 = Run ID
-   * C12 = Verified By
-   */
-  summarySheet.getCell("C6").value =
-    info.reportFileName;
+ * ข้อมูลการทำงานตามตำแหน่งของ Template
+ *
+ * Template ใหม่ย้ายข้อมูลขึ้นมาจากแถว
+ * เป็นแถว 4-10
+ *
+ * C4  = Report File Name
+ * C5  = Execution Date
+ * C6  = Actual Execution Time Start
+ * C7  = Actual Execution Time End
+ * C8  = Duration Time
+ * C9  = Run ID
+ * C10 = Verified By
+ */
+summarySheet.getCell("C4").value =
+  info.reportFileName;
 
-  summarySheet.getCell("C7").value =
-    formatSummaryDate(
-      info.executionStartedAt,
-    );
+summarySheet.getCell("C5").value =
+  formatSummaryDate(
+    info.automationStartedAt,
+  );
 
-  summarySheet.getCell("C8").value =
-    formatSummaryTime(
-      info.executionStartedAt,
-    );
+summarySheet.getCell("C6").value =
+  formatSummaryTime(
+    info.automationStartedAt,
+  );
 
-  summarySheet.getCell("C9").value =
-    formatSummaryTime(
-      completedAt,
-    );
+summarySheet.getCell("C7").value =
+  formatSummaryTime(
+    completedAt,
+  );
 
-  summarySheet.getCell("C10").value =
-    formatSummaryDuration(
-      info.executionStartedAt,
-      completedAt,
-    );
+summarySheet.getCell("C8").value =
+  formatSummaryDuration(
+    info.completedStageDurationMilliseconds +
+    Math.max(
+      0,
+      completedAt.getTime() -
+        info.script4StartedAt.getTime(),
+    ),
+  );
 
-  summarySheet.getCell("C11").value =
-    info.runId;
+summarySheet.getCell("C9").value =
+  info.runId;
 
-  summarySheet.getCell("C12").value =
-    info.verifiedBy;
-
+summarySheet.getCell("C10").value =
+  info.verifiedBy;
   /**
    * KPI Count ยังคงค้นหาจากข้อความใน Template
    * จึงรองรับตำแหน่งที่ต่างกันของแต่ละ Report
@@ -2149,12 +2152,20 @@ export const writeReportAutomationSummary = async (
     config,
   );
 
-  summarySheet.views = [
-    {
-      state: "frozen",
-      ySplit: headerRowNumber,
-    },
-  ];
+  /**
+ * ตั้งค่า Worksheet Summary Result
+ *
+ * - Freeze แถว Header
+ * - ซ่อน Gridlines เฉพาะชีท Summary Result
+ * - ไม่กระทบชีท Reconcile, Report และ Test Data
+ */
+summarySheet.views = [
+  {
+    state: "frozen",
+    ySplit: headerRowNumber,
+    showGridLines: false,
+  },
+];
 
   summarySheet.pageSetup = {
     orientation: "landscape",
@@ -2219,4 +2230,15 @@ export const writeReportAutomationSummary = async (
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   await workbook.xlsx.writeFile(outputPath);
+
+  /**
+   * บันทึกเวลา Script 4 หลังสร้างไฟล์สำเร็จ
+   * หากรัน Script 4 ซ้ำ ระบบจะใช้เวลารอบล่าสุดแทนรอบเดิม
+   */
+  recordAutomationRunStage(
+    reportName,
+    "SCRIPT_4_SUMMARY",
+    summaryInfo.script4StartedAt,
+    completedAt,
+  );
 };

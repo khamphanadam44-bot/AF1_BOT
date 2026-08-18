@@ -26,15 +26,19 @@ export interface AutomationSummaryInfo {
   reportFileName: string;
 
   /**
-   * เวลาเริ่มทำงานจริงของ Script 4 สำหรับ Report นี้
-   *
-   * automation-summary-writer.ts จะใช้ค่านี้เพื่อสร้าง:
-   * - Execution Date
-   * - Actual Execution Time Start
-   * - Actual Execution Time End
-   * - Duration Time
+   * เวลาเริ่ม Script 1 ของ Report นี้
+   * ใช้แสดง Execution Date และ Actual Execution Time Start
    */
-  executionStartedAt: Date;
+  automationStartedAt: Date;
+
+  /** เวลาเริ่ม Script 4 ของ Report นี้ */
+  script4StartedAt: Date;
+
+  /**
+   * เวลารวมของ Script 1-3 หน่วย Millisecond
+   * Script 4 จะบวกเวลาของตัวเองก่อนเขียน Duration Time
+   */
+  completedStageDurationMilliseconds: number;
 
   runId: string;
   verifiedBy: string;
