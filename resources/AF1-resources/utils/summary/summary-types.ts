@@ -24,8 +24,18 @@ export interface CompareResultRow {
 
 export interface AutomationSummaryInfo {
   reportFileName: string;
-  executionDate: string;
-  executionTime: string;
+
+  /**
+   * เวลาเริ่มทำงานจริงของ Script 4 สำหรับ Report นี้
+   *
+   * automation-summary-writer.ts จะใช้ค่านี้เพื่อสร้าง:
+   * - Execution Date
+   * - Actual Execution Time Start
+   * - Actual Execution Time End
+   * - Duration Time
+   */
+  executionStartedAt: Date;
+
   runId: string;
   verifiedBy: string;
   totalChecked: number;

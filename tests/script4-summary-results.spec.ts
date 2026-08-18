@@ -51,42 +51,6 @@ import {
 } from "../resources/AF1-resources/utils/summary/automation-summary-writer";
 
 /**
- * แปลงวันที่เป็นรูปแบบ yyyy-MM-dd
- */
-const formatDate = (
-  date: Date,
-): string => {
-  const yyyy = date.getFullYear();
-  const MM = String(
-    date.getMonth() + 1,
-  ).padStart(2, "0");
-  const dd = String(
-    date.getDate(),
-  ).padStart(2, "0");
-
-  return `${yyyy}-${MM}-${dd}`;
-};
-
-/**
- * แปลงเวลาเป็นรูปแบบ HH:mm:ss
- */
-const formatTime = (
-  date: Date,
-): string => {
-  const HH = String(
-    date.getHours(),
-  ).padStart(2, "0");
-  const mm = String(
-    date.getMinutes(),
-  ).padStart(2, "0");
-  const ss = String(
-    date.getSeconds(),
-  ).padStart(2, "0");
-
-  return `${HH}:${mm}:${ss}`;
-};
-
-/**
  * อ่านรายชื่อ Report จากค่า report
  *
  * ผู้ใช้ต้องระบุชื่อ Report ทุกครั้ง
@@ -221,15 +185,12 @@ describe(
                   compareResultPath,
                 ),
 
-              executionDate:
-                formatDate(
-                  startedAt,
-                ),
-
-              executionTime:
-                formatTime(
-                  startedAt,
-                ),
+              /**
+               * ส่ง Date จริงไปให้ Summary Writer
+               * เพื่อใช้คำนวณ Start, End และ Duration
+               */
+              executionStartedAt:
+                startedAt,
 
               runId:
                 createRunId(),
