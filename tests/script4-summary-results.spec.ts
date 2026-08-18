@@ -37,13 +37,14 @@ import {
 } from "../resources/AF1-resources/setting/uat/setting";
 
 import {
-  createRunId,
   getLatestCheckedReportPath,
   getLatestCheckedTestDataPath,
   getLatestCompareResultPath,
   getSummaryResultOutputPath,
   getSummaryTemplatePath,
 } from "../resources/AF1-resources/utils/summary/summary-file-helper";
+
+import { getAutomationRunTimingSummary } from "../resources/AF1-resources/utils/summary/automation-run-timing";
 
 import {
   readCompareResultRows,
@@ -87,6 +88,16 @@ describe(
             new Date();
 
           /**
+           * อ่านเวลา Script 1-3 ของ Report ปัจจุบัน
+           *
+           * ถ้าขั้นตอนไหนยังไม่ได้รัน ระบบจะหยุดและแจ้งชื่อขั้นตอนที่ขาด
+           */
+          const automationTiming =
+            getAutomationRunTimingSummary(
+              reportName,
+            );
+
+          /**
           * ค้นหา Original Test Data จาก Share Path
           * ตามชื่อ Report ที่กำลังสร้าง Summary
           *
@@ -125,6 +136,33 @@ describe(
             getSummaryResultOutputPath(
               reportName,
             );
+
+          /**
+           * ดึง Timestamp จากชื่อไฟล์ Output
+           *
+           * ตัวอย่างชื่อไฟล์:
+           * DS_FTX_Automation_Summary_20260818_144647-Final.xlsx
+           *
+           * ค่าที่ดึงได้:
+           * 20260818_144647
+           */
+          const outputTimestamp =
+            path
+              .basename(outputPath)
+              .match(
+                /\d{8}_\d{6}/,
+              )?.[0];
+
+          /**
+           * ป้องกันกรณีชื่อไฟล์ Output ไม่มี Timestamp
+           */
+          if (!outputTimestamp) {
+            throw new Error(
+              `Timestamp not found in Summary output file: ${outputPath}`,
+            );
+          }
+
+
 
           /**
            * ขั้นตอนที่ 2: อ่านผล Compare จาก Script 3
@@ -180,20 +218,31 @@ describe(
             checkedTestDataPath,
             compareRows,
             {
-              reportFileName:
-                path.basename(
-                  compareResultPath,
-                ),
-
               /**
-               * ส่ง Date จริงไปให้ Summary Writer
-               * เพื่อใช้คำนวณ Start, End และ Duration
-               */
-              executionStartedAt:
+              * ชื่อที่แสดงตรง Report File Name ใน Summary
+              *
+              * ตัวอย่าง:
+              * DS_FTX_Summary_Test_Result_20260818_144647
+              */
+              reportFileName:
+                `${reportName}_Summary_Test_Result_${outputTimestamp}`,
+
+              /** เวลาเริ่มต้นจาก Script 1 */
+              automationStartedAt:
+                automationTiming
+                  .automationStartedAt,
+
+              /** เวลาเริ่ม Script 4 */
+              script4StartedAt:
                 startedAt,
 
+              /** เวลารวม Script 1-3 */
+              completedStageDurationMilliseconds:
+                automationTiming
+                  .completedStageDurationMilliseconds,
+
               runId:
-                createRunId(),
+                automationTiming.runId,
 
               verifiedBy:
                 "QAD Automation",

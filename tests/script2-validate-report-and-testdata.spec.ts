@@ -62,6 +62,10 @@ import {
   validateTestData,
 } from "../resources/AF1-resources/utils/validators/test-data-report/test-data-validator";
 
+import {
+  recordAutomationRunStage,
+} from "../resources/AF1-resources/utils/summary/automation-run-timing";
+
 /**
  * ตรวจสอบ Report 1 รายการ
  *
@@ -331,9 +335,25 @@ describe(
       it(
         `Validate latest ${selectedReport} Report header`,
         async () => {
-          await validateSelectedReport(
-            selectedReport,
-          );
+          const stageStartedAt =
+            new Date();
+
+          try {
+            await validateSelectedReport(
+              selectedReport,
+            );
+          } finally {
+            /**
+             * บันทึกเฉพาะเวลาตรวจ Report Header
+             * ไม่รวมเวลาที่ใช้กับ Report อื่น
+             */
+            recordAutomationRunStage(
+              selectedReport,
+              "SCRIPT_2_REPORT_HEADER",
+              stageStartedAt,
+              new Date(),
+            );
+          }
         },
       );
     }
@@ -393,6 +413,10 @@ describe(
       it(
         `Validate ${selectedReport} Test Data header and fields`,
         async () => {
+          const stageStartedAt =
+            new Date();
+
+          try {
           console.log(
             "========================================",
           );
@@ -469,6 +493,18 @@ describe(
           console.log(
             "========================================",
           );
+          } finally {
+            /**
+             * Script 2 มีสองช่วง จึงเก็บเวลาตรวจ Test Data
+             * แยกจากเวลาตรวจ Report Header
+             */
+            recordAutomationRunStage(
+              selectedReport,
+              "SCRIPT_2_TEST_DATA",
+              stageStartedAt,
+              new Date(),
+            );
+          }
         },
       );
     }

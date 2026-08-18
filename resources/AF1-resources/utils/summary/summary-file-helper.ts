@@ -84,11 +84,18 @@ const normalizeReportName = (reportName: string): string => {
 export const getSummaryTemplatePath = (reportName: string): string => {
   const normalizedReportName = normalizeReportName(reportName);
 
-  const templatePath = path.resolve(
-    process.cwd(),
-    "template",
-    `${normalizedReportName}_Automation_Summary.xlsx`,
-  );
+  /**
+ * Template ถูกเก็บไว้ภายใต้ test_data/template
+ *
+ * ตัวอย่าง:
+ * test_data/template/DF_FXM_Automation_Summary.xlsx
+ */
+const templatePath = path.resolve(
+  process.cwd(),
+  "test_data",
+  "template",
+  `${normalizedReportName}_Automation_Summary.xlsx`,
+);
 
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Summary template not found: ${templatePath}`);
