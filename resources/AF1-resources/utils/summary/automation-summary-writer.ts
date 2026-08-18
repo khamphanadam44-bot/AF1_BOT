@@ -71,7 +71,7 @@ const SUMMARY_REPORT_CONFIG: Record<
 > = {
   DS_PTX: {
     reportCode: "DS_PTX",
-    summarySheetName: "DS-PTX Summary Test Results",
+    summarySheetName: "DS_PTX Summary Test Results",
     reconcileSheetName: "DS_PTX_Reconcile",
     reportSheetName: "DS_PTX",
     title: "DS_PTX AUTOMATION VERIFICATION SUMMARY",
@@ -83,7 +83,7 @@ const SUMMARY_REPORT_CONFIG: Record<
   },
   DS_FTX: {
     reportCode: "DS_FTX",
-    summarySheetName: "DS-FTX Summary Test Results",
+    summarySheetName: "DS_FTX Summary Test Results",
     reconcileSheetName: "DS_FTX_Reconcile",
     reportSheetName: "DS_FTX",
     title: "DS_FTX AUTOMATION VERIFICATION SUMMARY",
@@ -536,6 +536,7 @@ export const readCompareResultRows = async (
       "Reference TX No.",
       "Arr Number",
       "Arrangement Number",
+      "FI Arrangement Number",
       "Matching Key",
     ],
   );
@@ -923,19 +924,156 @@ const findKpiValueCell = (
   return worksheet.getCell(endCell.row + 1, startCell.col);
 };
 
+/**
+ * แปลงวันที่เป็นรูปแบบ yyyy-MM-dd
+ *
+ * ตัวอย่าง:
+ * 2026-08-18
+ */
+const formatSummaryDate = (
+  date: Date,
+): string => {
+  const yyyy = date.getFullYear();
+
+  const MM = String(
+    date.getMonth() + 1,
+  ).padStart(2, "0");
+
+  const dd = String(
+    date.getDate(),
+  ).padStart(2, "0");
+
+  return `${yyyy}-${MM}-${dd}`;
+};
+
+/**
+ * แปลงเวลาเป็นรูปแบบ HH:mm:ss
+ *
+ * ตัวอย่าง:
+ * 09:05:07
+ */
+const formatSummaryTime = (
+  date: Date,
+): string => {
+  const HH = String(
+    date.getHours(),
+  ).padStart(2, "0");
+
+  const mm = String(
+    date.getMinutes(),
+  ).padStart(2, "0");
+
+  const ss = String(
+    date.getSeconds(),
+  ).padStart(2, "0");
+
+  return `${HH}:${mm}:${ss}`;
+};
+
+/**
+ * คำนวณระยะเวลาระหว่างเวลาเริ่มและเวลาสิ้นสุด
+ * แล้วคืนค่าในรูปแบบ HH:mm:ss
+ *
+ * ตัวอย่าง:
+ * - 5 วินาที      -> 00:00:05
+ * - 2 นาที 10 วิ  -> 00:02:10
+ * - 1 ชั่วโมง     -> 01:00:00
+ */
+const formatSummaryDuration = (
+  startedAt: Date,
+  completedAt: Date,
+): string => {
+  const durationMilliseconds =
+    Math.max(
+      0,
+      completedAt.getTime() -
+      startedAt.getTime(),
+    );
+
+  const totalSeconds =
+    Math.floor(
+      durationMilliseconds / 1000,
+    );
+
+  const hours =
+    Math.floor(
+      totalSeconds / 3600,
+    );
+
+  const minutes =
+    Math.floor(
+      (totalSeconds % 3600) / 60,
+    );
+
+  const seconds =
+    totalSeconds % 60;
+
+  return [
+    String(hours).padStart(2, "0"),
+    String(minutes).padStart(2, "0"),
+    String(seconds).padStart(2, "0"),
+  ].join(":");
+};
+
 const writeSummaryInformation = (
   summarySheet: ExcelJS.Worksheet,
   info: AutomationSummaryInfo,
   config: SummaryReportConfig,
+  completedAt: Date,
 ): void => {
+  /**
+   * ชื่อ Automation Summary
+   */
   summarySheet.getCell("B2").value = config.title;
 
-  summarySheet.getCell("C5").value = info.reportFileName;
-  summarySheet.getCell("C6").value = info.executionDate;
-  summarySheet.getCell("C7").value = info.executionTime;
-  summarySheet.getCell("C8").value = info.runId;
-  summarySheet.getCell("C9").value = info.verifiedBy;
+  /**
+   * ข้อมูลการทำงานตามตำแหน่งของ Template ใหม่
+   *
+   * C6  = Report File Name
+   * C7  = Execution Date
+   * C8  = Actual Execution Time Start
+   * C9  = Actual Execution Time End
+   * C10 = Duration Time
+   * C11 = Run ID
+   * C12 = Verified By
+   */
+  summarySheet.getCell("C6").value =
+    info.reportFileName;
 
+  summarySheet.getCell("C7").value =
+    formatSummaryDate(
+      info.executionStartedAt,
+    );
+
+  summarySheet.getCell("C8").value =
+    formatSummaryTime(
+      info.executionStartedAt,
+    );
+
+  summarySheet.getCell("C9").value =
+    formatSummaryTime(
+      completedAt,
+    );
+
+  summarySheet.getCell("C10").value =
+    formatSummaryDuration(
+      info.executionStartedAt,
+      completedAt,
+    );
+
+  summarySheet.getCell("C11").value =
+    info.runId;
+
+  summarySheet.getCell("C12").value =
+    info.verifiedBy;
+
+  /**
+   * KPI Count ยังคงค้นหาจากข้อความใน Template
+   * จึงรองรับตำแหน่งที่ต่างกันของแต่ละ Report
+   *
+   * หมายเหตุ:
+   * ขั้นตอนนี้ยังไม่แก้สูตร Percentage
+   */
   findKpiValueCell(summarySheet, ["TOTAL CHECKED"]).value = info.totalChecked;
 
   findKpiValueCell(summarySheet, ["PASSED/MATCH"]).value = info.passed;
@@ -1065,6 +1203,27 @@ const applyStatusStyle = (cell: ExcelJS.Cell, status: SummaryStatus): void => {
   };
 };
 
+/**
+ * Alias ของ Header ฝั่ง Reconcile ที่ชื่อไม่เหมือนกันระหว่าง Report
+ *
+ * ตัวอย่าง:
+ * - DF_FXU ใช้ Arrangement Number
+ * - DF_FXM ใช้ FI Arrangement Number
+ *
+ * Template สามารถใช้ชื่อกลางได้ โดยระบบจะค้นหาชื่อจริงทั้งสองแบบ
+ */
+const COMPARE_HEADER_ALIASES: Record<string, string[]> = {
+  "arrangement number": [
+    "Arrangement Number",
+    "FI Arrangement Number",
+  ],
+
+  "fi arrangement type name": [
+    "Fi Arrangement Type Name",
+    "Arrangement Type Name",
+  ],
+};
+
 const getCompareValue = (
   header:
     string,
@@ -1145,7 +1304,18 @@ const getCompareValue = (
     ]);
   }
 
-  return getRecordValue(compareRow.reportValues, [header]);
+  /**
+   * ใช้ Alias ก่อน หาก Header ใน Template
+   * ไม่ตรงกับ Header จริงของ Reconcile Report
+   */
+  const headerAliases =
+    COMPARE_HEADER_ALIASES[normalized] ??
+    [header];
+
+  return getRecordValue(
+    compareRow.reportValues,
+    headerAliases,
+  );
 };
 
 const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
@@ -1901,8 +2071,6 @@ export const writeReportAutomationSummary = async (
     );
   }
 
-  writeSummaryInformation(summarySheet, summaryInfo, config);
-
   const headerRowNumber = findTemplateHeaderRowNumber(summarySheet);
 
   if (config.hasDynamicFeeColumns) {
@@ -2032,6 +2200,22 @@ export const writeReportAutomationSummary = async (
   await copyWorksheetFromFile(checkedTestDataPath, workbook, "Test Data", [
     "Test Data",
   ]);
+
+  /**
+   * จับเวลาสิ้นสุดหลังเตรียมข้อมูลทุก Worksheet เสร็จ
+   * และก่อนบันทึกไฟล์ผลลัพธ์
+   *
+   * Percentage Formula ใน Template ยังไม่ถูกแก้ในขั้นตอนนี้
+   */
+  const completedAt =
+    new Date();
+
+  writeSummaryInformation(
+    summarySheet,
+    summaryInfo,
+    config,
+    completedAt,
+  );
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   await workbook.xlsx.writeFile(outputPath);
