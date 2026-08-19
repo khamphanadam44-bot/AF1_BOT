@@ -102,8 +102,8 @@ export type ReportDateRange = {
  * จะใช้ช่วงวันที่ชุดนี้
  */
 export const datereport: ReportDateRange = {
-  dateset: "25/11/2025",
-  dateto: "27/11/2025",
+  dateset: "23/04/2026",
+  dateto: "23/04/2026",
 };
 
 /**
