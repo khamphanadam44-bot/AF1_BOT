@@ -53,16 +53,6 @@ export const FXM_THB_CURRENCY_CODE =
   "THB";
 
 /**
- * Settlement Currency ที่ระบบรองรับในปัจจุบัน
- *
- * ตอนนี้ระบบสามารถนำ Settled Amount (CCY)
- * ไปเปรียบเทียบกับ USD Equivalent Amount
- * ได้โดยตรงเฉพาะกรณีที่ Settled Currency เป็น USD
- */
-export const FXM_USD_CURRENCY_CODE =
-  "USD";
-
-/**
 * Threshold ของ DF_FXM
  *
  * ตั้งแต่ 1,000,000 USD ขึ้นไป:
@@ -74,6 +64,15 @@ export const FXM_USD_CURRENCY_CODE =
  */
 export const FXM_USD_THRESHOLD =
   1_000_000;
+
+/**
+ * วันที่เริ่มมีผลของ Requirement DF_FXM
+ *
+ * รูปแบบ:
+ * yyyy-MM-dd
+ */
+export const FXM_EFFECTIVE_DATE =
+  "2025-06-02";
 
 /**
  * Arrangement Type ที่ Requirement กำหนด

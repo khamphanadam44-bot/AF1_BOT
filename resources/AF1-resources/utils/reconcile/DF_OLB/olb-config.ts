@@ -19,21 +19,6 @@ export const OLB_TEST_DATA_HEADER_ROW =
 /** Amount ต่างกันไม่เกิน 0.01 ถือว่าตรงกัน */
 export const OLB_AMOUNT_TOLERANCE = 0.01;
 
-/** Currency ที่ DF_OLB ใช้ตรวจเงื่อนไข Expected Absence */
-export const OLB_THB_CURRENCY_CODE = "THB";
-
-/** Residency ที่ต้อง Exclude ออกจาก DF_OLB */
-export const OLB_RESIDENT_VALUE = "RESIDENT";
-
-/** เหตุผลของ Expected Absence ที่ใช้ใน Remark */
-export const OLB_EXCLUDE_REASONS = {
-  noThb: "ธุรกรรมไม่มีสกุลเงิน THB เกี่ยวข้อง",
-  resident: "คู่สัญญาเป็น Resident",
-} as const;
-
-/** จำกัดรายการใน Remark เพื่อให้ผลลัพธ์อ่านง่ายเมื่อพบ Candidate จำนวนมาก */
-export const OLB_MAX_CANDIDATES_IN_REMARK = 10;
-
 export const OLB_REPORT_FIELDS = {
   arrangementNumber: "FI Arrangement Number",
   arrangementContractDate: "Arrangement Contract Date",
@@ -49,21 +34,11 @@ export const OLB_TEST_DATA_FIELDS = {
   thbEquivalentTransferAmount: "From THB Equivalent Transfer Amount",
   cifNo: "From CIF No. (Client/Sender)",
   cifName: "From CIF Name (Client/Sender)",
-
-  // =====================================================
-  // Expected Absence / Exclude Rules
-  // =====================================================
-
-  /** Rule 1: ใช้ตรวจว่าธุรกรรมมี THB เกี่ยวข้องหรือไม่ */
-  fromCurrency: "From Currency (CCY)",
-  toCurrency: "To Currency (CCY)",
-
-  /** Rule 2: ใช้ตรวจว่าคู่สัญญาฝั่ง From เป็น Resident หรือไม่ */
-  fromResidency: "From Customer (Resident/Non Resident)",
 } as const;
 
 /**
- * Mapping กลางที่ Analyzer และส่วน Validation ใช้ร่วมกัน
+ * Mapping กลางที่ Matcher และ Analyzer ใช้ร่วมกัน
+ * ช่วยลดการเขียนชื่อ Test Data/Report Field ซ้ำหลายจุด
  */
 export const OLB_FIELD_MAPPINGS = {
   primary: {
@@ -94,15 +69,9 @@ export type OlbFieldMapping =
 
 export const OLB_REQUIRED_TEST_DATA_HEADERS = [
   OLB_TEST_DATA_FIELDS.testNo,
-
   ...Object.values(OLB_FIELD_MAPPINGS).map(
     (mapping) => mapping.testDataField,
   ),
-
-  // Expected Absence / Exclude Rules
-  OLB_TEST_DATA_FIELDS.fromCurrency,
-  OLB_TEST_DATA_FIELDS.toCurrency,
-  OLB_TEST_DATA_FIELDS.fromResidency,
 ] as const;
 
 export const OLB_REMARKS = {

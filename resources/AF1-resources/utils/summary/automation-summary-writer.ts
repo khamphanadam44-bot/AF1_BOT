@@ -21,8 +21,6 @@ import {
   SummaryStatus,
 } from "./summary-types";
 
-import { recordAutomationRunStage } from "./automation-run-timing";
-
 const COLORS = {
   PASS_FILL: "FFC6EFCE",
   PASS_TEXT: "FF006100",
@@ -73,7 +71,7 @@ const SUMMARY_REPORT_CONFIG: Record<
 > = {
   DS_PTX: {
     reportCode: "DS_PTX",
-    summarySheetName: "DS_PTX Summary Test Results",
+    summarySheetName: "DS-PTX Summary Test Results",
     reconcileSheetName: "DS_PTX_Reconcile",
     reportSheetName: "DS_PTX",
     title: "DS_PTX AUTOMATION VERIFICATION SUMMARY",
@@ -85,7 +83,7 @@ const SUMMARY_REPORT_CONFIG: Record<
   },
   DS_FTX: {
     reportCode: "DS_FTX",
-    summarySheetName: "DS_FTX Summary Test Results",
+    summarySheetName: "DS-FTX Summary Test Results",
     reconcileSheetName: "DS_FTX_Reconcile",
     reportSheetName: "DS_FTX",
     title: "DS_FTX AUTOMATION VERIFICATION SUMMARY",
@@ -120,7 +118,19 @@ const SUMMARY_REPORT_CONFIG: Record<
     reportSourceSheetNames: ["DS_FTU Transaction", "DS_FTU"],
   },
 
-  /**
+    /**
+   * ====================================================
+   * DF_FXU
+   * ====================================================
+   *
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   *
+   * Summary Template:
+   * - Column B-I เป็นข้อมูลผล Reconcile
+   * - Column J เป็นช่องว่างคั่นกลาง
+   * - Column K เป็นต้นไปเป็นข้อมูล Test Data
+   */
+    /**
    * ====================================================
    * DF_FXU
    * ====================================================
@@ -143,47 +153,59 @@ const SUMMARY_REPORT_CONFIG: Record<
    *   ข้อมูลจาก Test Data
    */
   DF_FXU: {
-    reportCode: "DF_FXU",
+    reportCode:
+      "DF_FXU",
 
-    summarySheetName: "DF_FXU_Summary Result",
+    summarySheetName:
+      "DF_FXU_Summary Result",
 
-    reconcileSheetName: "DF_FXU_Reconcile",
+    reconcileSheetName:
+      "DF_FXU_Reconcile",
 
-    reportSheetName: "DF_FXU",
+    reportSheetName:
+      "DF_FXU",
 
-    title: "DF-FXU AUTOMATION VERIFICATION SUMMARY",
+    title:
+      "DF-FXU AUTOMATION VERIFICATION SUMMARY",
 
     /**
      * DF_FXU ไม่มี Fee Group
      */
-    hasDynamicFeeColumns: false,
+    hasDynamicFeeColumns:
+      false,
 
     /**
      * Column สุดท้ายของข้อมูล
      * ฝั่ง Reconcile คือ Column J
      */
-    compareLastColumn: 10,
+    compareLastColumn:
+      10,
 
     /**
      * ข้อมูล Test Data
      * เริ่มที่ Column L
      */
-    testDataFirstColumn: 12,
+    testDataFirstColumn:
+      12,
 
     /**
      * Test Case ของ DF_FXU
      * แสดงแยกหนึ่งแถวต่อหนึ่งรายการ
      */
-    mergeRepeatedTestDataRows: false,
+    mergeRepeatedTestDataRows:
+      false,
 
     /**
      * ชื่อ Worksheet ที่รองรับ
      * จากไฟล์ Export จริง
      */
-    reportSourceSheetNames: ["DF_FXU Transaction", "DF_FXU"],
+    reportSourceSheetNames: [
+      "DF_FXU Transaction",
+      "DF_FXU",
+    ],
   },
 
-  /**
+     /**
    * ====================================================
    * DF_OLB
    * ====================================================
@@ -195,25 +217,37 @@ const SUMMARY_REPORT_CONFIG: Record<
    * - Column J เป็นต้นไปเป็นข้อมูล Test Data
    */
   DF_OLB: {
-    reportCode: "DF_OLB",
+    reportCode:
+      "DF_OLB",
 
-    summarySheetName: "DF_OLB_Summary Result",
+    summarySheetName:
+      "DF_OLB_Summary Result",
 
-    reconcileSheetName: "DF_OLB_Reconcile",
+    reconcileSheetName:
+      "DF_OLB_Reconcile",
 
-    reportSheetName: "DF_OLB",
+    reportSheetName:
+      "DF_OLB",
 
-    title: "DF-OLB AUTOMATION VERIFICATION SUMMARY",
+    title:
+      "DF-OLB AUTOMATION VERIFICATION SUMMARY",
 
-    hasDynamicFeeColumns: false,
+    hasDynamicFeeColumns:
+      false,
 
-    compareLastColumn: 8,
+    compareLastColumn:
+      8,
 
-    testDataFirstColumn: 10,
+    testDataFirstColumn:
+      10,
 
-    mergeRepeatedTestDataRows: false,
+    mergeRepeatedTestDataRows:
+      false,
 
-    reportSourceSheetNames: ["DF_OLB Transaction", "DF_OLB"],
+    reportSourceSheetNames: [
+      "DF_OLB Transaction",
+      "DF_OLB",
+    ],
   },
 
   /**
@@ -223,25 +257,37 @@ const SUMMARY_REPORT_CONFIG: Record<
    * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
    */
   DF_FXM: {
-    reportCode: "DF_FXM",
+    reportCode:
+      "DF_FXM",
 
-    summarySheetName: "DF_FXM_Summary Result",
+    summarySheetName:
+      "DF_FXM_Summary Result",
 
-    reconcileSheetName: "DF_FXM_Reconcile",
+    reconcileSheetName:
+      "DF_FXM_Reconcile",
 
-    reportSheetName: "DF_FXM",
+    reportSheetName:
+      "DF_FXM",
 
-    title: "DF-FXM AUTOMATION VERIFICATION SUMMARY",
+    title:
+      "DF-FXM AUTOMATION VERIFICATION SUMMARY",
 
-    hasDynamicFeeColumns: false,
+    hasDynamicFeeColumns:
+      false,
 
-    compareLastColumn: 10,
+    compareLastColumn:
+      10,
 
-    testDataFirstColumn: 12,
+    testDataFirstColumn:
+      12,
 
-    mergeRepeatedTestDataRows: false,
+    mergeRepeatedTestDataRows:
+      false,
 
-    reportSourceSheetNames: ["DF_FXM Transaction", "DF_FXM"],
+    reportSourceSheetNames: [
+      "DF_FXM Transaction",
+      "DF_FXM",
+    ],
   },
 };
 
@@ -267,13 +313,20 @@ const normalizeReportName = (reportName: string): SupportedSummaryReport => {
     .replace(/-/g, "_");
 
   if (
-    normalizedReportName === "DS_PTX" ||
-    normalizedReportName === "DS_FTX" ||
-    normalizedReportName === "DS_LTX" ||
-    normalizedReportName === "DS_FTU" ||
-    normalizedReportName === "DF_FXU" ||
-    normalizedReportName === "DF_OLB" ||
-    normalizedReportName === "DF_FXM"
+    normalizedReportName ===
+    "DS_PTX" ||
+    normalizedReportName ===
+    "DS_FTX" ||
+    normalizedReportName ===
+    "DS_LTX" ||
+    normalizedReportName ===
+    "DS_FTU" ||
+    normalizedReportName ===
+    "DF_FXU" ||
+    normalizedReportName ===
+    "DF_OLB" ||
+    normalizedReportName ===
+    "DF_FXM"
   ) {
     return normalizedReportName;
   }
@@ -362,7 +415,7 @@ const findCompareHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
 
   throw new Error(
     "Compare result header not found. Required headers: " +
-      '"Test Script No.", either "Test Result" or "Result", and "Remark".',
+    '"Test Script No.", either "Test Result" or "Result", and "Remark".',
   );
 };
 
@@ -486,16 +539,18 @@ export const readCompareResultRows = async (
    *
    * DF_FXU ใช้ Arrangement Number
    */
-  const matchingKeyColumn = getOptionalColumn(headerMap, [
-    "Reference Transaction Number",
-    "Ref. TX No.",
-    "Ref TX No",
-    "Reference TX No.",
-    "Arr Number",
-    "Arrangement Number",
-    "FI Arrangement Number",
-    "Matching Key",
-  ]);
+  const matchingKeyColumn = getOptionalColumn(
+    headerMap,
+    [
+      "Reference Transaction Number",
+      "Ref. TX No.",
+      "Ref TX No",
+      "Reference TX No.",
+      "Arr Number",
+      "Arrangement Number",
+      "Matching Key",
+    ],
+  );
 
   const rows: CompareResultRow[] = [];
 
@@ -844,7 +899,7 @@ const findKpiValueCell = (
   if (!headerCell) {
     throw new Error(
       `KPI header not found in worksheet "${worksheet.name}": ` +
-        headerAliases.join(" / "),
+      headerAliases.join(" / "),
     );
   }
 
@@ -880,115 +935,19 @@ const findKpiValueCell = (
   return worksheet.getCell(endCell.row + 1, startCell.col);
 };
 
-/**
- * แปลงวันที่เป็นรูปแบบ yyyy-MM-dd
- *
- * ตัวอย่าง:
- * 2026-08-18
- */
-const formatSummaryDate = (date: Date): string => {
-  const yyyy = date.getFullYear();
-
-  const MM = String(date.getMonth() + 1).padStart(2, "0");
-
-  const dd = String(date.getDate()).padStart(2, "0");
-
-  return `${yyyy}-${MM}-${dd}`;
-};
-
-/**
- * แปลงเวลาเป็นรูปแบบ HH:mm:ss
- *
- * ตัวอย่าง:
- * 09:05:07
- */
-const formatSummaryTime = (date: Date): string => {
-  const HH = String(date.getHours()).padStart(2, "0");
-
-  const mm = String(date.getMinutes()).padStart(2, "0");
-
-  const ss = String(date.getSeconds()).padStart(2, "0");
-
-  return `${HH}:${mm}:${ss}`;
-};
-
-/**
- * คำนวณระยะเวลาระหว่างเวลาเริ่มและเวลาสิ้นสุด
- * แล้วคืนค่าในรูปแบบ HH:mm:ss
- *
- * ตัวอย่าง:
- * - 5 วินาที      -> 00:00:05
- * - 2 นาที 10 วิ  -> 00:02:10
- * - 1 ชั่วโมง     -> 01:00:00
- */
-const formatSummaryDuration = (durationMilliseconds: number): string => {
-  const totalSeconds = Math.floor(Math.max(0, durationMilliseconds) / 1000);
-
-  const hours = Math.floor(totalSeconds / 3600);
-
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-
-  const seconds = totalSeconds % 60;
-
-  return [
-    String(hours).padStart(2, "0"),
-    String(minutes).padStart(2, "0"),
-    String(seconds).padStart(2, "0"),
-  ].join(":");
-};
-
 const writeSummaryInformation = (
   summarySheet: ExcelJS.Worksheet,
   info: AutomationSummaryInfo,
   config: SummaryReportConfig,
-  completedAt: Date,
 ): void => {
-  /**
-   * ชื่อ Automation Summary
-   */
   summarySheet.getCell("B2").value = config.title;
 
-  /**
-   * ข้อมูลการทำงานตามตำแหน่งของ Template
-   *
-   * Template ใหม่ย้ายข้อมูลขึ้นมาจากแถว
-   * เป็นแถว 4-10
-   *
-   * C4  = Report File Name
-   * C5  = Execution Date
-   * C6  = Actual Execution Time Start
-   * C7  = Actual Execution Time End
-   * C8  = Duration Time
-   * C9  = Run ID
-   * C10 = Verified By
-   */
-  summarySheet.getCell("C4").value = info.reportFileName;
+  summarySheet.getCell("C5").value = info.reportFileName;
+  summarySheet.getCell("C6").value = info.executionDate;
+  summarySheet.getCell("C7").value = info.executionTime;
+  summarySheet.getCell("C8").value = info.runId;
+  summarySheet.getCell("C9").value = info.verifiedBy;
 
-  summarySheet.getCell("C5").value = formatSummaryDate(
-    info.automationStartedAt,
-  );
-
-  summarySheet.getCell("C6").value = formatSummaryTime(
-    info.automationStartedAt,
-  );
-
-  summarySheet.getCell("C7").value = formatSummaryTime(completedAt);
-
-  summarySheet.getCell("C8").value = formatSummaryDuration(
-    info.completedStageDurationMilliseconds +
-      Math.max(0, completedAt.getTime() - info.script4StartedAt.getTime()),
-  );
-
-  summarySheet.getCell("C9").value = info.runId;
-
-  summarySheet.getCell("C10").value = info.verifiedBy;
-  /**
-   * KPI Count ยังคงค้นหาจากข้อความใน Template
-   * จึงรองรับตำแหน่งที่ต่างกันของแต่ละ Report
-   *
-   * หมายเหตุ:
-   * ขั้นตอนนี้ยังไม่แก้สูตร Percentage
-   */
   findKpiValueCell(summarySheet, ["TOTAL CHECKED"]).value = info.totalChecked;
 
   findKpiValueCell(summarySheet, ["PASSED/MATCH"]).value = info.passed;
@@ -1014,7 +973,7 @@ const findMatchingTestDataRow = (
   /**
    * วิธีที่ 1:
    * ค้นจาก Test No. ตามปกติ
-   *
+   * 
    */
   const testNoCandidates =
     testDataResult.testDataRowsByTestNo.get(lookupValue) ?? [];
@@ -1026,8 +985,8 @@ const findMatchingTestDataRow = (
   if (testNoCandidates.length > 1) {
     throw new Error(
       `[${config.reportCode}] Ambiguous Original Test Data: ` +
-        `Test No. "${lookupValue}" matched ` +
-        `${testNoCandidates.length} rows.`,
+      `Test No. "${lookupValue}" matched ` +
+      `${testNoCandidates.length} rows.`,
     );
   }
 
@@ -1058,7 +1017,7 @@ const findMatchingTestDataRow = (
 
     throw new Error(
       `[${config.reportCode}] Original Test Data row not found: ` +
-        `Row Number = ${sourceRowNumber}.`,
+      `Row Number = ${sourceRowNumber}.`,
     );
   }
 
@@ -1079,15 +1038,15 @@ const findMatchingTestDataRow = (
   if (transactionIdCandidates.length > 1) {
     throw new Error(
       `[${config.reportCode}] Ambiguous Original Test Data: ` +
-        `Transaction ID "${lookupValue}" matched ` +
-        `${transactionIdCandidates.length} rows.`,
+      `Transaction ID "${lookupValue}" matched ` +
+      `${transactionIdCandidates.length} rows.`,
     );
   }
 
   throw new Error(
     `[${config.reportCode}] Original Test Data not found: ` +
-      `Test No., Transaction ID or Row Reference = ` +
-      `"${lookupValue}".`,
+    `Test No., Transaction ID or Row Reference = ` +
+    `"${lookupValue}".`,
   );
 };
 
@@ -1118,31 +1077,17 @@ const applyStatusStyle = (cell: ExcelJS.Cell, status: SummaryStatus): void => {
   };
 };
 
-/**
- * Alias ของ Header ฝั่ง Reconcile ที่ชื่อไม่เหมือนกันระหว่าง Report
- *
- * ตัวอย่าง:
- * - DF_FXU ใช้ Arrangement Number
- * - DF_FXM ใช้ FI Arrangement Number
- *
- * Template สามารถใช้ชื่อกลางได้ โดยระบบจะค้นหาชื่อจริงทั้งสองแบบ
- */
-const COMPARE_HEADER_ALIASES: Record<string, string[]> = {
-  "arrangement number": ["Arrangement Number", "FI Arrangement Number"],
-
-  "fi arrangement type name": [
-    "Fi Arrangement Type Name",
-    "Arrangement Type Name",
-  ],
-};
-
 const getCompareValue = (
-  header: string,
+  header:
+    string,
 
-  compareRow: CompareResultRow,
+  compareRow:
+    CompareResultRow,
 
-  config: SummaryReportConfig,
+  config:
+    SummaryReportConfig,
 ): unknown => {
+
   const normalized = normalizeHeader(header);
 
   if (normalized === "test result") {
@@ -1154,7 +1099,10 @@ const getCompareValue = (
       return compareRow.remark;
     }
 
-    if (compareRow.status === "PASS") {
+        if (
+      compareRow.status ===
+      "PASS"
+    ) {
       /**
        * DF_FXU:
        *
@@ -1170,7 +1118,10 @@ const getCompareValue = (
        * compareRow.remark และถูก Return
        * ก่อนเข้ามาถึงเงื่อนไขนี้แล้ว
        */
-      if (config.reportCode === "DF_FXU") {
+      if (
+        config.reportCode ===
+        "DF_FXU"
+      ) {
         return "";
       }
 
@@ -1206,23 +1157,22 @@ const getCompareValue = (
     ]);
   }
 
-  /**
-   * ใช้ Alias ก่อน หาก Header ใน Template
-   * ไม่ตรงกับ Header จริงของ Reconcile Report
-   */
-  const headerAliases = COMPARE_HEADER_ALIASES[normalized] ?? [header];
-
-  return getRecordValue(compareRow.reportValues, headerAliases);
+  return getRecordValue(compareRow.reportValues, [header]);
 };
 
 const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
-  /**
+    /**
    * DF_FXU Template ใหม่ใช้ Test No.
    *
    * ยังคงรองรับ Test Script No.
    * ของ Template Report เดิม
    */
-  "test no.": ["Test No.", "Test No", "Test Script No.", "Test Script No"],
+  "test no.": [
+    "Test No.",
+    "Test No",
+    "Test Script No.",
+    "Test Script No",
+  ],
 
   "test script no.": [
     "Test No.",
@@ -1236,7 +1186,7 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "Test Scenario",
   ],
   "txn date": ["Txn Date", "Transaction Date"],
-  /**
+    /**
    * รองรับทั้งรูปแบบที่มีและไม่มีช่องว่าง
    * ก่อนเครื่องหมาย /
    */
@@ -1266,11 +1216,17 @@ const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
     "From Account (A/C Client/Sender)",
   ],
   "from currency (ccy)": ["From Currency (CCY)"],
-  "to currency (ccy)": ["To Currency (CCY)"],
+    "to currency (ccy)": [
+    "To Currency (CCY)",
+  ],
+  
+  "from customer type code": [
+    "From Customer Type Code",
+  ],
 
-  "from customer type code": ["From Customer Type Code"],
-
-  "from customer type description": ["From Customer Type Description"],
+  "from customer type description": [
+    "From Customer Type Description",
+  ],
   "from debit amount": ["From Debit Amount", "From Debit Amount "],
   "from transfer amount": ["From Transfer Amount"],
   "from customer (resident/non resident)": [
@@ -1790,11 +1746,26 @@ const ensureDynamicFeeColumns = (
  * จึงต้องรองรับทั้งสองรูปแบบ
  * เพื่อไม่ให้กระทบ Report อื่น
  */
-const findTemplateHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
-  const maxRowToCheck = Math.min(30, worksheet.rowCount);
+const findTemplateHeaderRowNumber = (
+  worksheet:
+    ExcelJS.Worksheet,
+): number => {
+  const maxRowToCheck =
+    Math.min(
+      30,
+      worksheet.rowCount,
+    );
 
-  for (let rowNumber = 1; rowNumber <= maxRowToCheck; rowNumber += 1) {
-    const headerMap = buildHeaderMap(worksheet, rowNumber);
+  for (
+    let rowNumber = 1;
+    rowNumber <= maxRowToCheck;
+    rowNumber += 1
+  ) {
+    const headerMap =
+      buildHeaderMap(
+        worksheet,
+        rowNumber,
+      );
 
     /**
      * รองรับชื่อ Header:
@@ -1805,14 +1776,26 @@ const findTemplateHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
      * - Test Script No
      */
     const hasTestNumberHeader =
-      headerMap.has("test no.") ||
-      headerMap.has("test no") ||
-      headerMap.has("test script no.") ||
-      headerMap.has("test script no");
+      headerMap.has(
+        "test no.",
+      ) ||
+      headerMap.has(
+        "test no",
+      ) ||
+      headerMap.has(
+        "test script no.",
+      ) ||
+      headerMap.has(
+        "test script no",
+      );
 
     if (
-      headerMap.has("test result") &&
-      headerMap.has("reason") &&
+      headerMap.has(
+        "test result",
+      ) &&
+      headerMap.has(
+        "reason",
+      ) &&
       hasTestNumberHeader
     ) {
       return rowNumber;
@@ -1821,9 +1804,9 @@ const findTemplateHeaderRowNumber = (worksheet: ExcelJS.Worksheet): number => {
 
   throw new Error(
     `Summary detail header row not found in worksheet: ` +
-      `${worksheet.name}. Required headers: ` +
-      `"Test Result", "Reason", and either ` +
-      `"Test No." or "Test Script No.".`,
+    `${worksheet.name}. Required headers: ` +
+    `"Test Result", "Reason", and either ` +
+    `"Test No." or "Test Script No.".`,
   );
 };
 /** Merge ฝั่ง Test Data เมื่อ LTX หลาย Reconcile Row ใช้ Test Data แถวเดียวกัน */
@@ -1930,6 +1913,8 @@ export const writeReportAutomationSummary = async (
     );
   }
 
+  writeSummaryInformation(summarySheet, summaryInfo, config);
+
   const headerRowNumber = findTemplateHeaderRowNumber(summarySheet);
 
   if (config.hasDynamicFeeColumns) {
@@ -1973,11 +1958,12 @@ export const writeReportAutomationSummary = async (
       const outputCell = outputRow.getCell(columnNumber);
 
       if (columnNumber <= config.compareLastColumn) {
-        outputCell.value = getCompareValue(
-          header,
-          compareRow,
-          config,
-        ) as ExcelJS.CellValue;
+                outputCell.value =
+          getCompareValue(
+            header,
+            compareRow,
+            config,
+          ) as ExcelJS.CellValue;
       } else if (columnNumber >= config.testDataFirstColumn) {
         outputCell.value = getTestDataValue(
           header,
@@ -2007,18 +1993,10 @@ export const writeReportAutomationSummary = async (
     config,
   );
 
-  /**
-   * ตั้งค่า Worksheet Summary Result
-   *
-   * - Freeze แถว Header
-   * - ซ่อน Gridlines เฉพาะชีท Summary Result
-   * - ไม่กระทบชีท Reconcile, Report และ Test Data
-   */
   summarySheet.views = [
     {
       state: "frozen",
       ySplit: headerRowNumber,
-      showGridLines: false,
     },
   ];
 
@@ -2067,27 +2045,6 @@ export const writeReportAutomationSummary = async (
     "Test Data",
   ]);
 
-  /**
-   * จับเวลาสิ้นสุดหลังเตรียมข้อมูลทุก Worksheet เสร็จ
-   * และก่อนบันทึกไฟล์ผลลัพธ์
-   *
-   * Percentage Formula ใน Template ยังไม่ถูกแก้ในขั้นตอนนี้
-   */
-  const completedAt = new Date();
-
-  writeSummaryInformation(summarySheet, summaryInfo, config, completedAt);
-
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   await workbook.xlsx.writeFile(outputPath);
-
-  /**
-   * บันทึกเวลา Script 4 หลังสร้างไฟล์สำเร็จ
-   * หากรัน Script 4 ซ้ำ ระบบจะใช้เวลารอบล่าสุดแทนรอบเดิม
-   */
-  recordAutomationRunStage(
-    reportName,
-    "SCRIPT_4_SUMMARY",
-    summaryInfo.script4StartedAt,
-    completedAt,
-  );
 };

@@ -4,10 +4,12 @@
  * Business Rule ของ DF_FXM สำหรับ Script 3
  *
  * หน้าที่:
- * 1. Normalize ค่าที่ใช้ใน Business Rule
- * 2. แปลง Settled Amount เป็นตัวเลข
- * 3. ตรวจข้อมูลบังคับที่ใช้ใน Business Rule
- * 4. ตรวจและระบุทิศทางของ FX Transaction
+ * 1. ตรวจข้อมูลบังคับที่ใช้ใน Business Rule
+ * 2. ตรวจว่ารายการเป็น FX Conversion หรือไม่
+ * 3. แยกทิศทางซื้อหรือขายเงินตราต่างประเทศ
+ * 4. ตรวจ Threshold ต่ำกว่า 1,000,000 USD
+ * 5. ตัดสินว่ารายการต้องมีหรือไม่ต้องมีใน DF_FXM
+ * 6. สร้าง Expected Leg Type และ Leg Type Name
  *
  * ไฟล์นี้ไม่มีการอ่านหรือเขียน Excel
  * จึงสามารถใช้ทดสอบ Business Rule แยกจาก Reconcile Flow ได้
@@ -19,9 +21,12 @@ import {
 } from "../shared/record";
 
 import {
+  FXM_LEG_TYPE_NAMES,
+  FXM_LEG_TYPES,
   FXM_REPORT_CODE,
   FXM_TEST_DATA_FIELDS,
   FXM_THB_CURRENCY_CODE,
+  FXM_USD_THRESHOLD,
 } from "./fxm-config";
 
 /**
@@ -50,6 +55,53 @@ export type FXMDirection =
   | "NOT_FX"
   | "UNKNOWN";
 
+/**
+ * ผลการตัดสินว่ารายการควรอยู่ใน DF_FXM หรือไม่
+ *
+ * MUST_EXIST:
+ * ต้องพบรายการใน DF_FXM
+ *
+ * MUST_NOT_EXIST:
+ * ต้องไม่พบรายการใน DF_FXM
+ *
+ * CANNOT_DECIDE:
+ * ข้อมูลไม่เพียงพอสำหรับตัดสิน
+ */
+export type FXMPresenceExpectation =
+  | "MUST_EXIST"
+  | "MUST_NOT_EXIST"
+  | "CANNOT_DECIDE";
+
+/**
+ * ผลการประเมิน Business Rule ของ Test Data หนึ่งแถว
+ */
+export interface FXMRuleDecision {
+  direction: FXMDirection;
+
+  expectation:
+    FXMPresenceExpectation;
+
+  usdEquivalentAmount?:
+    number;
+
+  expectedLegType?:
+    string;
+
+  expectedLegTypeName?:
+    string;
+
+  validationErrors:
+    string[];
+
+  passRemark:
+    string;
+
+  failRemark:
+    string;
+
+  requiresReview:
+    boolean;
+}
 
 /**
  * Normalize ค่าทั่วไป
@@ -111,6 +163,21 @@ export const parseFXMAmount = (
   )
     ? amount
     : null;
+};
+
+/**
+ * จัดรูปแบบ Amount สำหรับแสดงใน Remark
+ */
+const formatAmount = (
+  amount: number,
+): string => {
+  return amount.toLocaleString(
+    "en-US",
+    {
+      maximumFractionDigits:
+        2,
+    },
+  );
 };
 
 /**
@@ -312,5 +379,334 @@ export class FXMRuleEvaluator {
     return "CROSS_CURRENCY";
   }
 
+  /**
+   * คืน Expected Leg Type จากทิศทางของรายการ
+   */
+  getExpectedLegType(
+    direction: FXMDirection,
+  ): string | undefined {
+    if (
+      direction ===
+      "BUY_FCY"
+    ) {
+      return FXM_LEG_TYPES
+        .buyForeignCurrency;
+    }
 
+    if (
+      direction ===
+      "SELL_FCY"
+    ) {
+      return FXM_LEG_TYPES
+        .sellForeignCurrency;
+    }
+
+    /**
+     * CROSS_CURRENCY ยังไม่สามารถระบุ Leg Type ได้
+     * จนกว่าจะได้ Settlement/Intermediary Use Case
+     */
+    return undefined;
+  }
+
+  /**
+   * คืน Expected Leg Type Name
+   * ให้สัมพันธ์กับ Expected Leg Type
+   */
+  getExpectedLegTypeName(
+    direction: FXMDirection,
+  ): string | undefined {
+    if (
+      direction ===
+      "BUY_FCY"
+    ) {
+      return FXM_LEG_TYPE_NAMES[
+        FXM_LEG_TYPES
+          .buyForeignCurrency
+      ];
+    }
+
+    if (
+      direction ===
+      "SELL_FCY"
+    ) {
+      return FXM_LEG_TYPE_NAMES[
+        FXM_LEG_TYPES
+          .sellForeignCurrency
+      ];
+    }
+
+    return undefined;
+  }
+
+  /**
+   * ประเมิน Test Data หนึ่งแถว
+   *
+   * ลำดับการตัดสิน:
+   * 1. ตรวจข้อมูลบังคับ
+   * 2. ตรวจ FX Conversion
+   * 3. ตรวจ Threshold
+   * 4. สร้าง Expected Leg Type
+   */
+  evaluate(
+    record: ReconcileRecord,
+  ): FXMRuleDecision {
+    const validationErrors =
+      this.validateRequiredRuleFields(
+        record,
+      );
+
+    const direction =
+      this.getDirection(
+        record,
+      );
+
+    const usdEquivalentAmount =
+      parseFXMAmount(
+        record.get(
+          FXM_TEST_DATA_FIELDS
+            .settledAmount,
+        ),
+      );
+
+    const expectedLegType =
+      this.getExpectedLegType(
+        direction,
+      );
+
+    const expectedLegTypeName =
+      this.getExpectedLegTypeName(
+        direction,
+      );
+
+    /**
+     * ข้อมูลที่ต้องใช้ตัดสินไม่ครบ
+     */
+    if (
+      validationErrors.length >
+      0
+    ) {
+      return {
+        direction,
+        expectation:
+          "CANNOT_DECIDE",
+
+        usdEquivalentAmount:
+          usdEquivalentAmount ??
+          undefined,
+
+        expectedLegType,
+        expectedLegTypeName,
+
+        validationErrors,
+
+        passRemark:
+          "",
+
+        failRemark:
+          validationErrors.join(
+            "\n",
+          ),
+
+        requiresReview:
+          true,
+      };
+    }
+
+    /**
+     * Source Currency เท่ากับ Destination Currency
+     *
+     * รายการไม่ใช่ FX Conversion
+     * จึงต้องไม่พบใน DF_FXM
+     */
+    if (
+      direction ===
+      "NOT_FX"
+    ) {
+      return {
+        direction,
+        expectation:
+          "MUST_NOT_EXIST",
+
+        usdEquivalentAmount:
+          usdEquivalentAmount ??
+          undefined,
+
+        expectedLegType,
+        expectedLegTypeName,
+
+        validationErrors: [],
+
+        passRemark:
+          "Source Currency เท่ากับ Destination Currency " +
+          "จึงไม่ใช่ FX Conversion และต้องไม่พบใน DF_FXM",
+
+        failRemark:
+          "พบรายการใน DF_FXM ทั้งที่ Source Currency " +
+          "เท่ากับ Destination Currency",
+
+        requiresReview:
+          false,
+      };
+    }
+
+    /**
+     * ป้องกันกรณี Amount เป็น null
+     *
+     * ตามปกติกรณีนี้จะถูกตรวจพบจาก
+     * validateRequiredRuleFields() ก่อนแล้ว
+     */
+    if (
+      usdEquivalentAmount ===
+      null
+    ) {
+      return {
+        direction,
+        expectation:
+          "CANNOT_DECIDE",
+
+        expectedLegType,
+        expectedLegTypeName,
+
+        validationErrors: [
+          `[${FXM_REPORT_CODE}] ` +
+          `"${FXM_TEST_DATA_FIELDS.settledAmount}" ` +
+          `is invalid.`,
+        ],
+
+        passRemark:
+          "",
+
+        failRemark:
+          `ไม่สามารถอ่านค่า ` +
+          `${FXM_TEST_DATA_FIELDS.settledAmount}`,
+
+        requiresReview:
+          true,
+      };
+    }
+
+        /**
+     * ต่ำกว่า 1,000,000 USD
+     *
+     * ยอดไม่เข้าเงื่อนไขของ DF_FXM
+     * จึงต้องไม่พบใน DF_FXM
+     * และต้องพิจารณารายงานใน DF_FXU
+     */
+    if (
+      usdEquivalentAmount <
+      FXM_USD_THRESHOLD
+    ) {
+      return {
+        direction,
+
+        expectation:
+          "MUST_NOT_EXIST",
+
+        usdEquivalentAmount,
+
+        expectedLegType,
+        expectedLegTypeName,
+
+        validationErrors: [],
+
+        passRemark:
+          `USD Equivalent Amount = ` +
+          `${formatAmount(usdEquivalentAmount)} ` +
+          `ซึ่งต่ำกว่า ` +
+          `${formatAmount(FXM_USD_THRESHOLD)} USD ` +
+          `จึงต้องไม่พบใน DF_FXM`,
+
+        failRemark:
+          `พบรายการใน DF_FXM ทั้งที่ ` +
+          `USD Equivalent Amount = ` +
+          `${formatAmount(usdEquivalentAmount)} ` +
+          `ซึ่งต้องพิจารณารายงานใน DF_FXU`,
+
+        requiresReview:
+          false,
+      };
+    }
+
+    /**
+     * Cross Currency และยอดตั้งแต่
+     * 1,000,000 USD ขึ้นไป
+     *
+     * Requirement ระบุว่าต้องใช้ Settlement Currency
+     * และ Payment Intermediary เช่น NIUM
+     * ช่วยตัดสินว่าใครเป็นผู้ทำ FX Conversion
+     *
+     * ขณะนี้ยังไม่มี Use Case ที่ยืนยันครบถ้วน
+     * จึงยังไม่สามารถตัดสินว่ารายการ
+     * ต้องพบหรือไม่ต้องพบใน DF_FXM
+     */
+    if (
+      direction ===
+      "CROSS_CURRENCY"
+    ) {
+      return {
+        direction,
+
+        expectation:
+          "CANNOT_DECIDE",
+
+        usdEquivalentAmount,
+
+        expectedLegType,
+        expectedLegTypeName,
+
+        validationErrors: [],
+
+        passRemark:
+          "",
+
+        failRemark:
+          "Cross Currency: ยังไม่สามารถตัดสินได้ เนื่องจาก " +
+          "Requirement ของ Settlement Currency และ " +
+          "Payment Intermediary เช่น NIUM ยังไม่ครบถ้วน",
+
+        requiresReview:
+          true,
+      };
+    }
+
+    /**
+     * เป็น FX Conversion ที่มีขา THB
+     * และยอดตั้งแต่ 1,000,000 USD ขึ้นไป
+     * จึงต้องพบใน DF_FXM
+     */
+    return {
+      direction,
+
+      expectation:
+        "MUST_EXIST",
+
+      usdEquivalentAmount,
+
+      expectedLegType,
+      expectedLegTypeName,
+
+      validationErrors: [],
+
+      passRemark:
+        `เป็น FX Conversion และ ` +
+        `USD Equivalent Amount = ` +
+        `${formatAmount(usdEquivalentAmount)} ` +
+        `ซึ่งไม่น้อยกว่า ` +
+        `${formatAmount(FXM_USD_THRESHOLD)} USD`,
+
+      failRemark:
+        `ไม่พบรายการใน DF_FXM ทั้งที่เป็น FX Conversion ` +
+        `และ USD Equivalent Amount ตั้งแต่ ` +
+        `${formatAmount(FXM_USD_THRESHOLD)} USD ขึ้นไป`,
+
+      /**
+       * Cross Currency ถูกแยกไปตัดสินก่อนหน้านี้แล้ว
+       *
+       * จุดนี้เหลือเฉพาะ FX Conversion ที่มีขา THB
+       * และสามารถตัดสิน Leg Type ได้
+       */
+      requiresReview:
+        false,
+    };
+  }
 }

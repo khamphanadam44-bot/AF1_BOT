@@ -154,6 +154,22 @@ export const getReconcileOutputDir = (
 };
 
 /**
+ * คืนค่าโฟลเดอร์ผลลัพธ์จาก Script 4
+ */
+export const getSummaryOutputDir = (
+  reportCode: string,
+): string => {
+  return path.resolve(
+    process.cwd(),
+    "Test_result",
+    "Summary-report",
+    normalizeReportCode(
+      reportCode,
+    ),
+  );
+};
+
+/**
  * สร้างชื่อเริ่มต้นของไฟล์ผลตรวจ Test Data
  * ตามชื่อ Report
  *

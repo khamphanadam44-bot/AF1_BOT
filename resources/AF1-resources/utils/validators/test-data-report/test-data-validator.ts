@@ -19,13 +19,13 @@
  * - ตรวจจำนวน Fee Group จาก Header จริง
  * - ตรวจข้อมูลภายใน Fee Group
  *
- * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
+ * DS_FTX, DS_FTU และ DF_FXU:
  * - ไม่มีการตรวจ Fee Group
  * - จำนวน Fee Group เป็น 0
  *
  * หมายเหตุ:
- * Validator นี้ใช้ร่วมกันได้ทุก Report
- * โดยเลือก Requirement ที่ต้องตรวจตาม reportCode
+ * ทุก Report สามารถใช้ไฟล์ Test Data ตัวเดียวกันได้
+ * แต่ Requirement ที่นำมาตรวจจะเลือกตาม reportCode
  * ------------------------------------------------------------
  */
 
@@ -85,13 +85,11 @@ import {
  * Report ที่กำลังตรวจ
  *
  * ตัวอย่าง:
-  * - DS_PTX
+ * - DS_PTX
  * - DS_LTX
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
- * - DF_OLB
- * - DF_FXM
  *
  * @returns
  * Path ของไฟล์ผลลัพธ์
@@ -219,7 +217,7 @@ export const validateTestData = async (
    * DS_PTX และ DS_LTX:
    * - ตรวจหมายเลข Fee Group สูงสุดจาก Header จริง
    *
-   * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
+   * DS_FTX, DS_FTU และ DF_FXU:
    * - คืนค่า 0
    */
   const feeTypeCount =
@@ -234,7 +232,7 @@ export const validateTestData = async (
    * DS_PTX และ DS_LTX:
    * - รวม Fee Header ตามจำนวนที่ตรวจพบจริง
    *
-   * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
+   * DS_FTX, DS_FTU และ DF_FXU:
    * - ไม่มี Fee Header
    */
   const requiredHeaders =

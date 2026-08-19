@@ -14,7 +14,7 @@
  * - DS_PTX และ DS_LTX:
  *   ตรวจจำนวน Fee Group จาก Header ในไฟล์จริง
  *
- * - DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
+ * - DS_FTX และ DS_FTU:
  *   ไม่มีการตรวจ Fee Group
  * ------------------------------------------------------------
  */
@@ -217,7 +217,7 @@ export const validateRequiredFields = async (
    * DS_PTX และ DS_LTX:
    * - คืนหมายเลข Fee Group สูงสุดที่พบ
    *
-   * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
+   * DS_FTX และ DS_FTU:
    * - คืนค่า 0
    */
   const feeTypeCount =
@@ -272,7 +272,7 @@ export const validateRequiredFields = async (
      * DS_PTX และ DS_LTX:
      * - เข้าเงื่อนไขนี้
      *
-     * DS_FTX, DS_FTU, DF_FXU, DF_OLB และ DF_FXM:
+     * DS_FTX และ DS_FTU:
      * - feeTypeCount เป็น 0
      * - ไม่เรียก validateFeeGroupFields()
      */
