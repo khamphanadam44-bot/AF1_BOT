@@ -25,17 +25,6 @@
 
 import ExcelJS from "exceljs";
 
-import {
-  getMappingHeaderRowNumber,
-  getMappingMatchingKeyHeaders,
-  requireMappingReportName,
-} from "../../../config/mapping-helper";
-
-import {
-  getTestDataHeaderRowNumber,
-} from "../../../config/testdata-helper";
-
-
 import type {
   ActualRow,
   ExpectedRow,
@@ -47,57 +36,21 @@ import {
   getCellText,
 } from "../../validators/shared/excel-cell.util";
 
-const FTX_REPORT_CODE = "DS_FTX";
+/** แถว Header เริ่มต้นของ Test Data */
+export const DEFAULT_TEST_DATA_HEADER_ROW_NUMBER = 5;
 
-const FTX_MAPPING_REPORT_NAME =
-  requireMappingReportName(
-    FTX_REPORT_CODE,
-  );
+/** แถว Header เริ่มต้นของ Report DS_FTX */
+export const DEFAULT_REPORT_HEADER_ROW_NUMBER = 1;
 
-/**
- * Header Row ฝั่ง Test Data
- * อ่านจาก testdata-config.ts
- */
-export const DEFAULT_TEST_DATA_HEADER_ROW_NUMBER =
-  getTestDataHeaderRowNumber(
-    FTX_REPORT_CODE,
-  );
+/** Header ที่เก็บหมายเลข Test Case */
+export const TEST_SCRIPT_NO_HEADER = "Test No.";
 
-/**
- * Header Row ฝั่ง Report
- * อ่านจาก mapping-config.ts ผ่าน mapping-helper.ts
- */
-export const DEFAULT_REPORT_HEADER_ROW_NUMBER =
-  getMappingHeaderRowNumber(
-    FTX_MAPPING_REPORT_NAME,
-  );
-
-export const TEST_SCRIPT_NO_HEADER =
-  "Test No.";
-
-/**
- * Matching Key ฝั่ง Test Data
- *
- * Header นี้เป็น Header ของ Test Data
- * จึงยังอ้างอิงจาก Test Data Config
- */
+/** Header Matching Key ใน Test Data */
 const TEST_DATA_MATCHING_KEY_HEADER =
   "Transaction ID/ Reconcile ID";
 
-/**
- * Matching Key ฝั่ง Report
- * อ่านจาก mapping-config.ts
- */
-const [REPORT_MATCHING_KEY_HEADER] =
-  getMappingMatchingKeyHeaders(
-    FTX_MAPPING_REPORT_NAME,
-  );
-
-if (!REPORT_MATCHING_KEY_HEADER) {
-  throw new Error(
-    `[${FTX_REPORT_CODE}] Mapping Config ไม่มี Matching Key Header.`,
-  );
-}
+/** Header Matching Key ใน Report DS_FTX */
+const REPORT_MATCHING_KEY_HEADER = "Ref. TX No.";
 
 /** แปลงค่าเป็นข้อความและตัดช่องว่างหัวท้าย */
 const normalizeText = (
@@ -271,21 +224,6 @@ export const getReportHeaders = (
   worksheet: ExcelJS.Worksheet,
   headerRowNumber =
     DEFAULT_REPORT_HEADER_ROW_NUMBER,
-): string[] => {
-  return readHeaders(
-    worksheet,
-    headerRowNumber,
-  );
-};
-
-/**
- * อ่าน Header ของ Test Data
- * เพื่อใช้ตรวจ Required Header ก่อน Parse ข้อมูล
- */
-export const getTestDataHeaders = (
-  worksheet: ExcelJS.Worksheet,
-  headerRowNumber =
-    DEFAULT_TEST_DATA_HEADER_ROW_NUMBER,
 ): string[] => {
   return readHeaders(
     worksheet,

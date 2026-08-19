@@ -32,30 +32,6 @@ import fs from "fs";
 import path from "path";
 
 import {
-  getMappingCoreHeaders,
-  getMappingHeaderRowNumber,
-  getMappingMatchingKeyHeaders,
-  getUniqueMappingHeaders,
-  requireMappingReportName,
-} from "../../../config/mapping-helper";
-
-import {
-  getRequiredTestDataHeaders,
-} from "../../../config/testdata-helper";
-
-import {
-  canonicalHeader,
-} from "../../validators/shared/header-matcher";
-
-import {
-  assertRequiredHeaders,
-} from "../shared/required-header-validator";
-
-import {
-  DS_FTX_COMPARE_RULES,
-} from "./ftx-config";
-
-import {
   ActualRow,
   CompareResult,
   ExpectedRow,
@@ -65,7 +41,6 @@ import {
   buildActualRows,
   buildExpectedRows,
   getReportHeaders,
-  getTestDataHeaders,
 } from "./ftx-row-builder";
 
 
@@ -77,143 +52,6 @@ import {
 import {
   writeCompareResult,
 } from "./ftx-result-writer";
-
-const FTX_REPORT_CODE = "DS_FTX";
-
-/**
- * ตรวจว่า mapping-config.ts และ ftx-config.ts
- * กำหนด Core Header ตรงกัน
- */
-const validateFtxMappingConfiguration = (): {
-  reportHeaderRowNumber: number;
-} => {
-  const mappingReportName =
-    requireMappingReportName(
-      FTX_REPORT_CODE,
-    );
-
-  const matchingKeyHeaders =
-    getMappingMatchingKeyHeaders(
-      mappingReportName,
-    );
-
-  if (matchingKeyHeaders.length !== 1) {
-    throw new Error(
-      `[${FTX_REPORT_CODE}] Mapping Config ต้องมี Matching Key 1 Header ` +
-      `แต่พบ ${matchingKeyHeaders.length}.`,
-    );
-  }
-
-  const configuredCoreHeaders =
-    getMappingCoreHeaders(
-      mappingReportName,
-    );
-
-  const configuredCoreHeaderSet =
-    new Set(
-      configuredCoreHeaders.map(
-        canonicalHeader,
-      ),
-    );
-
-  const ruleHeaderSet =
-    new Set(
-      DS_FTX_COMPARE_RULES.map(
-        (rule) =>
-          canonicalHeader(
-            rule.reportField,
-          ),
-      ),
-    );
-
-  /**
-   * ตรวจว่า Compare Rule อ้างถึง Header
-   * ที่มีอยู่ใน mapping-config.ts
-   */
-  const unknownRuleHeaders =
-    DS_FTX_COMPARE_RULES
-      .map(
-        (rule) =>
-          rule.reportField,
-      )
-      .filter(
-        (header) =>
-          !configuredCoreHeaderSet.has(
-            canonicalHeader(
-              header,
-            ),
-          ),
-      );
-
-  if (unknownRuleHeaders.length > 0) {
-    throw new Error(
-      `[${FTX_REPORT_CODE}] Compare Rule อ้างถึง Report Header ` +
-      `ที่ไม่มีใน mapping-config.ts: ` +
-      [...new Set(unknownRuleHeaders)].join(", "),
-    );
-  }
-
-  /**
-   * ตรวจว่า Core Header ทุกตัวใน Mapping Config
-   * มี Compare Rule รองรับ
-   */
-  const uncoveredCoreHeaders =
-    configuredCoreHeaders.filter(
-      (header) =>
-        !ruleHeaderSet.has(
-          canonicalHeader(
-            header,
-          ),
-        ),
-    );
-
-  if (uncoveredCoreHeaders.length > 0) {
-    throw new Error(
-      `[${FTX_REPORT_CODE}] Core Header ยังไม่มี Compare Rule: ` +
-      uncoveredCoreHeaders.join(", "),
-    );
-  }
-
-  return {
-    reportHeaderRowNumber:
-      getMappingHeaderRowNumber(
-        mappingReportName,
-      ),
-  };
-};
-
-/**
- * ตรวจ Required Header ก่อน Parse
- * ให้มีพฤติกรรมเหมือน Report อื่น
- */
-const validateFtxRequiredHeaders = (
-  reportHeaders: string[],
-  testDataHeaders: string[],
-): void => {
-  const mappingReportName =
-    requireMappingReportName(
-      FTX_REPORT_CODE,
-    );
-
-  assertRequiredHeaders(
-    FTX_REPORT_CODE,
-    "Raw Report",
-    reportHeaders,
-    getUniqueMappingHeaders(
-      mappingReportName,
-    ),
-  );
-
-  assertRequiredHeaders(
-    FTX_REPORT_CODE,
-    "Test Data",
-    testDataHeaders,
-    getRequiredTestDataHeaders(
-      FTX_REPORT_CODE,
-      testDataHeaders,
-    ),
-  );
-};
 
 /**
  * ชื่อ Worksheet ที่ต้องพบใน Report DS_FTX
@@ -1018,7 +856,7 @@ const readWorkbook = async (
       filePath,
     );
   } catch (
-  error
+    error
   ) {
     /**
      * ดึงข้อความจาก Error
@@ -1030,8 +868,8 @@ const readWorkbook = async (
       error instanceof Error
         ? error.message
         : String(
-          error,
-        );
+            error,
+          );
 
     throw new Error(
       `Cannot read ${fileDescription}: ${filePath}. Reason: ${errorMessage}`,
@@ -1473,59 +1311,12 @@ export const reconcileDsFtx = async (
     );
 
   /**
- * ----------------------------------------------------------
- * ขั้นตอนที่ 4: ตรวจ Mapping Config และ Required Header
- * ----------------------------------------------------------
- */
-
-  /**
-   * ตรวจว่า Header ใน mapping-config.ts
-   * ตรงกับ Compare Rule ใน ftx-config.ts
-   *
-   * พร้อมอ่านหมายเลขแถว Header ของ Report
-   */
-  const {
-    reportHeaderRowNumber,
-  } = validateFtxMappingConfiguration();
-
-  /**
-   * อ่าน Header ฝั่ง Report
-   *
-   * หมายเลขแถว Header มาจาก mapping-config.ts
-   * ผ่าน mapping-helper.ts
-   */
-  const reportHeaders =
-    getReportHeaders(
-      reportWorksheet,
-      reportHeaderRowNumber,
-    );
-
-  /**
-   * อ่าน Header ฝั่ง Test Data
-   *
-   * หมายเลขแถว Header มาจาก testdata-config.ts
-   */
-  const testDataHeaders =
-    getTestDataHeaders(
-      testDataWorksheet,
-    );
-
-  /**
-   * ตรวจว่า Report และ Test Data
-   * มี Required Header ครบก่อนเริ่มอ่านข้อมูล
-   */
-  validateFtxRequiredHeaders(
-    reportHeaders,
-    testDataHeaders,
-  );
-
-  /**
    * ----------------------------------------------------------
-   * ขั้นตอนที่ 5: สร้าง ExpectedRow[] จาก Test Data
+   * ขั้นตอนที่ 4: สร้าง ExpectedRow[] จาก Test Data
    * ----------------------------------------------------------
    *
-   * Header Row ของ Test Data อ่านจาก testdata-config.ts
-   * ผ่าน testdata-helper.ts
+   * ไม่ส่ง headerRowNumber เข้าไป
+   * จึงใช้ค่าเริ่มต้นแถว 5
    */
   const expectedRows =
     buildExpectedRows(
@@ -1543,33 +1334,42 @@ export const reconcileDsFtx = async (
 
   /**
    * ----------------------------------------------------------
-   * ขั้นตอนที่ 6: สร้าง ActualRow[] จาก Report
+   * ขั้นตอนที่ 5: สร้าง ActualRow[] จาก Report
    * ----------------------------------------------------------
    *
-   * Header Row ของ Report อ่านจาก mapping-config.ts
-   * ผ่าน mapping-helper.ts
+   * ไม่ส่ง headerRowNumber เข้าไป
+   * จึงใช้ค่าเริ่มต้นแถว 1
    *
-   * ถ้า Report ไม่มีข้อมูล
-   * buildActualRows() จะคืน Array ว่าง
+   * หมายเหตุ:
+   * Code ไม่ได้ Throw Error เมื่อ actualRows เป็น Array ว่าง
    */
   const actualRows =
     buildActualRows(
       reportWorksheet,
-      reportHeaderRowNumber,
     );
 
   /**
- * ----------------------------------------------------------
- * ขั้นตอนที่ 7: เปรียบเทียบ Expected กับ Actual
- * ----------------------------------------------------------
- *
- * compareFtxRows() ตรวจตามลำดับ:
- * 1. Matching Key ใน Test Data ว่าง
- * 2. Exclusion Rule
- * 3. ไม่พบ Matching Key ใน Report
- * 4. Matching Key ซ้ำใน Report
- * 5. Core Field
- */
+   * อ่าน Header ของ Report จากแถว 1
+   *
+   * ใช้สำหรับสร้าง Column ในไฟล์ผลลัพธ์
+   */
+  const reportHeaders =
+    getReportHeaders(
+      reportWorksheet,
+    );
+
+  /**
+   * ----------------------------------------------------------
+   * ขั้นตอนที่ 6: เปรียบเทียบ Expected กับ Actual
+   * ----------------------------------------------------------
+   *
+   * compareFtxRows() ตรวจตามลำดับ:
+   * 1. Matching Key ใน Test Data ว่าง
+   * 2. Exclusion Rule
+   * 3. ไม่พบ Matching Key ใน Report
+   * 4. Matching Key ซ้ำใน Report
+   * 5. Core Field
+   */
   const compareResults =
     compareFtxRows(
       expectedRows,
@@ -1578,7 +1378,7 @@ export const reconcileDsFtx = async (
 
   /**
    * ----------------------------------------------------------
-   * ขั้นตอนที่ 8: สร้างไฟล์ Excel ผลลัพธ์
+   * ขั้นตอนที่ 7: สร้างไฟล์ Excel ผลลัพธ์
    * ----------------------------------------------------------
    *
    * Writer จะสร้าง Workbook ใหม่
@@ -1596,7 +1396,7 @@ export const reconcileDsFtx = async (
 
   /**
    * ----------------------------------------------------------
-   * ขั้นตอนที่ 9: สร้างผลสรุป
+   * ขั้นตอนที่ 8: สร้างผลสรุป
    * ----------------------------------------------------------
    */
   const summary =
@@ -1613,7 +1413,7 @@ export const reconcileDsFtx = async (
 
   /**
    * ----------------------------------------------------------
-   * ขั้นตอนที่ 10 : แสดงผลสรุปใน Terminal
+   * ขั้นตอนที่ 9: แสดงผลสรุปใน Terminal
    * ----------------------------------------------------------
    */
   printReconcileSummary(
