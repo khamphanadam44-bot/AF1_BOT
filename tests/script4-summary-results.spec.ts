@@ -47,6 +47,9 @@ import {
 import { getAutomationRunTimingSummary } from "../resources/AF1-resources/utils/summary/automation-run-timing";
 
 import {
+  buildAutomationSummaryResult,
+} from "../resources/AF1-resources/utils/summary/summary-result-builder";
+import {
   readCompareResultRows,
   writeReportAutomationSummary,
 } from "../resources/AF1-resources/utils/summary/automation-summary-writer";
@@ -174,29 +177,19 @@ describe(
 
           /**
            * ขั้นตอนที่ 3:
-           * นับผล PASS / FAIL / SKIP
-           * เพื่อนำไปแสดงในส่วนสรุปด้านบนของไฟล์
-           */
-          const totalPass =
-            compareRows.filter(
-              (row) =>
-                row.status ===
-                "PASS",
-            ).length;
-
-          const totalFail =
-            compareRows.filter(
-              (row) =>
-                row.status ===
-                "FAIL",
-            ).length;
-
-          const totalSkip =
-            compareRows.filter(
-              (row) =>
-                row.status ===
-                "SKIP",
-            ).length;
+           * เตรียม Summary Result ด้วยกติกากลางของแต่ละ Report
+           *
+           * Script 4 ไม่ต้องรู้ว่า Report ใดมีวิธีนับ Test Case ต่างกัน
+           * ตัวอย่าง:
+           * - DS_LTX รวมหลาย DR/FE Record ของ Test No. เดียวกัน
+           * - DS_PTX รวมหลาย Fee Record ของ Test No. เดียวกัน
+           * ให้เป็นหนึ่ง Summary Test Case ภายใน Summary Module
+            */
+          const summaryResult =
+            buildAutomationSummaryResult(
+              reportName,
+              compareRows,
+            );
 
           /**
            * ขั้นตอนที่ 4:
@@ -208,6 +201,7 @@ describe(
            * - <REPORT>            = Checked Report จาก Script 2
            * - Test Data           = Checked Test Data จาก Script 2
            */
+          
           await writeReportAutomationSummary(
             reportName,
             templatePath,
@@ -216,7 +210,7 @@ describe(
             originalTestDataPath,
             checkedReportPath,
             checkedTestDataPath,
-            compareRows,
+            summaryResult.rows,
             {
               /**
               * ชื่อที่แสดงตรง Report File Name ใน Summary
@@ -248,13 +242,13 @@ describe(
                 "QAD Automation",
 
               totalChecked:
-                compareRows.length,
+                summaryResult.totalChecked,
 
               passed:
-                totalPass,
+                summaryResult.passed,
 
               failed:
-                totalFail,
+                summaryResult.failed,
             },
           );
 
@@ -297,19 +291,19 @@ describe(
           );
           console.log(
             "Total Checked     :",
-            compareRows.length,
+            summaryResult.totalChecked,
           );
           console.log(
             "PASS              :",
-            totalPass,
+            summaryResult.passed,
           );
           console.log(
             "FAIL              :",
-            totalFail,
+            summaryResult.failed,
           );
           console.log(
             "SKIP              :",
-            totalSkip,
+            summaryResult.skipped,
           );
           console.log(
             "Output File       :",
