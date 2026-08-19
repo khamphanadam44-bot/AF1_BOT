@@ -1,21 +1,23 @@
 /**
- * ltx-field-validator
+ * FieldRuleValidator 
+ * ------------------------------------------------------------------
+ * Template Method เดียว: FieldRuleValidator.validate()
+ * ทำหน้าที่ filter + map เหมือนกันทั้งคู่ ส่วน subclass override แค่ selectRules()
+ * ------------------------------------------------------------------
  */
-import type { ReconcileRecord } from "../shared/record";
-import type { ReconcileFieldRule } from "./ltx-config";
-import {
-  FieldComparer,
-  type FieldCheckResult,
-} from "./ltx-field-compare";
+import { ReconcileFieldRule } from "./ltx-config";
+import { FieldComparer } from "./ltx-field-compare";
+import { ReconcileRecord } from "../shared/record";
+import { FieldCheckResult } from "./ltx-types";
 
-/**
- * ใช้ Template Method เพื่อรวมขั้นตอนเลือก Rule และเปรียบเทียบ Field ไว้จุดเดียว
- * Subclass กำหนดเฉพาะวิธีเลือก Core หรือ Conditional Rule
- */
+export abstract class FieldRuleValidator {
+  protected readonly comparer: FieldComparer;
 
-abstract class FieldRuleValidator {
-  constructor(protected comparer = new FieldComparer()) {}
+  constructor(comparer: FieldComparer = new FieldComparer()) {
+    this.comparer = comparer;
+  }
 
+  /** เลือก rule ที่ validator ตัวนี้รับผิดชอบ (override โดย subclass) */
   protected abstract selectRules(
     fieldRules: ReconcileFieldRule[],
     suffix: string,
@@ -41,8 +43,8 @@ abstract class FieldRuleValidator {
   }
 }
 
-class CoreFieldValidator extends FieldRuleValidator {
-  /** Core Rule ต้องตรวจทุก Case แต่ยังคงเคารพข้อจำกัดของ Suffix */
+/** Core Field (isRequiredForAllCases = true) — ต้องตรวจสอบทุก Test Case ไม่มีเงื่อนไขข้าม */
+export class CoreFieldValidator extends FieldRuleValidator {
   protected selectRules(
     fieldRules: ReconcileFieldRule[],
     suffix: string,
@@ -55,59 +57,73 @@ class CoreFieldValidator extends FieldRuleValidator {
   }
 }
 
-class ConditionalFieldValidator extends FieldRuleValidator {
-  /** Conditional Rule ตรวจเฉพาะเมื่อ Suffix และข้อมูลเข้าเงื่อนไข */
+/** Conditional Field (isRequiredForAllCases = false) — ตรวจเฉพาะเมื่อเข้าเงื่อนไข */
+export class ConditionalFieldValidator extends FieldRuleValidator {
   protected selectRules(
     fieldRules: ReconcileFieldRule[],
     suffix: string,
     testDataRecord: ReconcileRecord,
     reportRecord: ReconcileRecord,
   ): ReconcileFieldRule[] {
-    return fieldRules.filter(
-      (rule) =>
-        !rule.isRequiredForAllCases &&
-        this.comparer.isApplicableToSuffix(rule, suffix) &&
-        this.shouldCheck(rule, testDataRecord, reportRecord),
-    );
+    return fieldRules
+      .filter(
+        (rule) =>
+          !rule.isRequiredForAllCases &&
+          this.comparer.isApplicableToSuffix(rule, suffix),
+      )
+      .filter((rule) => this.shouldCheck(rule, testDataRecord, reportRecord));
   }
 
-  /** ข้าม Rule เมื่อ Field ที่ใช้เปิดเงื่อนไขไม่มีค่าฝั่งที่กำหนด */
+  /**
+   * เงื่อนไขข้าม (นอกเหนือจาก suffix ที่เช็คแยกไว้แล้ว):
+   * 1) มี onlyWhenReportFieldHasValue กำหนดไว้ แต่ field นั้นฝั่ง AF1 Report ว่าง -> ข้าม
+   *    (เช่น Inflow Transaction Purpose: ตรวจเฉพาะแถวที่ direction เป็น Inflow จริง ๆ
+   *    สังเกตจาก field นี้ฝั่ง Report เองมีค่าหรือไม่ — ไม่ได้ดูฝั่ง Test Data)
+   * 2) field เงื่อนไขฝั่ง Test Data (skipWhenTestDataFieldEmpty หรือ testDataField ของตัวเอง) ว่าง
+   * 3) ค่า Test Data ของ field ตัวเองก็ว่างด้วย
+   */
   private shouldCheck(
     rule: ReconcileFieldRule,
     testDataRecord: ReconcileRecord,
     reportRecord: ReconcileRecord,
   ): boolean {
-    if (
-      rule.onlyWhenReportFieldHasValue &&
-      reportRecord.get(rule.onlyWhenReportFieldHasValue).trim() === ""
-    ) {
-      return false;
+    if (rule.onlyWhenReportFieldHasValue) {
+      const reportConditionValue = reportRecord.get(
+        rule.onlyWhenReportFieldHasValue,
+      );
+      if (reportConditionValue.trim() === "") {
+        return false;
+      }
     }
 
     const conditionField =
       rule.skipWhenTestDataFieldEmpty ?? rule.testDataField;
+    const conditionValue = conditionField
+      ? testDataRecord.get(conditionField)
+      : "";
 
-    if (
-      conditionField &&
-      testDataRecord.get(conditionField).trim() === ""
-    ) {
+    if (conditionField && conditionValue.trim() === "") {
       return false;
     }
 
-    return (
-      !rule.testDataField ||
-      testDataRecord.get(rule.testDataField).trim() !== ""
-    );
+    if (rule.testDataField) {
+      const ownValue = testDataRecord.get(rule.testDataField);
+      if (ownValue.trim() === "") {
+        return false;
+      }
+    }
+
+    return true;
   }
 }
 
+/** รวมผล Core + Conditional ของ 1 คู่ — ใช้แทน checkFieldRules ใน reconcile-validator.ts เดิม */
 export class FieldRuleValidatorSet {
   constructor(
-    private coreValidator = new CoreFieldValidator(),
-    private conditionalValidator = new ConditionalFieldValidator(),
+    private readonly coreValidator: CoreFieldValidator = new CoreFieldValidator(),
+    private readonly conditionalValidator: ConditionalFieldValidator = new ConditionalFieldValidator(),
   ) {}
 
-  /** คงลำดับ Core ก่อน Conditional เพื่อให้ผลลัพธ์อ่านได้สม่ำเสมอ */
   validateAll(
     reportCode: string,
     fieldRules: ReconcileFieldRule[],

@@ -35,10 +35,6 @@ import {
   getTestDataPath,
 } from "../resources/AF1-resources/setting/uat/setting";
 
-import {
-  recordAutomationRunStage,
-} from "../resources/AF1-resources/utils/summary/automation-run-timing";
-
 /**
  * ============================================================
  * DS_PTX
@@ -437,10 +433,6 @@ describe(
       it(
         `Compare ${selectedReport} Report`,
         async function () {
-          const stageStartedAt =
-            new Date();
-
-          try {
           console.log("");
 
           console.log(
@@ -473,17 +465,6 @@ describe(
           console.log(
             "================================",
            );
-          } finally {
-            /**
-             * บันทึกเวลา Compare แยกตาม Report
-             */
-            recordAutomationRunStage(
-              selectedReport,
-              "SCRIPT_3_COMPARE",
-              stageStartedAt,
-              new Date(),
-            );
-          }
         },
       );
     }

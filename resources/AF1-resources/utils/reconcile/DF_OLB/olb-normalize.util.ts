@@ -1,6 +1,6 @@
 /**
- * Normalize ตามกติกาเฉพาะของ DF_OLB
- * แยกไว้เพื่อไม่ให้การเปลี่ยนกติกากระทบ Report อื่น
+ * Normalize ที่เป็นกติกาเฉพาะของ DF_OLB
+ * แยกจาก Shared Parser เพื่อไม่ให้ Report อื่นได้รับผลกระทบหากกติกาเปลี่ยน
  */
 
 /** เปรียบเทียบข้อความโดยไม่สนตัวพิมพ์และช่องว่างซ้ำ */
@@ -11,7 +11,7 @@ export const normalizeOlbText = (value: unknown): string =>
     .trim()
     .toUpperCase();
 
-/** ตัดเลขศูนย์นำหน้าเมื่อ Cust Code/CIF เป็นตัวเลขทั้งหมด */
+/** เปรียบเทียบ Cust Code/CIF โดยตัดเลขศูนย์นำหน้าสำหรับค่าตัวเลข */
 export const normalizeOlbId = (value: unknown): string => {
   const normalized = normalizeOlbText(value);
 
@@ -19,5 +19,6 @@ export const normalizeOlbId = (value: unknown): string => {
     return normalized;
   }
 
-  return normalized.replace(/^0+(?=\d)/, "");
+  const withoutLeadingZero = normalized.replace(/^0+(?=\d)/, "");
+  return withoutLeadingZero === "" ? "0" : withoutLeadingZero;
 };

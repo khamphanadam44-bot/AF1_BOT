@@ -1,25 +1,27 @@
 /**
- * ควบคุม Flow Reconcile ของ DS_FTU
+ * ftu-reconcile.ts
+ * ------------------------------------------------------------------
+ * Entry Point ของ Script 3 สำหรับ DS_FTU
  *
- * 1. เตรียม Raw Report และอ่าน Test Data
- * 2. ตรวจ Header ที่จำเป็นก่อนเริ่ม Matching
- * 3. สงวน Exact Row และป้องกัน Report Row ถูกใช้ซ้ำ
- * 4. ส่งผล Matching ให้ Analyzer ตัดสิน PASS/FAIL/Review
- * 5. เขียน Result Sheet และสรุปผล
+ * หน้าที่:
+ * 1. เตรียม Workbook และอ่านข้อมูล
+ * 2. ตรวจ Header ที่จำเป็น
+ * 3. ส่งแต่ละ Test Case ให้ Matcher และ Analyzer
+ * 4. เขียนผล Reconcile และสรุปผล
  *
- * Matching และ Business Validation แยกอยู่ใน Matcher และ Analyzer
+ * Business Matching อยู่ใน ftu-matcher.ts
+ * Business Validation อยู่ใน ftu-analyzer.ts
+ * ------------------------------------------------------------------
  */
 
 import {
   getUniqueMappingHeaders,
   requireMappingReportName,
 } from "../../../config/mapping-helper";
+import { canonicalHeader } from "../../validators/shared/header-matcher";
 import { ReconcileExcelReader } from "../shared/excel-reader";
-import { assertRequiredHeaders } from "../shared/required-header-validator";
-import {
-  ReconcileResultSheetWriter,
-  type ResultRow,
-} from "../shared/result-writer";
+import { ReconcileResultSheetWriter } from "../shared/result-writer";
+import type { ResultRow } from "../shared/result-writer";
 import { ReconcileWorkbookPreparer } from "../shared/workbook-preparer";
 import { FtuAnalyzer } from "./ftu-analyzer";
 import {
@@ -30,7 +32,7 @@ import {
 } from "./ftu-config";
 import { FtuMatcher } from "./ftu-matcher";
 
-class FtuReconcileService {
+export class FtuReconcileService {
   async reconcile(testDataFilePath: string): Promise<string> {
     const workbookPreparer = new ReconcileWorkbookPreparer();
     const excelReader = new ReconcileExcelReader();
@@ -56,12 +58,10 @@ class FtuReconcileService {
     this.validateHeaders(prepared.reportHeaders, testData.headers);
 
     const reportRecordsById = matcher.indexReportRecords(reportData.records);
-    /** Reserved Row ป้องกัน Fallback แย่ง Exact Row; Used Row กันการใช้ซ้ำ */
-    const reservedReportRowNumbers = matcher.findReservedReportRows(
+    const usedReportRowNumbers = matcher.findReservedReportRows(
       testData.records,
       reportRecordsById,
     );
-    const usedReportRowNumbers = new Set<number>();
     const annotationByRowNumber = new Map<number, ResultRow>();
     const unmatchedRows: ResultRow[] = [];
     const results: ResultRow[] = [];
@@ -72,7 +72,6 @@ class FtuReconcileService {
         reportRecordsById,
         reportData.records,
         usedReportRowNumbers,
-        reservedReportRowNumbers,
       );
       const result = analyzer.analyze(testDataRecord, matchResult);
 
@@ -88,6 +87,7 @@ class FtuReconcileService {
     }
 
     sheetWriter.writeHeaderRow(prepared.resultSheet, prepared.reportHeaders);
+
     const nextRowNumber = sheetWriter.writeRowsInRequestedOrder(
       prepared.resultSheet,
       prepared.reportWorksheet,
@@ -103,6 +103,7 @@ class FtuReconcileService {
       prepared.reportHeaders,
       nextRowNumber - 1,
     );
+
     prepared.workbook.removeWorksheet(prepared.reportWorksheet.id);
     await prepared.workbook.xlsx.writeFile(prepared.reconcileFilePath);
 
@@ -110,35 +111,56 @@ class FtuReconcileService {
     return prepared.reconcileFilePath;
   }
 
-  /** ใช้ Header Guard กลางเพื่อให้ Raw Report และ Test Data ตรวจแบบเดียวกัน */
+  /** ตรวจ Header ที่จำเป็นก่อนเริ่ม Reconcile */
   private validateHeaders(
     reportHeaders: string[],
     testDataHeaders: string[],
   ): void {
     const reportName = requireMappingReportName(FTU_REPORT_CODE);
+    const requiredReportHeaders = getUniqueMappingHeaders(reportName);
 
-    assertRequiredHeaders(
-      FTU_REPORT_CODE,
-      "Raw Report",
-      reportHeaders,
-      getUniqueMappingHeaders(reportName),
-    );
-    assertRequiredHeaders(
-      FTU_REPORT_CODE,
-      "Test Data",
+    this.assertHeaders(reportHeaders, requiredReportHeaders, "Raw Report");
+    this.assertHeaders(
       testDataHeaders,
       FTU_REQUIRED_TEST_DATA_HEADERS,
+      "Test Data",
     );
   }
 
+  private assertHeaders(
+    actualHeaders: string[],
+    requiredHeaders: readonly string[],
+    sourceName: string,
+  ): void {
+    const actualHeaderSet = new Set(
+      actualHeaders
+        .filter((header) => header.trim() !== "")
+        .map(canonicalHeader),
+    );
+    const missingHeaders = requiredHeaders.filter(
+      (header) => !actualHeaderSet.has(canonicalHeader(header)),
+    );
+
+    if (missingHeaders.length > 0) {
+      throw new Error(
+        `[${FTU_REPORT_CODE}] ` +
+          `${sourceName} missing header(s): ` +
+          missingHeaders.join(", "),
+      );
+    }
+  }
+
   private logSummary(outputPath: string, results: ResultRow[]): void {
-    const passCount = results.filter((result) => result.status === "PASS").length;
+    const passCount = results.filter(
+      (result) => result.status === "PASS",
+    ).length;
+    const failCount = results.length - passCount;
 
     console.log(`Output File : ${outputPath}`);
     console.log(
       `Test Case : ${results.length} | ` +
         `Pass : ${passCount} | ` +
-        `Fail : ${results.length - passCount}`,
+        `Fail : ${failCount}`,
     );
   }
 }
