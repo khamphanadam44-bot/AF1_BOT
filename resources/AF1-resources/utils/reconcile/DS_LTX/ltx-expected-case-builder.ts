@@ -14,7 +14,6 @@ import type { ReconcileRecord } from "../shared/record";
 import { AmountComparator } from "./ltx-amount-compare";
 import type { ReconcileReportConfig } from "./ltx-config";
 
-const RETURN_SUFFIX_PATTERN = /-return$/i;
 const FEE_AMOUNT_HEADER_PREFIX = "Fee Amount Type";
 
 export interface ExpectedCase {
@@ -32,11 +31,6 @@ export class LtxExpectedCaseBuilder {
   constructor(
     private readonly amountComparator: AmountComparator = new AmountComparator(),
   ) {}
-
-  /** ตัด -Return เฉพาะค่าที่แสดงผล โดยไม่เปลี่ยน Matching Reference */
-  private toDisplayTestCaseNo(testNo: string): string {
-    return testNo.replace(RETURN_SUFFIX_PATTERN, "").trim();
-  }
 
   /** หา Fee headers เพียงครั้งเดียว เพราะทุก record ใช้โครงสร้างเดียวกัน */
   private findFeeAmountHeaders(headers: string[]): string[] {
@@ -87,7 +81,8 @@ export class LtxExpectedCaseBuilder {
       const identity = record.resolveIdentity(
         config.testDataTestNoField,
         config.testDataIdField,
-        (testNo) => this.toDisplayTestCaseNo(testNo),
+        // รักษา Test No. ตาม Test Data รวมถึง -Return; ตัดเฉพาะช่องว่างหัวท้าย
+        (testNo) => testNo.trim(),
       );
       const transactionId = identity.matchingReference;
 
