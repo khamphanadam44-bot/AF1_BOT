@@ -84,18 +84,11 @@ const normalizeReportName = (reportName: string): string => {
 export const getSummaryTemplatePath = (reportName: string): string => {
   const normalizedReportName = normalizeReportName(reportName);
 
-  /**
- * Template ถูกเก็บไว้ภายใต้ test_data/template
- *
- * ตัวอย่าง:
- * test_data/template/DF_FXM_Automation_Summary.xlsx
- */
-const templatePath = path.resolve(
-  process.cwd(),
-  "test_data",
-  "template",
-  `${normalizedReportName}_Automation_Summary.xlsx`,
-);
+  const templatePath = path.resolve(
+    process.cwd(),
+    "template",
+    `${normalizedReportName}_Automation_Summary.xlsx`,
+  );
 
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Summary template not found: ${templatePath}`);
@@ -186,31 +179,20 @@ const getLatestExcelFile = (
    * อ่านไฟล์ทั้งหมดภายใน Folder
    * แล้วเลือกเฉพาะไฟล์ที่ตรงตามเงื่อนไข
    */
- const matchedFiles = fs
-  .readdirSync(folderPath)
-  .filter((fileName) => {
-    /**
-     * ข้ามไฟล์ชั่วคราวที่ Excel สร้างขึ้น
-     *
-     * ตัวอย่าง:
-     * ~$DF_FXM_Reconcile_20260811_163707.xlsx
-     */
-    if (fileName.startsWith("~$")) {
-      return false;
-    }
+  const matchedFiles = fs
+    .readdirSync(folderPath)
+    .filter((fileName) => {
+      const fullPath = path.join(folderPath, fileName);
 
-    const fullPath = path.join(folderPath, fileName);
+      /**
+       * ข้าม Folder ย่อย
+       */
+      if (!fs.statSync(fullPath).isFile()) {
+        return false;
+      }
 
-    /**
-     * ข้าม Folder ย่อย
-     */
-    if (!fs.statSync(fullPath).isFile()) {
-      return false;
-    }
-
-    return fileFilter(fileName);
-  })
-
+      return fileFilter(fileName);
+    })
     .map((fileName) => {
       const fullPath = path.join(folderPath, fileName);
 

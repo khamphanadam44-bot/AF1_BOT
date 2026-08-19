@@ -15,12 +15,9 @@
 import "dotenv/config";
 
 import {
-  chromium,
-} from "playwright";
-
-import type {
   Browser,
-} from "playwright";
+  chromium,
+} from "playwright-core";
 
 import {
   LoginFeature,
@@ -38,11 +35,6 @@ import {
 import {
   getSelectedReports,
 } from "../resources/AF1-resources/config/report-selection";
-
-import {
-  recordAutomationRunStage,
-  startAutomationRun,
-} from "../resources/AF1-resources/utils/summary/automation-run-timing";
 
 describe(
   "Script 1 - Login + Export Selected Reports",
@@ -109,18 +101,6 @@ describe(
           const selectedReport
           of selectedReports
         ) {
-          /**
-           * Script 1 เป็นจุดเริ่ม Automation Run ใหม่
-           * โดยแยก Timing State ตามชื่อ Report
-           */
-          const script1StartedAt =
-            new Date();
-
-          startAutomationRun(
-            selectedReport,
-            script1StartedAt,
-          );
-
           const context =
             await browser.newContext({
               acceptDownloads: true,
@@ -182,15 +162,15 @@ describe(
             );
 
             /**
-           * อ่านช่วงวันที่ตาม Report ที่กำลัง Export
-           *
-           * DF_FXM:
-           * - Date From = 26/02/2026
-           * - Date To   = 27/02/2026
-           *
-           * Report อื่น:
-           * - ใช้ช่วงวันที่เริ่มต้นจาก setting.ts
-           */
+ * อ่านช่วงวันที่ตาม Report ที่กำลัง Export
+ *
+ * DF_FXM:
+ * - Date From = 26/02/2026
+ * - Date To   = 27/02/2026
+ *
+ * Report อื่น:
+ * - ใช้ช่วงวันที่เริ่มต้นจาก setting.ts
+ */
             const reportDateRange =
               getReportDateRange(
                 selectedReport,
@@ -231,6 +211,10 @@ describe(
               exportResult.reportData.length,
             );
 
+            console.log(
+              "Test Data Rows :",
+              exportResult.reportData.length,
+            );
           } finally {
             /**
              * ปิดหน้าจอของ Report ปัจจุบัน
@@ -242,16 +226,6 @@ describe(
 
             console.log(
               `Browser Context Closed: ${selectedReport}`,
-            );
-
-            /**
-             * บันทึกเวลาของ Script 1 เฉพาะ Report ปัจจุบัน
-             */
-            recordAutomationRunStage(
-              selectedReport,
-              "SCRIPT_1_EXPORT",
-              script1StartedAt,
-              new Date(),
             );
           }
         }

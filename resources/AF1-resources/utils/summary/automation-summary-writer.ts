@@ -21,8 +21,6 @@ import {
   SummaryStatus,
 } from "./summary-types";
 
-import { recordAutomationRunStage } from "./automation-run-timing";
-
 const COLORS = {
   PASS_FILL: "FFC6EFCE",
   PASS_TEXT: "FF006100",
@@ -73,7 +71,7 @@ const SUMMARY_REPORT_CONFIG: Record<
 > = {
   DS_PTX: {
     reportCode: "DS_PTX",
-    summarySheetName: "DS_PTX Summary Test Results",
+    summarySheetName: "DS-PTX Summary Test Results",
     reconcileSheetName: "DS_PTX_Reconcile",
     reportSheetName: "DS_PTX",
     title: "DS_PTX AUTOMATION VERIFICATION SUMMARY",
@@ -85,7 +83,7 @@ const SUMMARY_REPORT_CONFIG: Record<
   },
   DS_FTX: {
     reportCode: "DS_FTX",
-    summarySheetName: "DS_FTX Summary Test Results",
+    summarySheetName: "DS-FTX Summary Test Results",
     reconcileSheetName: "DS_FTX_Reconcile",
     reportSheetName: "DS_FTX",
     title: "DS_FTX AUTOMATION VERIFICATION SUMMARY",
@@ -120,6 +118,18 @@ const SUMMARY_REPORT_CONFIG: Record<
     reportSourceSheetNames: ["DS_FTU Transaction", "DS_FTU"],
   },
 
+    /**
+   * ====================================================
+   * DF_FXU
+   * ====================================================
+   *
+   * ไม่มี Fee Group และไม่มีการรวม Test Data หลายแถว
+   *
+   * Summary Template:
+   * - Column B-I เป็นข้อมูลผล Reconcile
+   * - Column J เป็นช่องว่างคั่นกลาง
+   * - Column K เป็นต้นไปเป็นข้อมูล Test Data
+   */
     /**
    * ====================================================
    * DF_FXU
@@ -538,7 +548,6 @@ export const readCompareResultRows = async (
       "Reference TX No.",
       "Arr Number",
       "Arrangement Number",
-      "FI Arrangement Number",
       "Matching Key",
     ],
   );
@@ -926,157 +935,19 @@ const findKpiValueCell = (
   return worksheet.getCell(endCell.row + 1, startCell.col);
 };
 
-/**
- * แปลงวันที่เป็นรูปแบบ yyyy-MM-dd
- *
- * ตัวอย่าง:
- * 2026-08-18
- */
-const formatSummaryDate = (
-  date: Date,
-): string => {
-  const yyyy = date.getFullYear();
-
-  const MM = String(
-    date.getMonth() + 1,
-  ).padStart(2, "0");
-
-  const dd = String(
-    date.getDate(),
-  ).padStart(2, "0");
-
-  return `${yyyy}-${MM}-${dd}`;
-};
-
-/**
- * แปลงเวลาเป็นรูปแบบ HH:mm:ss
- *
- * ตัวอย่าง:
- * 09:05:07
- */
-const formatSummaryTime = (
-  date: Date,
-): string => {
-  const HH = String(
-    date.getHours(),
-  ).padStart(2, "0");
-
-  const mm = String(
-    date.getMinutes(),
-  ).padStart(2, "0");
-
-  const ss = String(
-    date.getSeconds(),
-  ).padStart(2, "0");
-
-  return `${HH}:${mm}:${ss}`;
-};
-
-/**
- * คำนวณระยะเวลาระหว่างเวลาเริ่มและเวลาสิ้นสุด
- * แล้วคืนค่าในรูปแบบ HH:mm:ss
- *
- * ตัวอย่าง:
- * - 5 วินาที      -> 00:00:05
- * - 2 นาที 10 วิ  -> 00:02:10
- * - 1 ชั่วโมง     -> 01:00:00
- */
-const formatSummaryDuration = (
-  durationMilliseconds: number,
-): string => {
-  const totalSeconds =
-    Math.floor(
-      Math.max(
-        0,
-        durationMilliseconds,
-      ) / 1000,
-    );
-
-  const hours =
-    Math.floor(
-      totalSeconds / 3600,
-    );
-
-  const minutes =
-    Math.floor(
-      (totalSeconds % 3600) / 60,
-    );
-
-  const seconds =
-    totalSeconds % 60;
-
-  return [
-    String(hours).padStart(2, "0"),
-    String(minutes).padStart(2, "0"),
-    String(seconds).padStart(2, "0"),
-  ].join(":");
-};
-
 const writeSummaryInformation = (
   summarySheet: ExcelJS.Worksheet,
   info: AutomationSummaryInfo,
   config: SummaryReportConfig,
-  completedAt: Date,
 ): void => {
-  /**
-   * ชื่อ Automation Summary
-   */
   summarySheet.getCell("B2").value = config.title;
 
-  /**
- * ข้อมูลการทำงานตามตำแหน่งของ Template
- *
- * Template ใหม่ย้ายข้อมูลขึ้นมาจากแถว
- * เป็นแถว 4-10
- *
- * C4  = Report File Name
- * C5  = Execution Date
- * C6  = Actual Execution Time Start
- * C7  = Actual Execution Time End
- * C8  = Duration Time
- * C9  = Run ID
- * C10 = Verified By
- */
-summarySheet.getCell("C4").value =
-  info.reportFileName;
+  summarySheet.getCell("C5").value = info.reportFileName;
+  summarySheet.getCell("C6").value = info.executionDate;
+  summarySheet.getCell("C7").value = info.executionTime;
+  summarySheet.getCell("C8").value = info.runId;
+  summarySheet.getCell("C9").value = info.verifiedBy;
 
-summarySheet.getCell("C5").value =
-  formatSummaryDate(
-    info.automationStartedAt,
-  );
-
-summarySheet.getCell("C6").value =
-  formatSummaryTime(
-    info.automationStartedAt,
-  );
-
-summarySheet.getCell("C7").value =
-  formatSummaryTime(
-    completedAt,
-  );
-
-summarySheet.getCell("C8").value =
-  formatSummaryDuration(
-    info.completedStageDurationMilliseconds +
-    Math.max(
-      0,
-      completedAt.getTime() -
-        info.script4StartedAt.getTime(),
-    ),
-  );
-
-summarySheet.getCell("C9").value =
-  info.runId;
-
-summarySheet.getCell("C10").value =
-  info.verifiedBy;
-  /**
-   * KPI Count ยังคงค้นหาจากข้อความใน Template
-   * จึงรองรับตำแหน่งที่ต่างกันของแต่ละ Report
-   *
-   * หมายเหตุ:
-   * ขั้นตอนนี้ยังไม่แก้สูตร Percentage
-   */
   findKpiValueCell(summarySheet, ["TOTAL CHECKED"]).value = info.totalChecked;
 
   findKpiValueCell(summarySheet, ["PASSED/MATCH"]).value = info.passed;
@@ -1206,27 +1077,6 @@ const applyStatusStyle = (cell: ExcelJS.Cell, status: SummaryStatus): void => {
   };
 };
 
-/**
- * Alias ของ Header ฝั่ง Reconcile ที่ชื่อไม่เหมือนกันระหว่าง Report
- *
- * ตัวอย่าง:
- * - DF_FXU ใช้ Arrangement Number
- * - DF_FXM ใช้ FI Arrangement Number
- *
- * Template สามารถใช้ชื่อกลางได้ โดยระบบจะค้นหาชื่อจริงทั้งสองแบบ
- */
-const COMPARE_HEADER_ALIASES: Record<string, string[]> = {
-  "arrangement number": [
-    "Arrangement Number",
-    "FI Arrangement Number",
-  ],
-
-  "fi arrangement type name": [
-    "Fi Arrangement Type Name",
-    "Arrangement Type Name",
-  ],
-};
-
 const getCompareValue = (
   header:
     string,
@@ -1307,18 +1157,7 @@ const getCompareValue = (
     ]);
   }
 
-  /**
-   * ใช้ Alias ก่อน หาก Header ใน Template
-   * ไม่ตรงกับ Header จริงของ Reconcile Report
-   */
-  const headerAliases =
-    COMPARE_HEADER_ALIASES[normalized] ??
-    [header];
-
-  return getRecordValue(
-    compareRow.reportValues,
-    headerAliases,
-  );
+  return getRecordValue(compareRow.reportValues, [header]);
 };
 
 const TEST_DATA_HEADER_ALIASES: Record<string, string[]> = {
@@ -2074,6 +1913,8 @@ export const writeReportAutomationSummary = async (
     );
   }
 
+  writeSummaryInformation(summarySheet, summaryInfo, config);
+
   const headerRowNumber = findTemplateHeaderRowNumber(summarySheet);
 
   if (config.hasDynamicFeeColumns) {
@@ -2152,20 +1993,12 @@ export const writeReportAutomationSummary = async (
     config,
   );
 
-  /**
- * ตั้งค่า Worksheet Summary Result
- *
- * - Freeze แถว Header
- * - ซ่อน Gridlines เฉพาะชีท Summary Result
- * - ไม่กระทบชีท Reconcile, Report และ Test Data
- */
-summarySheet.views = [
-  {
-    state: "frozen",
-    ySplit: headerRowNumber,
-    showGridLines: false,
-  },
-];
+  summarySheet.views = [
+    {
+      state: "frozen",
+      ySplit: headerRowNumber,
+    },
+  ];
 
   summarySheet.pageSetup = {
     orientation: "landscape",
@@ -2212,33 +2045,6 @@ summarySheet.views = [
     "Test Data",
   ]);
 
-  /**
-   * จับเวลาสิ้นสุดหลังเตรียมข้อมูลทุก Worksheet เสร็จ
-   * และก่อนบันทึกไฟล์ผลลัพธ์
-   *
-   * Percentage Formula ใน Template ยังไม่ถูกแก้ในขั้นตอนนี้
-   */
-  const completedAt =
-    new Date();
-
-  writeSummaryInformation(
-    summarySheet,
-    summaryInfo,
-    config,
-    completedAt,
-  );
-
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   await workbook.xlsx.writeFile(outputPath);
-
-  /**
-   * บันทึกเวลา Script 4 หลังสร้างไฟล์สำเร็จ
-   * หากรัน Script 4 ซ้ำ ระบบจะใช้เวลารอบล่าสุดแทนรอบเดิม
-   */
-  recordAutomationRunStage(
-    reportName,
-    "SCRIPT_4_SUMMARY",
-    summaryInfo.script4StartedAt,
-    completedAt,
-  );
 };
