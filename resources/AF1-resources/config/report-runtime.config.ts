@@ -1,49 +1,30 @@
 /**
  * report-runtime.config.ts
  * ------------------------------------------------------------------
- * Config ถาวรของแต่ละ Report ที่ระบบใช้ร่วมกันตั้งแต่ Script 1-4
+ * Config กลางของแต่ละ Report
  *
- * ผู้ใช้งานไม่ต้องแก้ไฟล์นี้ทุกครั้งที่ Run
- * ให้เปลี่ยน Report ที่ RUN_SETTING.reportCode ใน setting/uat/setting.ts เท่านั้น
+ * ปัจจุบัน Reconcile ใช้ไฟล์นี้อ่านเลขแถว Header ของ Test Data
+ * ผู้ใช้เลือก Report ที่ต้องการรันผ่านค่า report ใน Terminal
  * ------------------------------------------------------------------
  */
 
-import * as path from "path";
 import type { ReportCode } from "./report-config";
 
 export interface ReportRuntimeConfig {
   readonly reportCode: ReportCode;
 
-  /** ชื่อไฟล์ผล Validate Test Data ก่อนต่อ Timestamp */
-  readonly testDataResultBasename: string;
-
-  /** ข้อมูลที่ใช้โดย Script 4 */
-  readonly testDataSheetName: string;
+  /** หมายเลขแถว Header ของ Test Data */
   readonly testDataHeaderRowNumber: number;
-  readonly summaryTemplateFilePath: string;
-  readonly summaryTemplateSheetName: string;
-  readonly verifiedBy: string;
 }
 
-const PROJECT_ROOT = process.cwd();
+
 
 const buildDefaultConfig = (
   reportCode: ReportCode,
 ): ReportRuntimeConfig => {
-  const displayCode = reportCode.replace(/_/g, "-");
-
   return {
     reportCode,
-    testDataResultBasename: `${reportCode}_TestData_Validation_Result`,
-    testDataSheetName: "Test Data",
     testDataHeaderRowNumber: 5,
-    summaryTemplateFilePath: path.resolve(
-      PROJECT_ROOT,
-      "template",
-      `${reportCode}_Automation_Summary_Template.xlsx`,
-    ),
-    summaryTemplateSheetName: `${displayCode} Summary`,
-    verifiedBy: "QAD Automation",
   };
 };
 
@@ -57,19 +38,10 @@ const REPORT_RUNTIME_CONFIG: Record<
   ReportCode,
   ReportRuntimeConfig
 > = {
-  DS_LTX: {
-    ...buildDefaultConfig("DS_LTX"),
-    summaryTemplateSheetName:
-      "DS_LTX_Summary Result",
-  },
-  DS_FTU: {
-    ...buildDefaultConfig("DS_FTU"),
-    summaryTemplateSheetName:
-      "DS_FTU_Summary Result",
-  },
+  DS_LTX: buildDefaultConfig("DS_LTX"),
   DS_PTX: buildDefaultConfig("DS_PTX"),
   DS_FTX: buildDefaultConfig("DS_FTX"),
-  
+  DS_FTU: buildDefaultConfig("DS_FTU"),
   DF_FXU: buildDefaultConfig("DF_FXU"),
   DF_OLB: buildDefaultConfig("DF_OLB"),
   DF_FXM: buildDefaultConfig("DF_FXM"),

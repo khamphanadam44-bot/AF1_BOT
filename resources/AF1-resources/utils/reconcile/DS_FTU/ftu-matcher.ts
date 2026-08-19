@@ -27,11 +27,11 @@ import {
   FTU_REPORT_FIELDS,
   FTU_TEST_DATA_FIELDS,
   FTU_THB_CURRENCY_CODE,
+  normalizeFtuText,
 } from "./ftu-config";
 import type { FtuDirection } from "./ftu-config";
-import { normalizeFtuText } from "./ftu-config";
 
-export interface FtuFallbackMatchResult {
+interface FtuFallbackMatchResult {
   matchedRecord?: ReconcileRecord;
   candidateCount?: number;
   remark: string;
@@ -43,6 +43,7 @@ export interface FtuMatchResult {
   exactMatchedRecord?: ReconcileRecord;
   fallbackResult?: FtuFallbackMatchResult;
   fallbackUnavailableRemark?: string;
+  failureRemark?: string;
 }
 
 export class FtuMatcher {
@@ -95,12 +96,27 @@ export class FtuMatcher {
     reportRecordsById: ReadonlyMap<string, ReconcileRecord>,
     reportRecords: ReconcileRecord[],
     usedReportRowNumbers: ReadonlySet<number>,
+    reservedReportRowNumbers: ReadonlySet<number>,
   ): FtuMatchResult {
     const transactionId = normalizeFtuText(
       testDataRecord.get(FTU_TEST_DATA_FIELDS.transactionId),
     );
     const direction = this.resolveDirection(testDataRecord);
     const exactMatchedRecord = reportRecordsById.get(transactionId);
+
+    if (
+      exactMatchedRecord &&
+      usedReportRowNumbers.has(exactMatchedRecord.rowNumber)
+    ) {
+      return {
+        transactionId,
+        direction,
+        failureRemark:
+          `พบ ${FTU_REPORT_FIELDS.arrangementNumber} = "${transactionId}" ` +
+          `ที่ Report row ${exactMatchedRecord.rowNumber} ` +
+          "แต่แถวดังกล่าวถูก Test Case อื่นใช้แล้ว",
+      };
+    }
 
     if (exactMatchedRecord) {
       return {
@@ -126,6 +142,7 @@ export class FtuMatcher {
         direction,
         reportRecords,
         usedReportRowNumbers,
+        reservedReportRowNumbers,
       ),
     };
   }
@@ -161,6 +178,7 @@ export class FtuMatcher {
     direction: Exclude<FtuDirection, typeof FTU_DIRECTIONS.unknown>,
     reportRecords: ReconcileRecord[],
     usedReportRowNumbers: ReadonlySet<number>,
+    reservedReportRowNumbers: ReadonlySet<number>,
   ): FtuFallbackMatchResult {
     const expectedDate = parseDate(
       testDataRecord.get(FTU_TEST_DATA_FIELDS.transactionDate),
@@ -208,7 +226,10 @@ export class FtuMatcher {
           : [FTU_REPORT_FIELDS.inflowPurpose, FTU_REPORT_FIELDS.outflowPurpose];
 
     const candidates = reportRecords.filter((record) => {
-      if (usedReportRowNumbers.has(record.rowNumber)) {
+      if (
+        usedReportRowNumbers.has(record.rowNumber) ||
+        reservedReportRowNumbers.has(record.rowNumber)
+      ) {
         return false;
       }
 

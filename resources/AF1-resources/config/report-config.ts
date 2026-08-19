@@ -106,8 +106,7 @@ export const REPORT_CONFIG = {
 
   },
 
-  // Report ด้านล่างยังไม่ได้เพิ่ม Required Header
-  // จึงเก็บ Array ว่างไว้เพื่อให้โครงสร้าง Config รองรับชื่อ Report ก่อน
+// Requirement ของ Report DS_FTU
   DS_FTU: {
 
     headerRowNumber: 1,
@@ -140,7 +139,8 @@ export const REPORT_CONFIG = {
       "Fi Arrangement Type Name",
       "Leg Type",
       "Leg Type Name",
-      "USD Equivalent Amount",],
+      "USD Equivalent Amount",
+    ],
 
   },
 
@@ -181,36 +181,58 @@ export const REPORT_CONFIG = {
  * DF_FXM:
  * USD Equivalent Amount ตั้งแต่ 1,000,000 USD ขึ้นไป
  */
-  DF_FXM: {
-
+    DF_FXM: {
     /**
-     * Header ของ DF_FXM Report
-     * อยู่ที่แถวที่ 1
+     * Header ของ DF_FXM Report อยู่ที่แถวที่ 1
      */
     headerRowNumber: 1,
 
     /**
-     * ตอนนี้ Header ในไฟล์ Report
-     * ตรงกับชื่อใน Requirement
-     * จึงยังไม่มีชื่อ Header สำรอง
+     * ใช้ชื่อ Header หลักชุดเดียวกับ DF_FXU
+     *
+     * แต่ไฟล์ Export ของ DF_FXM ใช้ชื่อบาง Header ต่างจาก FXU
+     * จึงกำหนด Alias เพื่อให้ Script 2 รองรับได้ทั้งสองชื่อ
      */
-    aliases: {},
+    aliases: {
+      /**
+       * DF_FXU:
+       * Arrangement Number
+       *
+       * DF_FXM Export จริง:
+       * FI Arrangement Number
+       */
+      "Arrangement Number": [
+        "Arrangement Number",
+        "FI Arrangement Number",
+      ],
+
+      /**
+       * DF_FXU:
+       * Fi Arrangement Type Name
+       *
+       * DF_FXM Export จริง:
+       * Arrangement Type Name
+       */
+      "Fi Arrangement Type Name": [
+        "Fi Arrangement Type Name",
+        "Arrangement Type Name",
+      ],
+    },
 
     /**
-     * Header ที่ต้องพบใน DF_FXM Report
+     * ใช้ Requirement Header หลักชุดเดียวกับ DF_FXU
      *
-     * ใช้ Header ชุดเดียวกับ DF_FXU
+     * ชื่อที่ต่างกันใน FXM จะถูกจับคู่ผ่าน aliases ด้านบน
      */
     requiredHeaders: [
       "Data Set Date",
-      "FI Arrangement Number",
+      "Arrangement Number",
       "Arrangement Type",
-      "Arrangement Type Name",
+      "Fi Arrangement Type Name",
       "Leg Type",
       "Leg Type Name",
       "USD Equivalent Amount",
     ],
-
   },
 
 } as const;

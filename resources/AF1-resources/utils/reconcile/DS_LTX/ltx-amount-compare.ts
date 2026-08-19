@@ -1,51 +1,112 @@
 /**
- * AmountComparator
- * ------------------------------------------------------------------
- * เปรียบเทียบตัวเลขแบบมี tolerance ตาม Requirement: abs(expected - actual) <= 0.01
- * ------------------------------------------------------------------
+ * แปลง รวม และเปรียบเทียบ Amount ของ DS_LTX
+ * เพื่อให้ Matching และ Field Validation ใช้กติกาเดียวกัน
  */
+
 import { DEFAULT_AMOUNT_TOLERANCE } from "./ltx-config";
 
-export interface AmountCompareResult {
-  isMatch: boolean;
-  expectedNumber: number | null;
-  actualNumber: number | null;
-  diff: number | null;
-}
+/**
+ * ชดเชยความคลาดเคลื่อนระดับ Floating-point ของ JavaScript
+ * โดยไม่เพิ่ม Business Tolerance ที่กำหนดไว้
+ */
+const FLOATING_POINT_SAFETY_FACTOR = 4;
 
 export class AmountComparator {
-  /** แปลง string เป็นตัวเลข (ตัด comma คั่นหลักพัน) คืนค่า null ถ้าแปลงไม่ได้/ว่าง */
+  /**
+   * แปลงข้อความ Amount เป็นตัวเลข
+   *
+   * คืน null เมื่อข้อมูลว่าง ไม่ใช่ตัวเลข หรือเป็น Infinity
+   * เพื่อป้องกันข้อมูลเสียถูกนำไป Match หรือคำนวณต่อ
+   */
   parse(value: string): number | null {
-    const cleaned = value.replace(/,/g, "").trim();
+    const cleaned = value
+      .replace(/,/g, "")
+      .trim();
+
     if (cleaned === "") {
       return null;
     }
+
     const parsed = Number(cleaned);
-    return Number.isNaN(parsed) ? null : parsed;
+
+    return Number.isFinite(parsed)
+      ? parsed
+      : null;
   }
 
-  /** รวมยอดจาก array ของ string (ใช้กับ Fee Amount Type 1-5) ข้ามค่าที่แปลงไม่ได้ */
-  sum(values: string[]): number {
-    return values.reduce((total, value) => {
-      const parsed = this.parse(value);
-      return parsed === null ? total : total + parsed;
-    }, 0);
+  /**
+   * รวม Fee Amount จากทุกกลุ่มที่ตรวจพบ
+   *
+   * Fee บางกลุ่มอาจไม่มีข้อมูล จึงนำมารวมเฉพาะค่าที่
+   * สามารถแปลงเป็นตัวเลขได้เท่านั้น
+   */
+  sum(values: readonly string[]): number {
+    return values.reduce(
+      (
+        total,
+        value,
+      ) => {
+        const parsed =
+          this.parse(value);
+
+        return parsed === null
+          ? total
+          : total + parsed;
+      },
+      0,
+    );
   }
 
-  /** เปรียบเทียบตัวเลขแบบ tolerance — คืนรายละเอียดสำหรับใส่ใน Remark */
-  compare(
+  /**
+   * ตรวจว่า Expected Amount และ Actual Amount
+   * มีผลต่างไม่เกิน Business Tolerance หรือไม่
+   *
+   * Floating-point allowance ใช้แก้ข้อจำกัดการเก็บเลขทศนิยม
+   * ของ JavaScript เท่านั้น ไม่ได้ขยาย Business Tolerance
+   */
+  matches(
     expected: string,
     actual: string,
-    tolerance: number = DEFAULT_AMOUNT_TOLERANCE,
-  ): AmountCompareResult {
-    const expectedNumber = this.parse(expected);
-    const actualNumber = this.parse(actual);
+    tolerance: number =
+      DEFAULT_AMOUNT_TOLERANCE,
+  ): boolean {
+    const expectedNumber =
+      this.parse(expected);
 
-    if (expectedNumber === null || actualNumber === null) {
-      return { isMatch: false, expectedNumber, actualNumber, diff: null };
+    const actualNumber =
+      this.parse(actual);
+
+    if (
+      expectedNumber === null ||
+      actualNumber === null
+    ) {
+      return false;
     }
 
-    const diff = Math.abs(expectedNumber - actualNumber);
-    return { isMatch: diff <= tolerance, expectedNumber, actualNumber, diff };
+    const difference =
+      Math.abs(
+        expectedNumber -
+        actualNumber,
+      );
+
+    /**
+     * ตัวอย่าง:
+     * 100.01 - 100 อาจได้ 0.010000000000005116
+     * ทั้งที่ผลต่างทางธุรกิจคือ 0.01
+     */
+    const floatingPointAllowance =
+      Number.EPSILON *
+      Math.max(
+        1,
+        Math.abs(expectedNumber),
+        Math.abs(actualNumber),
+      ) *
+      FLOATING_POINT_SAFETY_FACTOR;
+
+    return (
+      difference <=
+      tolerance +
+        floatingPointAllowance
+    );
   }
 }

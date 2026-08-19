@@ -13,12 +13,14 @@
  * - DS_PTX
  * - DS_FTX
  * - DS_FTU
+ * - DF_FXU
+ * - DF_OLB
+ * - DF_FXM
  *
  * ตัวอย่างคำสั่ง:
  * npm run test:script4 -- report=DS_PTX
- * npm run test:script4 -- report=DS_FTX
- * npm run test:script4 -- report=DS_LTX
- * npm run test:script4 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU
+ * npm run test:script4 -- report=DF_FXM
+ * npm run test:script4 -- report=DS_LTX,DS_PTX,DS_FTX,DS_FTU,DF_FXU,DF_OLB,DF_FXM
  * ------------------------------------------------------------------
  */
 
@@ -35,7 +37,6 @@ import {
 } from "../resources/AF1-resources/setting/uat/setting";
 
 import {
-  createRunId,
   getLatestCheckedReportPath,
   getLatestCheckedTestDataPath,
   getLatestCompareResultPath,
@@ -43,59 +44,35 @@ import {
   getSummaryTemplatePath,
 } from "../resources/AF1-resources/utils/summary/summary-file-helper";
 
+import { getAutomationRunTimingSummary } from "../resources/AF1-resources/utils/summary/automation-run-timing";
+
+import {
+  buildAutomationSummaryResult,
+} from "../resources/AF1-resources/utils/summary/summary-result-builder";
 import {
   readCompareResultRows,
   writeReportAutomationSummary,
 } from "../resources/AF1-resources/utils/summary/automation-summary-writer";
 
 /**
- * แปลงวันที่เป็นรูปแบบ yyyy-MM-dd
- */
-const formatDate = (
-  date: Date,
-): string => {
-  const yyyy = date.getFullYear();
-  const MM = String(
-    date.getMonth() + 1,
-  ).padStart(2, "0");
-  const dd = String(
-    date.getDate(),
-  ).padStart(2, "0");
-
-  return `${yyyy}-${MM}-${dd}`;
-};
-
-/**
- * แปลงเวลาเป็นรูปแบบ HH:mm:ss
- */
-const formatTime = (
-  date: Date,
-): string => {
-  const HH = String(
-    date.getHours(),
-  ).padStart(2, "0");
-  const mm = String(
-    date.getMinutes(),
-  ).padStart(2, "0");
-  const ss = String(
-    date.getSeconds(),
-  ).padStart(2, "0");
-
-  return `${HH}:${mm}:${ss}`;
-};
-
-/**
  * อ่านรายชื่อ Report จากค่า report
  *
- * ถ้าไม่ส่งค่า report ระบบจะใช้ Report เริ่มต้น
- * จาก dmsReportName ใน setting.ts
+ * ผู้ใช้ต้องระบุชื่อ Report ทุกครั้ง
+ * หากไม่ระบุ ระบบจะแจ้ง Error และหยุดการทำงาน
  */
 const selectedReports =
   getSelectedReports();
 
 describe(
   "Script 4 - Summary Results",
-  () => {
+  function () {
+    /**
+     * เพิ่มเวลาสูงสุดเป็น 5 นาที
+     * สำหรับการสร้าง Summary หลาย Report
+     */
+    this.timeout(
+      300000,
+    );
     /**
      * สร้าง Test แยกหนึ่งชุดต่อหนึ่ง Report
      *
@@ -112,6 +89,16 @@ describe(
         async () => {
           const startedAt =
             new Date();
+
+          /**
+           * อ่านเวลา Script 1-3 ของ Report ปัจจุบัน
+           *
+           * ถ้าขั้นตอนไหนยังไม่ได้รัน ระบบจะหยุดและแจ้งชื่อขั้นตอนที่ขาด
+           */
+          const automationTiming =
+            getAutomationRunTimingSummary(
+              reportName,
+            );
 
           /**
           * ค้นหา Original Test Data จาก Share Path
@@ -154,6 +141,33 @@ describe(
             );
 
           /**
+           * ดึง Timestamp จากชื่อไฟล์ Output
+           *
+           * ตัวอย่างชื่อไฟล์:
+           * DS_FTX_Automation_Summary_20260818_144647-Final.xlsx
+           *
+           * ค่าที่ดึงได้:
+           * 20260818_144647
+           */
+          const outputTimestamp =
+            path
+              .basename(outputPath)
+              .match(
+                /\d{8}_\d{6}/,
+              )?.[0];
+
+          /**
+           * ป้องกันกรณีชื่อไฟล์ Output ไม่มี Timestamp
+           */
+          if (!outputTimestamp) {
+            throw new Error(
+              `Timestamp not found in Summary output file: ${outputPath}`,
+            );
+          }
+
+
+
+          /**
            * ขั้นตอนที่ 2: อ่านผล Compare จาก Script 3
            */
           const compareRows =
@@ -163,29 +177,19 @@ describe(
 
           /**
            * ขั้นตอนที่ 3:
-           * นับผล PASS / FAIL / SKIP
-           * เพื่อนำไปแสดงในส่วนสรุปด้านบนของไฟล์
-           */
-          const totalPass =
-            compareRows.filter(
-              (row) =>
-                row.status ===
-                "PASS",
-            ).length;
-
-          const totalFail =
-            compareRows.filter(
-              (row) =>
-                row.status ===
-                "FAIL",
-            ).length;
-
-          const totalSkip =
-            compareRows.filter(
-              (row) =>
-                row.status ===
-                "SKIP",
-            ).length;
+           * เตรียม Summary Result ด้วยกติกากลางของแต่ละ Report
+           *
+           * Script 4 ไม่ต้องรู้ว่า Report ใดมีวิธีนับ Test Case ต่างกัน
+           * ตัวอย่าง:
+           * - DS_LTX รวมหลาย DR/FE Record ของ Test No. เดียวกัน
+           * - DS_PTX รวมหลาย Fee Record ของ Test No. เดียวกัน
+           * ให้เป็นหนึ่ง Summary Test Case ภายใน Summary Module
+            */
+          const summaryResult =
+            buildAutomationSummaryResult(
+              reportName,
+              compareRows,
+            );
 
           /**
            * ขั้นตอนที่ 4:
@@ -197,6 +201,7 @@ describe(
            * - <REPORT>            = Checked Report จาก Script 2
            * - Test Data           = Checked Test Data จาก Script 2
            */
+          
           await writeReportAutomationSummary(
             reportName,
             templatePath,
@@ -205,37 +210,45 @@ describe(
             originalTestDataPath,
             checkedReportPath,
             checkedTestDataPath,
-            compareRows,
+            summaryResult.rows,
             {
+              /**
+              * ชื่อที่แสดงตรง Report File Name ใน Summary
+              *
+              * ตัวอย่าง:
+              * DS_FTX_Summary_Test_Result_20260818_144647
+              */
               reportFileName:
-                path.basename(
-                  compareResultPath,
-                ),
+                `${reportName}_Summary_Test_Result_${outputTimestamp}`,
 
-              executionDate:
-                formatDate(
-                  startedAt,
-                ),
+              /** เวลาเริ่มต้นจาก Script 1 */
+              automationStartedAt:
+                automationTiming
+                  .automationStartedAt,
 
-              executionTime:
-                formatTime(
-                  startedAt,
-                ),
+              /** เวลาเริ่ม Script 4 */
+              script4StartedAt:
+                startedAt,
+
+              /** เวลารวม Script 1-3 */
+              completedStageDurationMilliseconds:
+                automationTiming
+                  .completedStageDurationMilliseconds,
 
               runId:
-                createRunId(),
+                automationTiming.runId,
 
               verifiedBy:
                 "QAD Automation",
 
               totalChecked:
-                compareRows.length,
+                summaryResult.totalChecked,
 
               passed:
-                totalPass,
+                summaryResult.passed,
 
               failed:
-                totalFail,
+                summaryResult.failed,
             },
           );
 
@@ -278,19 +291,19 @@ describe(
           );
           console.log(
             "Total Checked     :",
-            compareRows.length,
+            summaryResult.totalChecked,
           );
           console.log(
             "PASS              :",
-            totalPass,
+            summaryResult.passed,
           );
           console.log(
             "FAIL              :",
-            totalFail,
+            summaryResult.failed,
           );
           console.log(
             "SKIP              :",
-            totalSkip,
+            summaryResult.skipped,
           );
           console.log(
             "Output File       :",

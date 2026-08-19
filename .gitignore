@@ -16,6 +16,18 @@ node_modules/
 Test_result/
 
 
+# Ignore ข้อมูลทดสอบทั้งหมดภายใต้ test_data
+/test_data/*
+
+# ยกเว้น Folder Template เพราะต้อง Commit ขึ้น Git
+!/test_data/template/
+!/test_data/template/*.xlsx
+
+
 # Local files
 desktop.ini
 *.zip
+
+
+# ไฟล์ JSON ชั่วคราวสำหรับจับเวลา Script 1-4
+resources/AF1-resources/utils/summary/Automation-run-time/

@@ -2017,7 +2017,6 @@ export const writeCompareResult = async (
                 );
 
             /**
-                        /**
              * ลงสี Matching Key ตาม Status
              *
              * PASS = สีเขียว

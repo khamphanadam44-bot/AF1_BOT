@@ -1,350 +1,120 @@
 /**
- * LtxExpectedCaseBuilder
- * ------------------------------------------------------------------
  * สร้าง Expected Case ของ DS_LTX จาก Test Data
  *
- * หลักการ:
- * 1 Test Data Row = 1 Expected Case
- *
- * - ไม่รวมยอด Fee ข้ามระหว่างแถวหลักกับแถว -Return
- * - รวม Fee Amount ทุกกลุ่มภายใน Test Data แถวเดียวกัน
- * - จำนวน Fee Group ตรวจจาก Header จริง ไม่กำหนดแบบ Hard code
- * - ถ้ามี Transaction ID จะใช้สร้าง Expected Reference
- * - ถ้าไม่มี Transaction ID จะส่ง Expected Case ต่อไปให้
- *   ReconcileService ทำ Fallback Matching ด้วย Field และ Amount
- *
- * ลำดับค่าที่แสดงใน Column Test Script No.:
- * 1. Test No.
- * 2. Transaction ID/ Reconcile ID
- * 3. Test Data Row Number
- * ------------------------------------------------------------------
+ * หนึ่ง Test Data Row ต้องเป็นหนึ่ง Expected Case เพื่อไม่ให้รายการปกติ
+ * และรายการ -Return ถูกนำมารวมกันข้ามแถว ส่วน Fee จะรวมเฉพาะภายในแถวเดียวกัน
  */
 
-import {
-  detectFeeTypeCount,
-} from "../../../config/testdata-helper";
-
+import { detectFeeTypeCount } from "../../../config/testdata-helper";
 import {
   createHeaderAliases,
   findMatchingHeader,
 } from "../../validators/shared/header-matcher";
+import type { ReconcileRecord } from "../shared/record";
+import { AmountComparator } from "./ltx-amount-compare";
+import type { ReconcileReportConfig } from "./ltx-config";
 
-import {
-  ReconcileRecord,
-} from "../shared/record";
+const FEE_AMOUNT_HEADER_PREFIX = "Fee Amount Type";
 
-import {
-  AmountComparator,
-} from "./ltx-amount-compare";
+export interface ExpectedCase {
+  displayTestCaseNo: string;
+  primaryRecord: ReconcileRecord;
+  expectedDrReference: string | undefined;
+  expectedFeReference: string | undefined;
+  hasExpectedDr: boolean;
+  hasExpectedFe: boolean;
+  expectedFeAmount: string;
+}
 
-import type {
-  ReconcileReportConfig,
-} from "./ltx-config";
-
-import type {
-  ExpectedCase,
-  IExpectedCaseBuilder,
-} from "./ltx-expected-case";
-
-/** Header ที่ใช้แสดงหมายเลข Test Case */
-const TEST_NO_HEADER =
-  "Test No.";
-
-/**
- * สร้าง Expected Case ของ DS_LTX
- */
-export class LtxExpectedCaseBuilder
-  implements IExpectedCaseBuilder {
+/** 1 Test Data row สร้าง 1 Expected Case; Return row จะไม่ถูกรวมข้ามแถว */
+export class LtxExpectedCaseBuilder {
   constructor(
-    private readonly amountComparator:
-      AmountComparator =
-      new AmountComparator(),
+    private readonly amountComparator: AmountComparator = new AmountComparator(),
   ) {}
 
-  /**
-   * ตัด Suffix "-Return" ออกจาก Test No.
-   *
-   * ตัวอย่าง:
-   * AAA_01-Return → AAA_01
-   * AAA_01        → AAA_01
-   *
-   * ใช้สำหรับแสดงผลเท่านั้น
-   * ไม่ได้นำไปใช้เป็น Matching Key
-   */
-  private toDisplayTestCaseNo(
-    testNo: string,
-  ): string {
-    return testNo
-      .replace(
-        /-return$/i,
-        "",
-      )
-      .trim();
-  }
+  /** หา Fee headers เพียงครั้งเดียว เพราะทุก record ใช้โครงสร้างเดียวกัน */
+  private findFeeAmountHeaders(headers: string[]): string[] {
+    const feeTypeCount = detectFeeTypeCount(headers);
+    const aliases = createHeaderAliases(feeTypeCount);
+    const feeAmountHeaders: string[] = [];
 
-  /**
-   * รวม Fee Amount ทุกกลุ่มของ Test Data หนึ่งแถว
-   *
-   * จำนวน Fee Group ตรวจจาก Header จริง
-   *
-   * ตัวอย่าง:
-   * - Fee Amount Type 1
-   * - Fee Amount 2
-   * - Fee Amount 3
-   *
-   * หาก Header มี Fee ถึงกลุ่ม 10
-   * ระบบจะตรวจและรวมยอดถึงกลุ่ม 10 โดยอัตโนมัติ
-   */
-  private sumFeeAmountsOfRecord(
-    headers: string[],
-    record: ReconcileRecord,
-  ): number {
-    /**
-     * ตรวจหมายเลข Fee Group สูงสุด
-     * จาก Header ที่มีอยู่จริงใน Test Data
-     */
-    const feeTypeCount =
-      detectFeeTypeCount(
+    for (let feeIndex = 1; feeIndex <= feeTypeCount; feeIndex += 1) {
+      const actualHeader = findMatchingHeader(
         headers,
+        `${FEE_AMOUNT_HEADER_PREFIX} ${feeIndex}`,
+        aliases,
       );
 
-    /**
-     * สร้าง Alias ของ Fee Header
-     * ตามจำนวน Fee Group ที่ตรวจพบ
-     *
-     * รองรับทั้ง:
-     * Fee Amount Type 1
-     * Fee Amount 2
-     * Fee Amount 3
-     */
-    const aliases =
-      createHeaderAliases(
-        feeTypeCount,
-      );
-
-    const feeValues:
-      string[] = [];
-
-    /**
-     * อ่าน Fee Amount ตั้งแต่กลุ่ม 1
-     * ถึงกลุ่มสูงสุดที่พบจาก Header
-     */
-    for (
-      let feeIndex = 1;
-      feeIndex <= feeTypeCount;
-      feeIndex += 1
-    ) {
-      /**
-       * ใช้ชื่อมาตรฐาน Fee Amount Type N
-       * แล้วให้ findMatchingHeader() หา Header จริงผ่าน Alias
-       *
-       * ตัวอย่าง:
-       * Expected Header = Fee Amount Type 2
-       * Actual Header   = Fee Amount 2
-       */
-      const actualHeader =
-        findMatchingHeader(
-          headers,
-          `Fee Amount Type ${feeIndex}`,
-          aliases,
-        );
-
-      if (
-        !actualHeader
-      ) {
-        continue;
+      if (actualHeader) {
+        feeAmountHeaders.push(actualHeader);
       }
-
-      feeValues.push(
-        record.get(
-          actualHeader,
-        ),
-      );
     }
 
-    /**
-     * รวมยอด Fee ทั้งหมดภายใน Test Data แถวเดียวกัน
-     */
+    return feeAmountHeaders;
+  }
+
+  private sumFeeAmounts(
+    record: ReconcileRecord,
+    feeAmountHeaders: readonly string[],
+  ): number {
+    // ทุกค่าในรายการนี้มาจาก Test Data แถวเดียวกัน จึงไม่รวม Fee ข้าม Case
     return this.amountComparator.sum(
-      feeValues,
+      feeAmountHeaders.map((header) => record.get(header)),
     );
   }
 
-  /**
-   * สร้าง Expected Case จาก Test Data ทุกแถว
-   */
+  /** Amount ต้องมากกว่า 0 จึงถือว่า Test Data คาดหวังรายการใน Report */
+  private hasPositiveAmount(record: ReconcileRecord, field: string): boolean {
+    const amount = this.amountComparator.parse(record.get(field));
+    return amount !== null && amount > 0;
+  }
+
   build(
     headers: string[],
-    testDataRecords:
-      ReconcileRecord[],
-    config:
-      ReconcileReportConfig,
+    testDataRecords: ReconcileRecord[],
+    config: ReconcileReportConfig,
   ): ExpectedCase[] {
-    return testDataRecords.map(
-      (
-        record,
-      ): ExpectedCase => {
-        /**
-         * แยกหน้าที่ของ Identity:
-         *
-         * displayValue:
-         * ใช้ Test No. สำหรับแสดงผล
-         *
-         * matchingReference:
-         * ใช้ Transaction ID/ Reconcile ID
-         * สำหรับจับคู่กับ DS_LTX Report
-         */
-        const identity =
-          record.resolveIdentity(
-            TEST_NO_HEADER,
-            config.testDataIdField,
-            (
-              testNo,
-            ) =>
-              this.toDisplayTestCaseNo(
-                testNo,
-              ),
-          );
+    // Workbook หนึ่งไฟล์ใช้ Header ชุดเดียวกัน จึงค้นหา Fee Header ก่อนวนทุกแถว
+    const feeAmountHeaders = this.findFeeAmountHeaders(headers);
 
-        const transactionId =
-          identity.matchingReference;
+    return testDataRecords.map((record) => {
+      const identity = record.resolveIdentity(
+        config.testDataTestNoField,
+        config.testDataIdField,
+        // รักษา Test No. ตาม Test Data รวมถึง -Return; ตัดเฉพาะช่องว่างหัวท้าย
+        (testNo) => testNo.trim(),
+      );
+      const transactionId = identity.matchingReference;
 
-        const hasTransactionId =
-          transactionId !== "";
+      /** ใช้ Test No. ก่อน แล้วจึง fallback ไป Transaction ID หรือเลขแถว */
+      const displayTestCaseNo =
+        identity.displayValue ||
+        transactionId ||
+        `Test Data Row ${record.rowNumber}`;
+      const hasExpectedDr =
+        this.hasPositiveAmount(record, config.drAmountTestDataField) ||
+        this.hasPositiveAmount(record, config.drAmountFallbackTestDataField);
 
-        /**
-         * เลือกค่าที่ใช้แสดงใน Column Test Script No.
-         *
-         * ลำดับ:
-         * 1. Test No.
-         * 2. Transaction ID/ Reconcile ID
-         * 3. Test Data Row Number
-         *
-         * ตัวอย่าง:
-         * Test Data Row 6
-         *
-         * รูปแบบนี้รองรับโดย Script 4 ปัจจุบัน
-         */
-        const displayTestCaseNo =
-          identity.displayValue !== ""
-            ? identity.displayValue
-            : transactionId !== ""
-              ? transactionId
-              : `Test Data Row ${record.rowNumber}`;
+      /** Fee มากกว่า 0 หมายถึง Test Data คาดหวังแถว FE */
+      const feeSum = this.sumFeeAmounts(record, feeAmountHeaders);
+      const hasExpectedFe = feeSum > 0;
 
-        /**
-         * อ่านยอดหลักสำหรับแถว DR
-         *
-         * ยอดหลัก:
-         * From Transfer Amount
-         *
-         * ยอดสำรอง:
-         * From Debit Amount
-         */
-        const drAmount =
-          this.amountComparator.parse(
-            record.get(
-              config
-                .drAmountTestDataField,
-            ),
-          );
-
-        const drAmountFallback =
-          this.amountComparator.parse(
-            record.get(
-              config
-                .drAmountFallbackTestDataField,
-            ),
-          );
-
-        /**
-         * Test Data แถวนี้ต้องมี DR
-         * เมื่อยอดหลักหรือยอดสำรองมากกว่า 0.01
-         *
-         * ค่า 0 หรือค่าว่างไม่ถือว่าต้องมี DR
-         */
-        const hasDrAmount =
-          (
-            drAmount !== null &&
-            drAmount > 0.01
-          ) ||
-          (
-            drAmountFallback !== null &&
-            drAmountFallback > 0.01
-          );
-
-        /**
-         * รวมยอด Fee Amount ทุกกลุ่ม
-         * ภายใน Test Data แถวเดียวกัน
-         */
-        const feeSum =
-          this.sumFeeAmountsOfRecord(
-            headers,
-            record,
-          );
-
-        /**
-         * Test Data แถวนี้ต้องมี FE
-         * เมื่อยอด Fee รวมมากกว่า 0.01
-         */
-        const hasFee =
-          feeSum > 0.01;
-
-        return {
-          displayTestCaseNo,
-
-          primaryRecord:
-            record,
-
-          /**
-           * กรณีมี DR Amount และมี Transaction ID:
-           * สร้าง Expected Reference ปกติ
-           *
-           * ตัวอย่าง:
-           * ABC123DR
-           *
-           * กรณีไม่มี Transaction ID:
-           * คืน undefined แล้วให้ ReconcileService
-           * ทำ Fallback Matching ด้วย Field และ Amount
-           */
-          expectedDrReference:
-            hasDrAmount &&
-            hasTransactionId
-              ? (
-                  `${transactionId}` +
-                  `${config.drSuffixLabel}`
-                )
-              : undefined,
-
-          /**
-           * กรณีมี Fee Amount และมี Transaction ID:
-           * สร้าง Expected Reference ปกติ
-           *
-           * ตัวอย่าง:
-           * ABC123FE
-           *
-           * กรณีไม่มี Transaction ID:
-           * คืน undefined แล้วให้ ReconcileService
-           * ทำ Fallback Matching ด้วย Field และ SUM Fee Amount
-           */
-          expectedFeReference:
-            hasFee &&
-            hasTransactionId
-              ? (
-                  `${transactionId}` +
-                  `${config.feSuffixLabel}`
-                )
-              : undefined,
-
-          /**
-           * ยอด Fee รวมภายใน Test Data แถวนี้
-           */
-          expectedFeAmount:
-            feeSum.toFixed(
-              2,
-            ),
-        };
-      },
-    );
+      return {
+        displayTestCaseNo,
+        primaryRecord: record,
+        // ไม่มี Transaction ID ให้คืน undefined เพื่อส่งต่อไปทำ Fallback Matching
+        expectedDrReference:
+          hasExpectedDr && transactionId
+            ? `${transactionId}${config.drSuffixLabel}`
+            : undefined,
+        expectedFeReference:
+          hasExpectedFe && transactionId
+            ? `${transactionId}${config.feSuffixLabel}`
+            : undefined,
+        hasExpectedDr,
+        hasExpectedFe,
+        expectedFeAmount: feeSum.toFixed(2),
+      };
+    });
   }
 }

@@ -62,6 +62,10 @@ import {
   validateTestData,
 } from "../resources/AF1-resources/utils/validators/test-data-report/test-data-validator";
 
+import {
+  recordAutomationRunStage,
+} from "../resources/AF1-resources/utils/summary/automation-run-timing";
+
 /**
  * ตรวจสอบ Report 1 รายการ
  *
@@ -252,6 +256,8 @@ const validateSelectedReport =
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
+ * - DF_OLB
+ * - DF_FXM
  *
  * หากชื่อ Report มีอยู่ใน TESTDATA_CONFIG
  * ระบบจะตรวจทั้ง Header และข้อมูลใน Test Data
@@ -329,14 +335,29 @@ describe(
       it(
         `Validate latest ${selectedReport} Report header`,
         async () => {
-          await validateSelectedReport(
-            selectedReport,
-          );
+          const stageStartedAt =
+            new Date();
+
+          try {
+            await validateSelectedReport(
+              selectedReport,
+            );
+          } finally {
+            /**
+             * บันทึกเฉพาะเวลาตรวจ Report Header
+             * ไม่รวมเวลาที่ใช้กับ Report อื่น
+             */
+            recordAutomationRunStage(
+              selectedReport,
+              "SCRIPT_2_REPORT_HEADER",
+              stageStartedAt,
+              new Date(),
+            );
+          }
         },
       );
     }
-
-    /**
+ /**
  * เลือกเฉพาะ Report ที่มี Test Data Config
  *
  * Report ที่รองรับการตรวจ Test Data:
@@ -345,8 +366,10 @@ describe(
  * - DS_FTX
  * - DS_FTU
  * - DF_FXU
+ * - DF_OLB
+ * - DF_FXM
  *
- * Report ที่ยังไม่มี Config:
+ * หากมีการเพิ่ม Report ใหม่แต่ยังไม่มี Config:
  * - ยังคงตรวจ Report Header ได้ตามปกติ
  * - จะข้ามขั้นตอน Test Data Validation
  * - จะแสดงเหตุผลว่าไม่พบ Test Data Config
@@ -390,6 +413,10 @@ describe(
       it(
         `Validate ${selectedReport} Test Data header and fields`,
         async () => {
+          const stageStartedAt =
+            new Date();
+
+          try {
           console.log(
             "========================================",
           );
@@ -466,6 +493,18 @@ describe(
           console.log(
             "========================================",
           );
+          } finally {
+            /**
+             * Script 2 มีสองช่วง จึงเก็บเวลาตรวจ Test Data
+             * แยกจากเวลาตรวจ Report Header
+             */
+            recordAutomationRunStage(
+              selectedReport,
+              "SCRIPT_2_TEST_DATA",
+              stageStartedAt,
+              new Date(),
+            );
+          }
         },
       );
     }

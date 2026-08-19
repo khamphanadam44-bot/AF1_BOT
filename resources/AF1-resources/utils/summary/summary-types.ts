@@ -24,8 +24,22 @@ export interface CompareResultRow {
 
 export interface AutomationSummaryInfo {
   reportFileName: string;
-  executionDate: string;
-  executionTime: string;
+
+  /**
+   * เวลาเริ่ม Script 1 ของ Report นี้
+   * ใช้แสดง Execution Date และ Actual Execution Time Start
+   */
+  automationStartedAt: Date;
+
+  /** เวลาเริ่ม Script 4 ของ Report นี้ */
+  script4StartedAt: Date;
+
+  /**
+   * เวลารวมของ Script 1-3 หน่วย Millisecond
+   * Script 4 จะบวกเวลาของตัวเองก่อนเขียน Duration Time
+   */
+  completedStageDurationMilliseconds: number;
+
   runId: string;
   verifiedBy: string;
   totalChecked: number;

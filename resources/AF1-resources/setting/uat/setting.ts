@@ -42,9 +42,12 @@ const requireEnv = (
  * ข้อมูลสำหรับเข้าใช้งานระบบ UAT
  */
 export const webSetting = {
-  url:
-    process.env.AF1_UAT_URL ??
-    "http://192.168.35.99:7081/portal/index",
+  
+  get url(): string {
+    return requireEnv(
+      "AF1_UAT_URL",
+    );
+ },
 
   get username(): string {
     return requireEnv(
@@ -84,13 +87,6 @@ export const dmsReportNames = [
 export type DmsReportName =
   (typeof dmsReportNames)[number];
 
-
-/**
- * Report เริ่มต้น
- *
- * ใช้เมื่อไม่ได้เลือก Report
- * ผ่าน Terminal
- */
 /**
  * รูปแบบช่วงวันที่ที่ใช้ Export Report
  */

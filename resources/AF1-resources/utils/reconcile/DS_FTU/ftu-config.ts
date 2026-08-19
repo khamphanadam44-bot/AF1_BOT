@@ -65,7 +65,7 @@ export const FTU_TEST_DATA_FIELDS = {
   purposeCode: "From BOT Purpose code",
   settledAmount: "Settled Amount (CCY)",
   settledCurrency: "Settled Currency (CCY)",
-};
+} as const;
 
 export const FTU_REQUIRED_TEST_DATA_HEADERS = [
   FTU_TEST_DATA_FIELDS.testNo,
@@ -99,5 +99,7 @@ export const FTU_REMARKS = {
  */
 export const normalizeFtuText = (value: unknown): string =>
   String(value ?? "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
